@@ -50,6 +50,7 @@
   "build": {
     "appId": "com.finderpro.app",
     "productName": "Finder Pro",
+    "compression": "maximum",
     "mac": {
       "category": "public.app-category.utilities",
       "target": [
@@ -57,7 +58,8 @@
         "zip"
       ],
       "icon": "icon.png",
-      "darkModeSupport": true
+      "darkModeSupport": true,
+      "gatekeeperAssess": false
     },
     "dmg": {
       "title": "Finder Pro",
@@ -77,7 +79,14 @@
     },
     "files": [
       "dist/**/*",
-      "src/main/**/*"
+      "src/main/**/*",
+      "icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/better-sqlite3",
+        "to": "better-sqlite3"
+      }
     ]
   }
 }
