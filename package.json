@@ -56,7 +56,7 @@
         "dmg",
         "zip"
       ],
-      "icon": "build/icon.icns",
+      "icon": "icon.png",
       "darkModeSupport": true
     },
     "dmg": {
