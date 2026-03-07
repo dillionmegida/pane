@@ -16,6 +16,7 @@ const createPane = (id, initialPath = '/') => ({
   viewMode: 'column', // Column view as default
   tabs: [{ id: `tab-${Date.now()}`, path: initialPath, label: 'Home' }],
   activeTab: 0,
+  currentBreadcrumbPath: initialPath,
 });
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -107,6 +108,10 @@ export const useStore = create((set, get) => ({
     panes: s.panes.map(p => p.id === paneId ? { ...p, viewMode } : p),
   })),
 
+  setCurrentBreadcrumbPath: (paneId, path) => set(s => ({
+    panes: s.panes.map(p => p.id === paneId ? { ...p, currentBreadcrumbPath: path } : p),
+  })),
+
   // ── Tabs ─────────────────────────────────────────────────────────────────
   addTab: (paneId, tabPath) => set(s => {
     const pane = s.panes.find(p => p.id === paneId);
@@ -138,6 +143,41 @@ export const useStore = create((set, get) => ({
       panes: s.panes.map(p => p.id === paneId ? { ...p, activeTab: tabIndex } : p),
     }));
     navigateTo(paneId, pane.tabs[tabIndex].path);
+  },
+
+  // ── File Navigation ───────────────────────────────────────────────────────
+  navigateToFile: async (paneId, filePath) => {
+    const { panes, navigateTo } = get();
+    const pane = panes.find(p => p.id === paneId);
+    if (!pane) return;
+
+    // Extract directory path from file path
+    const dirPath = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '/';
+    
+    // Navigate to the directory first
+    await navigateTo(paneId, dirPath);
+    
+    // Set the file as preview
+    const file = await api.stat(filePath);
+    if (file.success) {
+      const fileInfo = {
+        ...file.stat,
+        path: filePath,
+        name: filePath.split('/').pop(),
+        isDirectory: file.stat.isDirectory,
+      };
+      get().setPreviewFile(fileInfo);
+    }
+  },
+
+  revealInTree: async (paneId, filePath) => {
+    const { navigateTo } = get();
+    
+    // Extract directory path from file path
+    const dirPath = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '/';
+    
+    // Navigate to the directory
+    await navigateTo(paneId, dirPath);
   },
 
   // ── Preview ───────────────────────────────────────────────────────────────

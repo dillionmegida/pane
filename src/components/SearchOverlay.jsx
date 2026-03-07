@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { useStore, formatSize, formatDate, getFileIcon } from '../store';
 
@@ -79,6 +79,7 @@ const ResultItem = styled.div`
   cursor: pointer;
   transition: background 0.07s;
   &:hover { background: ${p => p.theme.bg.hover}; }
+  &:hover .reveal-btn { opacity: 1; }
 `;
 
 const ResultIcon = styled.span`
@@ -116,6 +117,23 @@ const ResultMeta = styled.div`
   flex-shrink: 0;
 `;
 
+const RevealBtn = styled.button`
+  background: none;
+  border: 1px solid ${p => p.theme.border.normal};
+  color: ${p => p.theme.text.secondary};
+  border-radius: ${p => p.theme.radius.sm};
+  padding: 2px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s;
+  &:hover { 
+    background: ${p => p.theme.bg.hover}; 
+    color: ${p => p.theme.text.primary};
+    border-color: ${p => p.theme.border.strong};
+  }
+`;
+
 const StatusBar = styled.div`
   padding: 8px 16px;
   font-size: 11px;
@@ -126,7 +144,7 @@ const StatusBar = styled.div`
 `;
 
 export default function SearchOverlay() {
-  const { panes, activePane, navigateTo, toggleSearch, setPreviewFile } = useStore();
+  const { panes, activePane, navigateTo, navigateToFile, revealInTree, toggleSearch, setPreviewFile } = useStore();
   const pane = panes.find(p => p.id === activePane);
 
   const [query, setQuery] = useState('');
@@ -138,40 +156,115 @@ export default function SearchOverlay() {
   const [showExcludeInput, setShowExcludeInput] = useState(false);
   const [excludeInput, setExcludeInput] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [searchCancelled, setSearchCancelled] = useState(false);
+  const [searchComplete, setSearchComplete] = useState(false);
   const inputRef = useRef(null);
   const timerRef = useRef(null);
+  const searchIdRef = useRef(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
+  const cancelCurrentSearch = useCallback(() => {
+    if (searchIdRef.current) {
+      console.log('Cancelling previous search:', searchIdRef.current);
+      window.electronAPI.searchCancel();
+      searchIdRef.current = null;
+      setSearchCancelled(true);
+      setTimeout(() => setSearchCancelled(false), 100);
+    }
+  }, []);
+
+  // Handle streaming search progress
+  useEffect(() => {
+    const handleProgress = ({ result, total, searchId }) => {
+      if (searchId === searchIdRef.current) {
+        setResults(prev => {
+          // Avoid duplicates
+          if (prev.find(r => r.path === result.path)) return prev;
+          return [...prev, result];
+        });
+        setSelectedIdx(0); // Reset selection to first item
+      }
+    };
+
+    const handleComplete = ({ searchId }) => {
+      if (searchId === searchIdRef.current) {
+        setLoading(false);
+        setSearchComplete(true);
+        searchIdRef.current = null;
+      }
+    };
+
+    window.electronAPI.onSearchProgress(handleProgress);
+    window.electronAPI.onSearchComplete(handleComplete);
+
+    return () => {
+      window.electronAPI.offSearchProgress();
+      window.electronAPI.offSearchComplete();
+    };
+  }, []);
+
   useEffect(() => {
     clearTimeout(timerRef.current);
-    if (!query.trim()) { setResults([]); return; }
-    timerRef.current = setTimeout(() => doSearch(), 300);
-    return () => clearTimeout(timerRef.current);
-  }, [query, useRegex, contentSearch, excludedDirs]);
+    cancelCurrentSearch();
+    
+    if (!query.trim()) { 
+      setResults([]); 
+      setLoading(false);
+      setSearchComplete(false);
+      return; 
+    }
+    
+    setLoading(true);
+    setSearchComplete(false);
+    timerRef.current = setTimeout(() => doSearch(), 400);
+    return () => {
+      clearTimeout(timerRef.current);
+      cancelCurrentSearch();
+    };
+  }, [query, useRegex, contentSearch, excludedDirs, cancelCurrentSearch]);
 
   const doSearch = async () => {
     if (!pane || !query.trim()) return;
-    setLoading(true);
+    
+    searchIdRef.current = Date.now();
+    console.log('Starting new search:', searchIdRef.current, 'for query:', query);
+    setResults([]); // Clear previous results immediately
     setSelectedIdx(0);
-    const r = await window.electronAPI.search({
-      rootPath: pane.path,
+    
+    // Start the search - results will come in via events
+    await window.electronAPI.search({
+      rootPath: pane.viewMode === 'column' ? pane.currentBreadcrumbPath : pane.path,
       query,
       options: { useRegex, contentSearch, maxResults: 300, excludeDirs: excludedDirs },
     });
-    if (r.success) setResults(r.results);
-    setLoading(false);
+  };
+
+  const getBreadcrumbDisplay = () => {
+    const path = pane.viewMode === 'column' ? pane.currentBreadcrumbPath : pane.path;
+    if (!path) return '/';
+    if (path === '/') return '/';
+    const parts = path.split('/').filter(Boolean);
+    return parts.length > 0 ? parts.join(' › ') : '/';
   };
 
   const openResult = (file) => {
+    // Always show preview, don't navigate to directory
     if (file.isDirectory) {
+      // For directories, navigate to the directory and close search
       navigateTo(activePane, file.path);
     } else {
-      navigateTo(activePane, file.path.replace(/\/[^/]+$/, ''));
-      setPreviewFile(file);
+      // For files, show preview and close search
+      navigateToFile(activePane, file.path);
     }
+    toggleSearch();
+  };
+
+  const revealResult = (file) => {
+    // Reveal in tree view and close search
+    revealInTree(activePane, file.path);
     toggleSearch();
   };
 
@@ -180,6 +273,10 @@ export default function SearchOverlay() {
     if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIdx(i => Math.min(i + 1, results.length - 1)); }
     if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIdx(i => Math.max(i - 1, 0)); }
     if (e.key === 'Enter' && results[selectedIdx]) openResult(results[selectedIdx]);
+    if (e.key === 'r' && e.metaKey && results[selectedIdx]) { // Cmd+R to reveal
+      e.preventDefault();
+      revealResult(results[selectedIdx]);
+    }
   };
 
   return (
@@ -192,9 +289,9 @@ export default function SearchOverlay() {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Search in ${pane?.path?.split('/').pop() || '/'}`}
+            placeholder={`Search in ${getBreadcrumbDisplay()}`}
           />
-          {loading && <span style={{ fontSize: 12, color: '#4A9EFF' }}>⏳</span>}
+          {loading && <span style={{ fontSize: 12, color: '#4A9EFF' }}>{searchCancelled ? '⏹️' : '⏳'}</span>}
           <span style={{ fontSize: 12, color: '#5a5a6b', cursor: 'pointer' }} onClick={toggleSearch}>✕</span>
         </InputWrap>
 
@@ -204,7 +301,7 @@ export default function SearchOverlay() {
           <OptBtnWrapper active={excludedDirs.length > 0} onClick={() => setShowExcludeInput(v => !v)}>
             Excluded ({excludedDirs.length})
           </OptBtnWrapper>
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: '#5a5a6b' }}>↑↓ navigate · ↵ open · esc close</span>
+          <span style={{ marginLeft: 'auto', fontSize: 10, color: '#5a5a6b' }}>↑↓ navigate · ↵ preview · ⌘R reveal · esc close</span>
         </Options>
 
         {showExcludeInput && (
@@ -275,9 +372,24 @@ export default function SearchOverlay() {
                 <div>{formatSize(file.size)}</div>
                 <div>{formatDate(file.modified)}</div>
               </ResultMeta>
+              <RevealBtn 
+                className="reveal-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  revealResult(file);
+                }}
+                title="Reveal in tree (⌘R)"
+              >
+                Reveal
+              </RevealBtn>
             </ResultItem>
           ))}
-          {!loading && query && results.length === 0 && (
+          {!loading && !searchComplete && query && results.length === 0 && (
+            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#5a5a6b', fontSize: 12 }}>
+              Searching...
+            </div>
+          )}
+          {!loading && searchComplete && query && results.length === 0 && (
             <div style={{ padding: '24px 16px', textAlign: 'center', color: '#5a5a6b', fontSize: 12 }}>
               No results for "{query}"
             </div>
@@ -286,8 +398,8 @@ export default function SearchOverlay() {
 
         {(results.length > 0 || query) && (
           <StatusBar>
-            <span>{results.length} results{results.length === 300 ? ' (limit reached)' : ''}</span>
-            <span>Searching in: {pane?.path}</span>
+            <span>{results.length} results{!loading && searchComplete && results.length === 300 ? ' (limit reached)' : ''}{loading && !searchComplete ? ' (searching...)' : ''}</span>
+            <span>📁 {pane.viewMode === 'column' ? pane.currentBreadcrumbPath : pane.path || '/'}</span>
           </StatusBar>
         )}
       </SearchBox>

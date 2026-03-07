@@ -447,14 +447,14 @@ export default function FilePane({ paneId }) {
     openModal,
     addToClipboard, clipboardQueue, pasteClipboard,
     undo,
+    setCurrentBreadcrumbPath,
   } = useStore();
 
   const pane = panes.find(p => p.id === paneId);
-  const isActive = activePane === paneId;
 
   if (!pane) return null;
 
-  const { path: currentPath, files, loading, selectedFiles, sortBy, sortOrder, viewMode, tabs, activeTab } = pane;
+  const { path: currentPath, files, loading, selectedFiles, sortBy, sortOrder, viewMode, tabs, activeTab, currentBreadcrumbPath } = pane;
 
   const [history, setHistory] = useState([pane?.path]);
   const [historyIdx, setHistoryIdx] = useState(0);
@@ -468,7 +468,6 @@ export default function FilePane({ paneId }) {
   const [columnPaths, setColumnPaths] = useState([]);
   const [columnFiles, setColumnFiles] = useState({});
   const [selectedColumnPath, setSelectedColumnPath] = useState(null);
-  const [currentBreadcrumbPath, setCurrentBreadcrumbPath] = useState(currentPath);
   const [selectedItems, setSelectedItems] = useState({}); // Track selected items per column
   const [focusedColumn, setFocusedColumn] = useState(0); // Track which column has focus
 
@@ -504,7 +503,7 @@ export default function FilePane({ paneId }) {
             
             if (newSelection.isDirectory) {
               setSelectedColumnPath(newSelection.path);
-              setCurrentBreadcrumbPath(newSelection.path);
+              setCurrentBreadcrumbPath(paneId,  newSelection.path);
               // Directories auto-open on selection
               handleColumnClick(newSelection, focusedColumn);
             } else {
@@ -525,7 +524,7 @@ export default function FilePane({ paneId }) {
             
             if (newSelection.isDirectory) {
               setSelectedColumnPath(newSelection.path);
-              setCurrentBreadcrumbPath(newSelection.path);
+              setCurrentBreadcrumbPath(paneId,  newSelection.path);
               // Directories auto-open on selection
               handleColumnClick(newSelection, focusedColumn);
             } else {
@@ -551,7 +550,7 @@ export default function FilePane({ paneId }) {
                 setSelection(paneId, [nextColumnFiles[0].path]);
                 if (nextColumnFiles[0].isDirectory) {
                   setSelectedColumnPath(nextColumnFiles[0].path);
-                  setCurrentBreadcrumbPath(nextColumnFiles[0].path);
+                  setCurrentBreadcrumbPath(paneId, nextColumnFiles[0].path);
                 } else {
                   setPreviewFile(nextColumnFiles[0]);
                 }
@@ -600,7 +599,7 @@ export default function FilePane({ paneId }) {
       loadColumns();
     } else {
       // Reset breadcrumb when leaving column view
-      setCurrentBreadcrumbPath(currentPath);
+      setCurrentBreadcrumbPath(paneId, currentPath);
     }
   }, [viewMode, currentPath, files, columnPaths]);
 
@@ -646,10 +645,7 @@ export default function FilePane({ paneId }) {
       newPaths.push(file.path);
       setColumnPaths(newPaths);
       setSelectedColumnPath(file.path);
-      setCurrentBreadcrumbPath(file.path);
-      
-      // Update the store's pane path so other components know where we are
-      navigateTo(paneId, file.path);
+      setCurrentBreadcrumbPath(paneId, file.path);
       
       // Clear preview when directory is selected
       setPreviewFile(null);
@@ -667,7 +663,7 @@ export default function FilePane({ paneId }) {
       setPreviewFile(file);
       // Update breadcrumb to show parent directory of selected file
       const parentPath = file.path.split('/').slice(0, -1).join('/') || '/';
-      setCurrentBreadcrumbPath(parentPath);
+      setCurrentBreadcrumbPath(paneId, parentPath);
     }
     
     // Clear files data for columns that were removed
@@ -711,7 +707,7 @@ export default function FilePane({ paneId }) {
     
     // Update breadcrumb to the directory of this column
     const breadcrumbPath = columnIndex === 0 ? currentPath : columnPaths[columnIndex - 1];
-    setCurrentBreadcrumbPath(breadcrumbPath);
+    setCurrentBreadcrumbPath(paneId, breadcrumbPath);
     
     // Clear preview
     setPreviewFile(null);
