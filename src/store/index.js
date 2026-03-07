@@ -17,6 +17,13 @@ const createPane = (id, initialPath = '/') => ({
   tabs: [{ id: `tab-${Date.now()}`, path: initialPath, label: 'Home' }],
   activeTab: 0,
   currentBreadcrumbPath: initialPath,
+  // Column view state
+  columnState: {
+    paths: [],
+    filesByPath: {},
+    selectedByColumn: {},
+    focusedIndex: 0,
+  },
 });
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -30,10 +37,6 @@ export const useStore = create((set, get) => ({
   setActivePane: (paneId) => set({ activePane: paneId }),
   setSplitRatio: (ratio) => set({ splitRatio: ratio }),
   toggleRightPane: () => set(s => ({ showRightPane: !s.showRightPane })),
-
-  setViewMode: (paneId, mode) => set(s => ({
-    panes: s.panes.map(p => p.id === paneId ? { ...p, viewMode: mode } : p),
-  })),
 
   updatePane: (paneId, updates) => set(s => ({
     panes: s.panes.map(p => p.id === paneId ? { ...p, ...updates } : p),
@@ -138,13 +141,50 @@ export const useStore = create((set, get) => ({
     }),
   })),
 
+  setCurrentBreadcrumbPath: (paneId, path) => set(s => ({
+    panes: s.panes.map(p => p.id === paneId ? { ...p, currentBreadcrumbPath: path } : p),
+  })),
+
   setViewMode: (paneId, viewMode) => set(s => ({
     panes: s.panes.map(p => p.id === paneId ? { ...p, viewMode } : p),
   })),
 
-  setCurrentBreadcrumbPath: (paneId, path) => set(s => ({
-    panes: s.panes.map(p => p.id === paneId ? { ...p, currentBreadcrumbPath: path } : p),
+  // ── Column View State ─────────────────────────────────────────────────────
+  setColumnState: (paneId, columnState) => set(s => ({
+    panes: s.panes.map(p => p.id === paneId ? { ...p, columnState } : p),
   })),
+
+  updateColumnState: (paneId, updates) => set(s => ({
+    panes: s.panes.map(p => p.id === paneId ? { ...p, columnState: { ...p.columnState, ...updates } } : p),
+  })),
+
+  clearColumnState: (paneId) => set(s => ({
+    panes: s.panes.map(p => p.id === paneId ? { ...p, columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 } } : p),
+  })),
+
+  // ── Pane Refresh ──────────────────────────────────────────────────────────
+  refreshPane: async (paneId) => {
+    const { panes } = get();
+    const pane = panes.find(p => p.id === paneId);
+    if (!pane) return;
+
+    set(s => ({
+      panes: s.panes.map(p => p.id === paneId ? { ...p, loading: true, error: null } : p),
+    }));
+
+    const result = await api.readdir(pane.path);
+    if (!result.success) {
+      set(s => ({
+        panes: s.panes.map(p => p.id === paneId ? { ...p, loading: false, error: result.error } : p),
+      }));
+      return;
+    }
+
+    const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
+    set(s => ({
+      panes: s.panes.map(p => p.id === paneId ? { ...p, files, loading: false } : p),
+    }));
+  },
 
   // ── Tabs ─────────────────────────────────────────────────────────────────
   addTab: (paneId, tabPath) => set(s => {
@@ -317,6 +357,39 @@ export const useStore = create((set, get) => ({
     if (result.success) set({ activityLog: result.logs });
   },
 
+  // ── Selectors ────────────────────────────────────────────────────────────────
+  getActivePath: (paneId) => {
+    const { panes } = get();
+    const pane = panes.find(p => p.id === paneId);
+    if (!pane) return '/';
+    return pane.viewMode === 'column' ? pane.currentBreadcrumbPath : pane.path;
+  },
+
+  getBreadcrumbs: (paneId) => {
+    const path = get().getActivePath(paneId);
+    if (path === '/') return [{ name: '/', path: '/' }];
+    const parts = path.split('/').filter(Boolean);
+    return [
+      { name: '/', path: '/' },
+      ...parts.map((part, i) => ({
+        name: part,
+        path: '/' + parts.slice(0, i + 1).join('/'),
+      })),
+    ];
+  },
+
+  readDirSorted: async (dirPath, paneId) => {
+    const { panes } = get();
+    const pane = panes.find(p => p.id === paneId);
+    if (!pane) return { success: false, files: [] };
+
+    const result = await api.readdir(dirPath);
+    if (!result.success) return result;
+
+    const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
+    return { success: true, files };
+  },
+
   // ── Init ─────────────────────────────────────────────────────────────────
   initialized: false,
   init: async () => {
@@ -367,7 +440,10 @@ export function formatSize(bytes) {
   if (bytes === 0) return '—';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
+  const value = bytes / Math.pow(1024, i);
+  const formatted = i > 0 ? value.toFixed(1) : value.toFixed(0);
+  // Remove .0 when the decimal is 0
+  return formatted.replace(/\.0$/, '') + ' ' + units[i];
 }
 
 export function formatDate(isoString) {
@@ -417,4 +493,23 @@ export function isPreviewable(file) {
   const pdfExts = ['pdf'];
   const ext = file.extension?.toLowerCase();
   return imageExts.includes(ext) || textExts.includes(ext) || videoExts.includes(ext) || audioExts.includes(ext) || pdfExts.includes(ext);
+}
+
+// ─── Preview Type Helpers ──────────────────────────────────────────────────────
+export const PREVIEW_TYPES = {
+  imageExts: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'],
+  textExts: ['txt', 'md', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'json', 'py', 'rb', 'sh', 'yaml', 'yml', 'xml', 'csv', 'log'],
+  videoExts: ['mp4', 'mov', 'webm'],
+  audioExts: ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'],
+};
+
+export function getPreviewType(file) {
+  if (file.isDirectory) return 'directory';
+  const ext = file.extension?.toLowerCase();
+  if (PREVIEW_TYPES.imageExts.includes(ext)) return 'image';
+  if (PREVIEW_TYPES.videoExts.includes(ext)) return 'video';
+  if (PREVIEW_TYPES.audioExts.includes(ext)) return 'audio';
+  if (PREVIEW_TYPES.textExts.includes(ext)) return 'text';
+  if (ext === 'pdf') return 'pdf';
+  return 'unknown';
 }
