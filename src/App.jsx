@@ -10,13 +10,13 @@ import SearchOverlay from './components/SearchOverlay';
 // Modals
 import BatchRenameModal from './components/modals/BatchRenameModal';
 import RulesModal from './components/modals/RulesModal';
-import DuplicatesModal from './components/modals/DuplicatesModal';
-import ActivityLogModal from './components/modals/ActivityLogModal';
-import PermissionsModal from './components/modals/PermissionsModal';
-import TagManagerModal from './components/modals/TagManagerModal';
-import SizeVisualizerModal from './components/modals/SizeVisualizerModal';
-import SmartFoldersModal from './components/modals/SmartFoldersModal';
-import SettingsModal from './components/modals/SettingsModal';
+import { DuplicatesModal } from './components/modals/DuplicatesModal';
+import { ActivityLogModal } from './components/modals/ActivityLogModal';
+import { PermissionsModal } from './components/modals/PermissionsModal';
+import { TagManagerModal } from './components/modals/TagManagerModal';
+import { SizeVisualizerModal } from './components/modals/SizeVisualizerModal';
+import { SmartFoldersModal } from './components/modals/SmartFoldersModal';
+import { SettingsModal } from './components/modals/SettingsModal';
 import ClipboardQueue from './components/ClipboardQueue';
 
 const GlobalStyle = createGlobalStyle`

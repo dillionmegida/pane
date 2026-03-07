@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Overlay, ModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Select, Label, Row } from './BatchRenameModal';
+import { Overlay, ModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Select, Label, Row } from './ModalPrimitives';
 import styled from 'styled-components';
 
 const RuleCard = styled.div`
