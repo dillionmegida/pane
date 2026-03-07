@@ -335,23 +335,25 @@ ipcMain.handle('fs:getDrives', async () => {
 // ─── IPC: Search ─────────────────────────────────────────────────────────────
 let activeSearch = null;
 
-ipcMain.handle('fs:search', async (event, { rootPath, query, options = {} }) => {
-  const searchId = Date.now();
-  activeSearch = searchId;
+ipcMain.handle('fs:search', async (event, { rootPath, query, options = {}, searchId }) => {
   const results = [];
   const { useRegex, caseSensitive, contentSearch, maxResults = 500, excludeDirs = [] } = options;
 
+  // If no searchId provided, generate one
+  const activeSearchId = searchId || Date.now();
+  activeSearch = activeSearchId;
+
   // Expanded default exclude patterns for root directory searches
-  const defaultExcludes = ['node_modules', '.git', '.svn', '.hg', 'bower_components', '.vscode', '.idea', 'dist', 'build', 'target', 'bin', 'obj', 'packages', '.next', '.nuxt', 'coverage', '.cache', 'tmp', 'temp'];
+  const defaultExcludes = ['node_modules', '.git', '.svn', '.hg', 'bower_components', '.vscode', '.idea', 'dist', 'build', 'target', 'bin', 'obj', 'packages', '.next', '.nuxt', 'coverage', '.cache', 'tmp', 'temp', 'venv', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.tox', 'site-packages', '.eggs', '*.egg-info', 'vendor', 'Pods'];
   const allExcludes = [...new Set([...defaultExcludes, ...excludeDirs])];
 
   try {
     // Use find command for much faster search (async version)
     const { exec } = require('child_process');
     
-    // Build find command with proper escaping
+    // Build find command with proper escaping - use */pattern/* to match at any depth
     const escapedPath = rootPath.replace(/'/g, "'\"'\"'");
-    const excludePatterns = allExcludes.map(dir => `-not -path "${escapedPath}/${dir}/*" -not -path "${escapedPath}/${dir}"`).join(' ');
+    const excludePatterns = allExcludes.map(dir => `-not -path "*/${dir}/*" -not -path "*/${dir}"`).join(' ');
     
     let findCommand;
     if (useRegex) {
@@ -363,11 +365,11 @@ ipcMain.handle('fs:search', async (event, { rootPath, query, options = {} }) => 
     
     // Use async exec to avoid blocking
     exec(findCommand, { encoding: 'utf8' }, (error, stdout, stderr) => {
-      if (activeSearch !== searchId) return; // Search was cancelled
+      if (activeSearch !== activeSearchId) return; // Search was cancelled
       
       if (error) {
         // Fallback to manual search if find command fails
-        fallbackSearch(event, rootPath, query, options, searchId, results);
+        fallbackSearch(event, rootPath, query, options, activeSearchId, results);
         return;
       }
       
@@ -376,7 +378,7 @@ ipcMain.handle('fs:search', async (event, { rootPath, query, options = {} }) => 
       // Process results in batches for streaming
       (async () => {
         for (const filePath of foundPaths) {
-          if (activeSearch !== searchId) break;
+          if (activeSearch !== activeSearchId) break;
           
           try {
             const stat = await fs.promises.stat(filePath);
@@ -392,8 +394,8 @@ ipcMain.handle('fs:search', async (event, { rootPath, query, options = {} }) => 
             results.push(result);
             
             // Send incremental result to renderer
-            if (activeSearch === searchId) {
-              event.sender.send('search:progress', { result, total: results.length, searchId });
+            if (activeSearch === activeSearchId) {
+              event.sender.send('search:progress', { result, total: results.length, searchId: activeSearchId });
             }
           } catch (e) {
             // Skip files we can't stat
@@ -401,20 +403,20 @@ ipcMain.handle('fs:search', async (event, { rootPath, query, options = {} }) => 
         }
         
         // Send final results
-        if (activeSearch === searchId) {
-          event.sender.send('search:complete', { results, searchId });
+        if (activeSearch === activeSearchId) {
+          event.sender.send('search:complete', { results, searchId: activeSearchId });
         }
       })();
     });
   } catch (e) {
     // Fallback to manual search if find command fails
-    await fallbackSearch(event, rootPath, query, options, searchId, results);
+    await fallbackSearch(event, rootPath, query, options, activeSearchId, results);
   }
 });
 
 async function fallbackSearch(event, rootPath, query, options, searchId, results) {
   const { useRegex, caseSensitive, contentSearch, maxResults = 500, excludeDirs = [] } = options;
-  const defaultExcludes = ['node_modules', '.git', '.svn', '.hg', 'bower_components', '.vscode', '.idea', 'dist', 'build', 'target', 'bin', 'obj', 'packages', '.next', '.nuxt', 'coverage', '.cache', 'tmp', 'temp'];
+  const defaultExcludes = ['node_modules', '.git', '.svn', '.hg', 'bower_components', '.vscode', '.idea', 'dist', 'build', 'target', 'bin', 'obj', 'packages', '.next', '.nuxt', 'coverage', '.cache', 'tmp', 'temp', 'venv', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.tox', 'site-packages', '.eggs', '*.egg-info', 'vendor', 'Pods'];
   const allExcludes = [...new Set([...defaultExcludes, ...excludeDirs])];
 
   async function searchDir(dirPath, depth = 0) {
@@ -427,7 +429,7 @@ async function fallbackSearch(event, rootPath, query, options, searchId, results
       for (const entry of entries) {
         if (activeSearch !== searchId) return;
         
-        if (entry.name.startsWith('.' && !entry.name.startsWith('.'))) continue;
+        if (entry.name.startsWith('.') && !entry.name.startsWith('..')) continue;
         if (entry.isDirectory() && allExcludes.includes(entry.name)) continue;
         
         const fullPath = path.join(dirPath, entry.name);

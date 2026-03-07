@@ -15,13 +15,17 @@ const Overlay = styled.div`
 `;
 
 const SearchBox = styled.div`
-  width: 640px;
-  max-width: 90vw;
+  width: 900px;
+  max-width: 95vw;
+  height: 600px;
+  max-height: 85vh;
   background: ${p => p.theme.bg.elevated};
   border: 1px solid ${p => p.theme.border.strong};
   border-radius: ${p => p.theme.radius.xl};
   box-shadow: ${p => p.theme.shadow.lg};
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 `;
 
 const InputWrap = styled.div`
@@ -66,9 +70,43 @@ const OptBtnWrapper = ({ active, children, ...props }) => (
   <OptBtn {...props} className={active ? 'active' : ''}>{children}</OptBtn>
 );
 
+const MainContent = styled.div`
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+`;
+
+const ResultsPane = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid ${p => p.theme.border.subtle};
+`;
+
 const Results = styled.div`
-  max-height: 480px;
+  flex: 1;
   overflow-y: auto;
+`;
+
+const SearchingIndicator = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: linear-gradient(90deg, #ff6b35 0%, #f7931e 100%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  animation: pulse 1.5s ease-in-out infinite;
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
 `;
 
 const ResultItem = styled.div`
@@ -78,8 +116,12 @@ const ResultItem = styled.div`
   padding: 8px 16px;
   cursor: pointer;
   transition: background 0.07s;
+  border-left: 2px solid transparent;
   &:hover { background: ${p => p.theme.bg.hover}; }
-  &:hover .reveal-btn { opacity: 1; }
+  &.selected {
+    background: ${p => p.theme.accent.blue}15;
+    border-left-color: ${p => p.theme.accent.blue};
+  }
 `;
 
 const ResultIcon = styled.span`
@@ -117,21 +159,112 @@ const ResultMeta = styled.div`
   flex-shrink: 0;
 `;
 
-const RevealBtn = styled.button`
-  background: none;
-  border: 1px solid ${p => p.theme.border.normal};
+const PreviewPane = styled.div`
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  overflow-y: auto;
+  background: ${p => p.theme.bg.elevated};
+  border-left: 1px solid ${p => p.theme.border.secondary};
+`;
+
+const PreviewHeader = styled.div`
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid ${p => p.theme.border.subtle};
+`;
+
+const PreviewTitle = styled.div`
+  font-size: 14px;
+  font-weight: 600;
+  color: ${p => p.theme.text.primary};
+  margin-bottom: 8px;
+  word-break: break-all;
+`;
+
+const PreviewDetail = styled.div`
+  font-size: 11px;
+  margin-bottom: 4px;
+  display: flex;
+  gap: 6px;
+  strong { color: ${p => p.theme.text.secondary}; }
+  span { font-family: ${p => p.theme.font.mono}; }
+`;
+
+const PreviewContent = styled.div`
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid ${p => p.theme.text.secondary}; 
+`;
+
+const PreviewLabel = styled.div`
+  font-size: 12px;
+  font-weight: 600;
   color: ${p => p.theme.text.secondary};
-  border-radius: ${p => p.theme.radius.sm};
-  padding: 2px 6px;
+  margin-bottom: 8px;
+`;
+
+const PreviewMedia = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  img, video {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 4px;
+  }
+  audio {
+    width: 100%;
+  }
+`;
+
+const PreviewText = styled.pre`
   font-size: 10px;
+  color: ${p => p.theme.text.primary};
+  background: ${p => p.theme.bg.secondary};
+  padding: 8px;
+  border-radius: 4px;
+  overflow: auto;
+  flex: 1;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+`;
+
+const PreviewActions = styled.div`
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid ${p => p.theme.border.subtle};
+  display: flex;
+  gap: 8px;
+`;
+
+const ActionBtn = styled.button`
+  background: ${p => p.theme.bg.secondary};
+  border: 1px solid ${p => p.theme.border.normal};
+  color: ${p => p.theme.text.primary};
+  border-radius: ${p => p.theme.radius.sm};
+  padding: 6px 12px;
+  font-size: 11px;
   cursor: pointer;
-  opacity: 0;
-  transition: all 0.15s;
-  &:hover { 
-    background: ${p => p.theme.bg.hover}; 
-    color: ${p => p.theme.text.primary};
+  &:hover {
+    background: ${p => p.theme.bg.hover};
     border-color: ${p => p.theme.border.strong};
   }
+`;
+
+const EmptyState = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: ${p => p.theme.text.tertiary};
+  font-size: 12px;
 `;
 
 const StatusBar = styled.div`
@@ -144,7 +277,7 @@ const StatusBar = styled.div`
 `;
 
 export default function SearchOverlay() {
-  const { panes, activePane, navigateTo, navigateToFile, revealInTree, toggleSearch, setPreviewFile } = useStore();
+  const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode } = useStore();
   const pane = panes.find(p => p.id === activePane);
 
   const [query, setQuery] = useState('');
@@ -152,12 +285,19 @@ export default function SearchOverlay() {
   const [loading, setLoading] = useState(false);
   const [useRegex, setUseRegex] = useState(false);
   const [contentSearch, setContentSearch] = useState(false);
-  const [excludedDirs, setExcludedDirs] = useState(['node_modules', '.git']);
+  const [excludedDirs, setExcludedDirs] = useState(['node_modules', '.git', 'venv', '.venv', '__pycache__', '.pytest_cache']);
   const [showExcludeInput, setShowExcludeInput] = useState(false);
   const [excludeInput, setExcludeInput] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [searchCancelled, setSearchCancelled] = useState(false);
   const [searchComplete, setSearchComplete] = useState(false);
+
+  // Preview state
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [previewContent, setPreviewContent] = useState('');
+  const [previewType, setPreviewType] = useState('text');
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
   const inputRef = useRef(null);
   const timerRef = useRef(null);
   const searchIdRef = useRef(null);
@@ -166,9 +306,72 @@ export default function SearchOverlay() {
     inputRef.current?.focus();
   }, []);
 
+  // Load preview when selected item changes
+  useEffect(() => {
+    if (selectedItem) {
+      loadPreview(selectedItem);
+    }
+  }, [selectedItem]);
+
+  const loadPreview = async (file) => {
+    if (file.isDirectory) {
+      setPreviewContent('');
+      setPreviewType('text');
+      return;
+    }
+
+    const textExts = ['txt', 'md', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'json', 'py', 'rb', 'sh', 'yaml', 'yml', 'xml', 'csv', 'log'];
+    const videoExts = ['mp4', 'mov', 'webm'];
+    const audioExts = ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'];
+    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'];
+
+    if (videoExts.includes(file.extension)) {
+      setPreviewType('video');
+      setPreviewContent(`file://${file.path}`);
+      return;
+    }
+
+    if (audioExts.includes(file.extension)) {
+      setPreviewType('audio');
+      setPreviewContent(`file://${file.path}`);
+      return;
+    }
+
+    if (imageExts.includes(file.extension)) {
+      setPreviewType('image');
+      setPreviewContent(`file://${file.path}`);
+      return;
+    }
+
+    if (!textExts.includes(file.extension)) {
+      setPreviewContent('Preview not available for this file type');
+      setPreviewType('text');
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setPreviewContent('File too large for preview');
+      setPreviewType('text');
+      return;
+    }
+
+    setLoadingPreview(true);
+    setPreviewType('text');
+    try {
+      const r = await window.electronAPI.readFile(file.path);
+      if (r.success) {
+        setPreviewContent(r.content.slice(0, 1000) + (r.content.length > 1000 ? '\n\n... (truncated)' : ''));
+      } else {
+        setPreviewContent('Failed to load preview');
+      }
+    } catch (err) {
+      setPreviewContent('Failed to load preview');
+    }
+    setLoadingPreview(false);
+  };
+
   const cancelCurrentSearch = useCallback(() => {
     if (searchIdRef.current) {
-      console.log('Cancelling previous search:', searchIdRef.current);
       window.electronAPI.searchCancel();
       searchIdRef.current = null;
       setSearchCancelled(true);
@@ -209,16 +412,18 @@ export default function SearchOverlay() {
   useEffect(() => {
     clearTimeout(timerRef.current);
     cancelCurrentSearch();
-    
-    if (!query.trim()) { 
-      setResults([]); 
+    setSelectedItem(null);
+
+    if (!query.trim()) {
+      setResults([]);
       setLoading(false);
       setSearchComplete(false);
-      return; 
+      return;
     }
-    
+
     setLoading(true);
     setSearchComplete(false);
+    setSelectedIdx(0);
     timerRef.current = setTimeout(() => doSearch(), 400);
     return () => {
       clearTimeout(timerRef.current);
@@ -228,17 +433,16 @@ export default function SearchOverlay() {
 
   const doSearch = async () => {
     if (!pane || !query.trim()) return;
-    
+
     searchIdRef.current = Date.now();
-    console.log('Starting new search:', searchIdRef.current, 'for query:', query);
-    setResults([]); // Clear previous results immediately
+    setResults([]);
     setSelectedIdx(0);
-    
-    // Start the search - results will come in via events
+
     await window.electronAPI.search({
       rootPath: pane.viewMode === 'column' ? pane.currentBreadcrumbPath : pane.path,
       query,
       options: { useRegex, contentSearch, maxResults: 300, excludeDirs: excludedDirs },
+      searchId: searchIdRef.current,
     });
   };
 
@@ -262,20 +466,48 @@ export default function SearchOverlay() {
     toggleSearch();
   };
 
-  const revealResult = (file) => {
-    // Reveal in tree view and close search
-    revealInTree(activePane, file.path);
+  const revealInColumns = (filePath) => {
+    // Split path into components
+    const parts = filePath.split('/').filter(Boolean);
+    const fileName = parts.pop(); // Remove filename, keep directories
+
+    if (parts.length === 0) {
+      navigateTo(activePane, '/');
+      toggleSearch();
+      return;
+    }
+
+    const targetPath = '/' + parts.join('/');
+
+    if (pane.viewMode !== 'column') {
+      setViewMode(activePane, 'column');
+    }
+
+    navigateTo(activePane, targetPath);
     toggleSearch();
   };
 
   const handleKeyDown = (e) => {
     if (e.key === 'Escape') { toggleSearch(); return; }
-    if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIdx(i => Math.min(i + 1, results.length - 1)); }
-    if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIdx(i => Math.max(i - 1, 0)); }
-    if (e.key === 'Enter' && results[selectedIdx]) openResult(results[selectedIdx]);
-    if (e.key === 'r' && e.metaKey && results[selectedIdx]) { // Cmd+R to reveal
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
-      revealResult(results[selectedIdx]);
+      const newIdx = Math.min(selectedIdx + 1, results.length - 1);
+      setSelectedIdx(newIdx);
+      setSelectedItem(results[newIdx]);
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const newIdx = Math.max(selectedIdx - 1, 0);
+      setSelectedIdx(newIdx);
+      setSelectedItem(results[newIdx]);
+    }
+    if (e.key === 'Enter' && results[selectedIdx]) {
+      e.preventDefault();
+      openResult(results[selectedIdx]);
+    }
+    if (e.key === 'r' && e.metaKey && results[selectedIdx]) {
+      e.preventDefault();
+      revealInColumns(results[selectedIdx].path);
     }
   };
 
@@ -301,7 +533,6 @@ export default function SearchOverlay() {
           <OptBtnWrapper active={excludedDirs.length > 0} onClick={() => setShowExcludeInput(v => !v)}>
             Excluded ({excludedDirs.length})
           </OptBtnWrapper>
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: '#5a5a6b' }}>↑↓ navigate · ↵ preview · ⌘R reveal · esc close</span>
         </Options>
 
         {showExcludeInput && (
@@ -355,53 +586,127 @@ export default function SearchOverlay() {
           </div>
         )}
 
-        <Results>
-          {results.map((file, i) => (
-            <ResultItem
-              key={file.path}
-              onClick={() => openResult(file)}
-              style={{ background: i === selectedIdx ? '#2a2a2f' : undefined }}
-            >
-              <ResultIcon>{getFileIcon(file)}</ResultIcon>
-              <ResultInfo>
-                <ResultName>{file.name}</ResultName>
-                <ResultPath>{file.path}</ResultPath>
-              </ResultInfo>
-              <ResultMeta>
-                <div>{file.isDirectory ? 'folder' : file.extension}</div>
-                <div>{formatSize(file.size)}</div>
-                <div>{formatDate(file.modified)}</div>
-              </ResultMeta>
-              <RevealBtn 
-                className="reveal-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  revealResult(file);
-                }}
-                title="Reveal in tree (⌘R)"
-              >
-                Reveal
-              </RevealBtn>
-            </ResultItem>
-          ))}
-          {!loading && !searchComplete && query && results.length === 0 && (
-            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#5a5a6b', fontSize: 12 }}>
-              Searching...
-            </div>
-          )}
-          {!loading && searchComplete && query && results.length === 0 && (
-            <div style={{ padding: '24px 16px', textAlign: 'center', color: '#5a5a6b', fontSize: 12 }}>
-              No results for "{query}"
-            </div>
-          )}
-        </Results>
-
-        {(results.length > 0 || query) && (
-          <StatusBar>
-            <span>{results.length} results{!loading && searchComplete && results.length === 300 ? ' (limit reached)' : ''}{loading && !searchComplete ? ' (searching...)' : ''}</span>
-            <span>📁 {pane.viewMode === 'column' ? pane.currentBreadcrumbPath : pane.path || '/'}</span>
-          </StatusBar>
+        {/* Prominent searching indicator */}
+        {loading && !searchComplete && (
+          <SearchingIndicator>
+            <span>⏳</span>
+            <span>Searching...</span>
+            <span>{results.length} found so far</span>
+          </SearchingIndicator>
         )}
+
+        <MainContent>
+          <ResultsPane>
+            <Results>
+              {results.map((file, i) => (
+                <ResultItem
+                  key={file.path}
+                  className={i === selectedIdx ? 'selected' : ''}
+                  onClick={() => { setSelectedIdx(i); setSelectedItem(file); }}
+                  onDoubleClick={() => openResult(file)}
+                >
+                  <ResultIcon>{getFileIcon(file)}</ResultIcon>
+                  <ResultInfo>
+                    <ResultName>{file.name}</ResultName>
+                    <ResultPath>{file.path}</ResultPath>
+                  </ResultInfo>
+                  <ResultMeta>
+                    <div>{file.isDirectory ? 'folder' : file.extension}</div>
+                    <div>{formatSize(file.size)}</div>
+                    <div>{formatDate(file.modified)}</div>
+                  </ResultMeta>
+                </ResultItem>
+              ))}
+              {!loading && !searchComplete && query && results.length === 0 && (
+                <div style={{ padding: '40px 16px', textAlign: 'center', color: '#5a5a6b', fontSize: 12 }}>
+                  Type to search...
+                </div>
+              )}
+              {!loading && searchComplete && query && results.length === 0 && (
+                <div style={{ padding: '40px 16px', textAlign: 'center', color: '#5a5a6b', fontSize: 12 }}>
+                  No results for "{query}"
+                </div>
+              )}
+            </Results>
+
+            <StatusBar>
+              <span>
+                {results.length} results
+                {!loading && searchComplete && results.length === 300 ? ' (limit reached)' : ''}
+              </span>
+              <span>📁 {pane.viewMode === 'column' ? pane.currentBreadcrumbPath : pane.path || '/'}</span>
+            </StatusBar>
+          </ResultsPane>
+
+          {/* Preview Pane */}
+          <PreviewPane>
+            {selectedItem ? (
+              <>
+                <PreviewHeader>
+                  <PreviewTitle>
+                    {selectedItem.isDirectory ? '📁' : getFileIcon(selectedItem)} {selectedItem.name}
+                  </PreviewTitle>
+                  <PreviewDetail>
+                    <strong>Path:</strong>
+                    <span style={{ wordBreak: 'break-all' }}>{selectedItem.path}</span>
+                  </PreviewDetail>
+                  <PreviewDetail>
+                    <strong>Size:</strong>
+                    <span>{formatSize(selectedItem.size)}</span>
+                  </PreviewDetail>
+                  <PreviewDetail>
+                    <strong>Modified:</strong>
+                    <span>{formatDate(selectedItem.modified)}</span>
+                  </PreviewDetail>
+                  {selectedItem.extension && (
+                    <PreviewDetail>
+                      <strong>Type:</strong>
+                      <span>{selectedItem.extension.toUpperCase()}</span>
+                    </PreviewDetail>
+                  )}
+                </PreviewHeader>
+
+                <PreviewContent>
+                  <PreviewLabel>Preview</PreviewLabel>
+                  {loadingPreview ? (
+                    <div style={{ color: '#4A9EFF', fontSize: 11 }}>Loading preview...</div>
+                  ) : (
+                    <PreviewMedia>
+                      {previewType === 'video' && (
+                        <video src={previewContent} controls style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: 4 }} />
+                      )}
+                      {previewType === 'audio' && (
+                        <audio src={previewContent} controls style={{ width: '100%' }} />
+                      )}
+                      {previewType === 'image' && (
+                        <img src={previewContent} alt={selectedItem.name} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: 4, objectFit: 'contain' }} />
+                      )}
+                      {previewType === 'text' && (
+                        <PreviewText>{previewContent || 'No preview available'}</PreviewText>
+                      )}
+                    </PreviewMedia>
+                  )}
+                </PreviewContent>
+
+                <PreviewActions>
+                  <ActionBtn onClick={() => revealInColumns(selectedItem.path)}>📂 Reveal</ActionBtn>
+                  <ActionBtn onClick={async () => {
+                    const r = await window.electronAPI.delete(selectedItem.path);
+                    if (r.success) {
+                      setResults(prev => prev.filter(item => item.path !== selectedItem.path));
+                      setSelectedItem(null);
+                    }
+                  }}>🗑️ Delete</ActionBtn>
+                  <ActionBtn onClick={() => openResult(selectedItem)}>👁️ Open</ActionBtn>
+                </PreviewActions>
+              </>
+            ) : (
+              <EmptyState>
+                Click a file to view details and preview
+              </EmptyState>
+            )}
+          </PreviewPane>
+        </MainContent>
       </SearchBox>
     </Overlay>
   );
