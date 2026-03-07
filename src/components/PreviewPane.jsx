@@ -61,11 +61,9 @@ const PreviewArea = styled.div`
 `;
 
 const ImagePreview = styled.img`
-  max-width: 100%;
-  max-height: 200px;
+  width: 100%;
   object-fit: contain;
   background: ${p => p.theme.bg.primary};
-  width: 100%;
 `;
 
 const TextPreviewWrap = styled.div`
@@ -109,7 +107,6 @@ const ActionBtn = styled.button`
 
 const VideoEl = styled.video`
   width: 100%;
-  max-height: 200px;
   background: #000;
 `;
 

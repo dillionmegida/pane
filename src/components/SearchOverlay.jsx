@@ -41,7 +41,7 @@ const SearchInput = styled.input`
   background: none;
   border: none;
   outline: none;
-  font-size: 16px;
+  font-size: 1rem;
   color: ${p => p.theme.text.primary};
   font-family: ${p => p.theme.font.sans};
   &::placeholder { color: ${p => p.theme.text.tertiary}; }
@@ -61,7 +61,7 @@ const OptBtn = styled.button`
   color: ${p => p.active ? p.theme.accent.blue : p.theme.text.secondary};
   border-radius: ${p => p.theme.radius.sm};
   padding: 3px 8px;
-  font-size: 10px;
+  font-size: 0.625rem;
   cursor: pointer;
   &:hover { opacity: 0.85; }
 `;
@@ -98,7 +98,7 @@ const SearchingIndicator = styled.div`
   padding: 12px 16px;
   background: linear-gradient(90deg, #ff6b35 0%, #f7931e 100%);
   color: #fff;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -126,7 +126,7 @@ const ResultItem = styled.div`
 `;
 
 const ResultIcon = styled.span`
-  font-size: 16px;
+  font-size: 1rem;
   flex-shrink: 0;
 `;
 
@@ -136,7 +136,7 @@ const ResultInfo = styled.div`
 `;
 
 const ResultName = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: ${p => p.theme.text.primary};
   overflow: hidden;
   text-overflow: ellipsis;
@@ -144,7 +144,7 @@ const ResultName = styled.div`
 `;
 
 const ResultPath = styled.div`
-  font-size: 10px;
+  font-size: 0.625rem;
   color: ${p => p.theme.text.tertiary};
   overflow: hidden;
   text-overflow: ellipsis;
@@ -153,7 +153,7 @@ const ResultPath = styled.div`
 `;
 
 const ResultMeta = styled.div`
-  font-size: 10px;
+  font-size: 0.625rem;
   color: ${p => p.theme.text.tertiary};
   font-family: ${p => p.theme.font.mono};
   text-align: right;
@@ -164,9 +164,14 @@ const PreviewPane = styled.div`
   width: 320px;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
   background: ${p => p.theme.bg.elevated};
   border-left: 1px solid ${p => p.theme.border.normal};
+  position: relative;
+  height: 100%;
+  `;
+
+const PreviewWrapper = styled.div`
+  overflow-y: auto;
 `;
 
 
@@ -178,7 +183,7 @@ const PreviewHeader = styled.div`
 `;
 
 const PreviewTitle = styled.div`
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: ${p => p.theme.text.primary};
   margin-bottom: 8px;
@@ -186,7 +191,7 @@ const PreviewTitle = styled.div`
 `;
 
 const PreviewDetail = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   margin-bottom: 4px;
   display: flex;
   gap: 6px;
@@ -196,14 +201,13 @@ const PreviewDetail = styled.div`
 
 const PreviewContent = styled.div`
   flex: 1;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   border-top: 1px solid ${p => p.theme.border.normal}; 
 `;
 
 const PreviewLabel = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: ${p => p.theme.text.secondary};
   padding: 16px;
@@ -211,14 +215,13 @@ const PreviewLabel = styled.div`
   span {
     display: inline-block;
     border: 1px solid ${p => p.theme.border.normal};
-    padding: 8px;
+    padding: 2px 5px;
   }
 `;
 
 const PreviewMedia = styled.div`
   img, video {
-    max-width: 100%;
-    max-height: 200px;
+    width: 100%;
   }
   audio {
     width: 100%;
@@ -226,7 +229,7 @@ const PreviewMedia = styled.div`
 `;
 
 const PreviewText = styled.pre`
-  font-size: 10px;
+  font-size: 0.625rem;
   color: ${p => p.theme.text.primary};
   border-bottom: 1px solid ${p => p.theme.border.normal};
   padding: 16px 16px 30px;
@@ -238,11 +241,16 @@ const PreviewText = styled.pre`
 `;
 
 const PreviewActions = styled.div`
-  margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid ${p => p.theme.border.subtle};
+  border-top: 1px solid ${p => p.theme.border.normal};
   display: flex;
   gap: 8px;
+  padding: 8px;
+  position: absolute;
+  width: 100%;
+  bottom: 0;
+  left: 0;
+  background: ${p => p.theme.bg.elevated};
 `;
 
 const ActionBtn = styled.button`
@@ -251,7 +259,7 @@ const ActionBtn = styled.button`
   color: ${p => p.theme.text.primary};
   border-radius: ${p => p.theme.radius.sm};
   padding: 6px 12px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   cursor: pointer;
   &:hover {
     background: ${p => p.theme.bg.hover};
@@ -265,14 +273,14 @@ const EmptyState = styled.div`
   justify-content: center;
   height: 100%;
   color: ${p => p.theme.text.tertiary};
-  font-size: 12px;
+  font-size: 0.75rem;
 `;
 
 const StatusBar = styled.div`
   padding: 8px 16px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: ${p => p.theme.text.tertiary};
-  border-top: 1px solid ${p => p.theme.border.subtle};
+  border-top: 1px solid ${p => p.theme.border.normal};
   display: flex;
   justify-content: space-between;
 `;
@@ -540,7 +548,7 @@ export default function SearchOverlay() {
     <Overlay onClick={toggleSearch}>
       <SearchBox onClick={e => e.stopPropagation()}>
         <InputWrap>
-          <span style={{ fontSize: 16, color: '#5a5a6b' }}>🔍</span>
+          <span style={{ fontSize: '1rem', color: '#5a5a6b' }}>🔍</span>
           <SearchInput
             ref={inputRef}
             value={query}
@@ -548,8 +556,8 @@ export default function SearchOverlay() {
             onKeyDown={handleKeyDown}
             placeholder={`Search in ${getBreadcrumbDisplay()}`}
           />
-          {loading && <span style={{ fontSize: 12, color: '#4A9EFF' }}>{searchCancelled ? '⏹️' : '⏳'}</span>}
-          <span style={{ fontSize: 12, color: '#5a5a6b', cursor: 'pointer' }} onClick={toggleSearch}>✕</span>
+          {loading && <span style={{ fontSize: '0.75rem', color: '#4A9EFF' }}>{searchCancelled ? '⏹️' : '⏳'}</span>}
+          <span style={{ fontSize: '0.75rem', color: '#5a5a6b', cursor: 'pointer' }} onClick={toggleSearch}>✕</span>
         </InputWrap>
 
         <Options>
@@ -567,7 +575,7 @@ export default function SearchOverlay() {
                 <span key={dir} style={{
                   display: 'flex', alignItems: 'center', gap: 4,
                   background: '#2a2a2f', border: '1px solid #3a3a45',
-                  borderRadius: 4, padding: '2px 6px', fontSize: 11,
+                  borderRadius: 4, padding: '2px 6px', fontSize: '0.6875rem',
                   color: '#9898a8'
                 }}>
                   {dir}
@@ -588,7 +596,7 @@ export default function SearchOverlay() {
                 placeholder="Add directory to exclude..."
                 style={{
                   flex: 1, background: '#2a2a2f', border: '1px solid #3a3a45',
-                  borderRadius: 4, padding: '4px 8px', fontSize: 11,
+                  borderRadius: 4, padding: '4px 8px', fontSize: '0.6875rem',
                   color: '#e8e8ed', outline: 'none'
                 }}
               />
@@ -601,7 +609,7 @@ export default function SearchOverlay() {
                 }}
                 style={{
                   background: '#3a3a45', border: 'none', borderRadius: 4,
-                  padding: '4px 10px', fontSize: 11, color: '#e8e8ed',
+                  padding: '4px 10px', fontSize: '0.6875rem', color: '#e8e8ed',
                   cursor: 'pointer'
                 }}
               >
@@ -643,12 +651,12 @@ export default function SearchOverlay() {
                 </ResultItem>
               ))}
               {!loading && !searchComplete && query && results.length === 0 && (
-                <div style={{ padding: '40px 16px', textAlign: 'center', color: '#5a5a6b', fontSize: 12 }}>
+                <div style={{ padding: '40px 16px', textAlign: 'center', color: '#5a5a6b', fontSize: '0.75rem' }}>
                   Type to search...
                 </div>
               )}
               {!loading && searchComplete && query && results.length === 0 && (
-                <div style={{ padding: '40px 16px', textAlign: 'center', color: '#5a5a6b', fontSize: 12 }}>
+                <div style={{ padding: '40px 16px', textAlign: 'center', color: '#5a5a6b', fontSize: '0.75rem' }}>
                   No results for "{query}"
                 </div>
               )}
@@ -666,7 +674,7 @@ export default function SearchOverlay() {
           {/* Preview Pane */}
           <PreviewPane>
             {selectedItem ? (
-              <>
+              <PreviewWrapper>
                 <PreviewHeader>
                   <PreviewTitle>
                     {selectedItem.isDirectory ? '📁' : getFileIcon(selectedItem)} {selectedItem.name}
@@ -694,17 +702,17 @@ export default function SearchOverlay() {
                 <PreviewContent>
                   <PreviewLabel><span>Preview</span></PreviewLabel>
                   {loadingPreview ? (
-                    <div style={{ color: '#4A9EFF', fontSize: 11 }}>Loading preview...</div>
+                    <div style={{ color: '#4A9EFF', fontSize: '0.6875rem' }}>Loading preview...</div>
                   ) : (
                     <PreviewMedia>
                       {previewType === 'video' && (
-                        <video src={previewContent} controls style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: 4 }} />
+                        <video src={previewContent} controls style={{ maxWidth: '100%' }} />
                       )}
                       {previewType === 'audio' && (
                         <audio src={previewContent} controls style={{ width: '100%' }} />
                       )}
                       {previewType === 'image' && (
-                        <img src={previewContent} alt={selectedItem.name} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: 4, objectFit: 'contain' }} />
+                        <img src={previewContent} alt={selectedItem.name} style={{ maxWidth: '100%', objectFit: 'contain' }} />
                       )}
                       {previewType === 'text' && (
                         <PreviewText>{previewContent || 'No preview available'}</PreviewText>
@@ -723,7 +731,7 @@ export default function SearchOverlay() {
                     }
                   }}>🗑️ Delete</ActionBtn>
                 </PreviewActions>
-              </>
+              </PreviewWrapper>
             ) : (
               <EmptyState>
                 Click a file to view details and preview

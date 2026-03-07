@@ -223,7 +223,7 @@ export const useStore = create((set, get) => ({
   setPreviewWidth: (w) => set({ previewWidth: Math.max(200, Math.min(800, w)) }),
 
   // ── Zoom ─────────────────────────────────────────────────────────────────
-  zoom: 1.0,
+  zoom: 1.6,
   setZoom: (z) => set({ zoom: Math.max(0.7, Math.min(1.6, Math.round(z * 10) / 10)) }),
   zoomIn: () => set(s => ({ zoom: Math.min(1.6, Math.round((s.zoom + 0.1) * 10) / 10) })),
   zoomOut: () => set(s => ({ zoom: Math.max(0.7, Math.round((s.zoom - 0.1) * 10) / 10) })),
