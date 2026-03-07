@@ -104,25 +104,6 @@ const Results = styled.div`
   overflow-y: auto;
 `;
 
-const SearchingIndicator = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: linear-gradient(90deg, #ff6b35 0%, #f7931e 100%);
-  color: #fff;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  animation: pulse 1.5s ease-in-out infinite;
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-  }
-`;
 
 const ResultItem = styled.div`
   display: flex;
@@ -440,7 +421,7 @@ export default function SearchOverlay() {
             onKeyDown={handleKeyDown}
             placeholder={`Search in ${getActivePath(activePane) || '/'}`}
           />
-          {loading && <span style={{ fontSize: '0.75rem', color: '#4A9EFF' }}>{searchCancelled ? '⏹️' : '⏳'}</span>}
+          {loading && <span style={{ fontSize: '0.75rem', color: 'orange' }}>Searching...</span>}
           <span style={{ fontSize: '0.75rem', color: '#5a5a6b', cursor: 'pointer' }} onClick={toggleSearch}>✕</span>
         </InputWrap>
 
@@ -503,14 +484,6 @@ export default function SearchOverlay() {
           </div>
         )}
 
-        {/* Prominent searching indicator */}
-        {loading && !searchComplete && (
-          <SearchingIndicator>
-            <span>⏳</span>
-            <span>Searching...</span>
-            <span>{results.length} found so far</span>
-          </SearchingIndicator>
-        )}
 
         <MainContent ref={mainContentRef}>
           <ResultsPane>
