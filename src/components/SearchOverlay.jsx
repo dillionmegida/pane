@@ -37,9 +37,12 @@ const SearchBox = styled.div`
   border: 1px solid ${p => p.theme.border.strong};
   border-radius: ${p => p.theme.radius.xl};
   box-shadow: ${p => p.theme.shadow.lg};
-  overflow: hidden;
+  overflow: auto;
   display: flex;
   flex-direction: column;
+  resize: both;
+  min-width: 400px;
+  min-height: 300px;
 `;
 
 const InputWrap = styled.div`
@@ -410,7 +413,7 @@ export default function SearchOverlay() {
   };
 
   return (
-    <Overlay onClick={toggleSearch}>
+    <Overlay>
       <SearchBox onClick={e => e.stopPropagation()}>
         <InputWrap>
           <span style={{ fontSize: '1rem', color: '#5a5a6b' }}>🔍</span>

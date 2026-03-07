@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore, formatSize } from '../../store';
-import { Overlay, ModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
+import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
 
 export function SizeVisualizerModal({ data, onClose }) {
   const { navigateTo, activePane } = useStore();
@@ -73,7 +73,7 @@ export function SizeVisualizerModal({ data, onClose }) {
 
   return (
     <Overlay onClick={onClose}>
-      <ModalBox width="700px" onClick={e => e.stopPropagation()}>
+      <ResizableModalBox width="700px" onClick={e => e.stopPropagation()}>
         <ModalHeader>
           <ModalTitle>📊 Disk Usage: {currentNode?.name}</ModalTitle>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
@@ -96,7 +96,7 @@ export function SizeVisualizerModal({ data, onClose }) {
         <ModalFooter>
           <Btn primary onClick={onClose}>Close</Btn>
         </ModalFooter>
-      </ModalBox>
+      </ResizableModalBox>
     </Overlay>
   );
 }

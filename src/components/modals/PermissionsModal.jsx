@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Overlay, ModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Label } from './ModalPrimitives';
+import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Label } from './ModalPrimitives';
 
 export function PermissionsModal({ data, onClose }) {
   const file = data?.file;
@@ -35,7 +35,7 @@ export function PermissionsModal({ data, onClose }) {
 
   return (
     <Overlay onClick={onClose}>
-      <ModalBox width="400px" onClick={e => e.stopPropagation()}>
+      <ResizableModalBox width="400px" onClick={e => e.stopPropagation()}>
         <ModalHeader>
           <ModalTitle>🔒 Permissions: {file.name}</ModalTitle>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
@@ -65,7 +65,7 @@ export function PermissionsModal({ data, onClose }) {
           <Btn onClick={onClose}>Cancel</Btn>
           <Btn primary disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Apply chmod'}</Btn>
         </ModalFooter>
-      </ModalBox>
+      </ResizableModalBox>
     </Overlay>
   );
 }

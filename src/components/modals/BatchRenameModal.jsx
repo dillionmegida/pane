@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 import { useStore } from '../../store';
 import path from 'path-browserify';
-import { Overlay, ModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Label, Row, Select } from './ModalPrimitives';
+import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Label, Row, Select } from './ModalPrimitives';
 
 // ─── Batch Rename Modal ───────────────────────────────────────────────────────
 export default function BatchRenameModal({ data, onClose }) {
@@ -96,7 +96,7 @@ export default function BatchRenameModal({ data, onClose }) {
 
   return (
     <Overlay onClick={onClose}>
-      <ModalBox width="780px" onClick={e => e.stopPropagation()}>
+      <ResizableModalBox width="780px" onClick={e => e.stopPropagation()}>
         <ModalHeader>
           <ModalTitle>✏️ Batch Rename — {allFiles.length} files</ModalTitle>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
@@ -215,7 +215,7 @@ export default function BatchRenameModal({ data, onClose }) {
             {applying ? 'Renaming...' : 'Apply Rename'}
           </Btn>
         </ModalFooter>
-      </ModalBox>
+      </ResizableModalBox>
     </Overlay>
   );
 }

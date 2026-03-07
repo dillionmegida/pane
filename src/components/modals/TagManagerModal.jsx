@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store';
 import { TAG_COLORS } from '../../theme';
-import { Overlay, ModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Label, Row } from './ModalPrimitives';
+import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Label, Row } from './ModalPrimitives';
 
 export function TagManagerModal({ data, onClose }) {
   const { loadAllTags } = useStore();
@@ -47,7 +47,7 @@ export function TagManagerModal({ data, onClose }) {
 
   return (
     <Overlay onClick={onClose}>
-      <ModalBox width="420px" onClick={e => e.stopPropagation()}>
+      <ResizableModalBox width="420px" onClick={e => e.stopPropagation()}>
         <ModalHeader>
           <ModalTitle>🏷️ Tags{file ? `: ${file.name}` : ''}</ModalTitle>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
@@ -115,7 +115,7 @@ export function TagManagerModal({ data, onClose }) {
         <ModalFooter>
           <Btn primary onClick={onClose}>Done</Btn>
         </ModalFooter>
-      </ModalBox>
+      </ResizableModalBox>
     </Overlay>
   );
 }

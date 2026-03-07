@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Overlay, ModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
+import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
 
 export function SettingsModal({ onClose }) {
   const [showHidden, setShowHidden] = useState(false);
@@ -14,7 +14,7 @@ export function SettingsModal({ onClose }) {
 
   return (
     <Overlay onClick={onClose}>
-      <ModalBox width="480px" onClick={e => e.stopPropagation()}>
+      <ResizableModalBox width="480px" onClick={e => e.stopPropagation()}>
         <ModalHeader>
           <ModalTitle>⚙️ Settings</ModalTitle>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
@@ -55,7 +55,7 @@ export function SettingsModal({ onClose }) {
         <ModalFooter>
           <Btn primary onClick={onClose}>Done</Btn>
         </ModalFooter>
-      </ModalBox>
+      </ResizableModalBox>
     </Overlay>
   );
 }

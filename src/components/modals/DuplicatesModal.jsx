@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useStore, formatSize } from '../../store';
-import { Overlay, ModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Row } from './ModalPrimitives';
+import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Row } from './ModalPrimitives';
 
 export function DuplicatesModal({ data, onClose }) {
   const { panes, activePane } = useStore();
@@ -43,7 +43,7 @@ export function DuplicatesModal({ data, onClose }) {
 
   return (
     <Overlay onClick={onClose}>
-      <ModalBox width="680px" onClick={e => e.stopPropagation()}>
+      <ResizableModalBox width="680px" onClick={e => e.stopPropagation()}>
         <ModalHeader>
           <ModalTitle>🔁 Duplicate Detector</ModalTitle>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
@@ -114,7 +114,7 @@ export function DuplicatesModal({ data, onClose }) {
             </Btn>
           )}
         </ModalFooter>
-      </ModalBox>
+      </ResizableModalBox>
     </Overlay>
   );
 }

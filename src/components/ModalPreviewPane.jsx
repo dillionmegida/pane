@@ -63,7 +63,6 @@ const PreviewLabel = styled.div`
 `;
 
 const PreviewMedia = styled.div`
-  max-width: 400px;
   img, video {
     width: 100%;
   }

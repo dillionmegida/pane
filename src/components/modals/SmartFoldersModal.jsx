@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore, formatSize, formatDate } from '../../store';
 import ModalPreviewPane from '../ModalPreviewPane';
-import { Overlay, ModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
+import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
 
 export function SmartFoldersModal({ data, onClose }) {
   const { panes, activePane, navigateTo, refreshPane } = useStore();
@@ -146,7 +146,7 @@ export function SmartFoldersModal({ data, onClose }) {
 
   return (
     <Overlay onClick={onClose}>
-      <ModalBox width="900px" height="500px" onClick={e => e.stopPropagation()}>
+      <ResizableModalBox width="900px" height="500px" onClick={e => e.stopPropagation()}>
         <ModalHeader>
           <ModalTitle>🗂️ Smart Folders</ModalTitle>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
@@ -229,7 +229,7 @@ export function SmartFoldersModal({ data, onClose }) {
           <span style={{ fontSize: 11, color: '#5a5a6b', marginRight: 'auto' }}>{results.length} results</span>
           <Btn primary onClick={onClose}>Close</Btn>
         </ModalFooter>
-      </ModalBox>
+      </ResizableModalBox>
     </Overlay>
   );
 }

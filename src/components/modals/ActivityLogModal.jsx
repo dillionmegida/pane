@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Overlay, ModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Select } from './ModalPrimitives';
+import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Select } from './ModalPrimitives';
 
 export function ActivityLogModal({ onClose }) {
   const [logs, setLogs] = useState([]);
@@ -22,7 +22,7 @@ export function ActivityLogModal({ onClose }) {
 
   return (
     <Overlay onClick={onClose}>
-      <ModalBox width="700px" onClick={e => e.stopPropagation()}>
+      <ResizableModalBox width="700px" onClick={e => e.stopPropagation()}>
         <ModalHeader>
           <ModalTitle>📋 Activity Log</ModalTitle>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
@@ -62,7 +62,7 @@ export function ActivityLogModal({ onClose }) {
           <span style={{ fontSize: 11, color: '#5a5a6b', marginRight: 'auto' }}>{logs.length} entries</span>
           <Btn primary onClick={onClose}>Close</Btn>
         </ModalFooter>
-      </ModalBox>
+      </ResizableModalBox>
     </Overlay>
   );
 }

@@ -27,6 +27,24 @@ export const ModalBox = styled.div`
   max-height: 80vh;
 `;
 
+export const ResizableModalBox = ({ children, width: initialWidth = '700px', height: initialHeight = 'auto', minWidth = 300, minHeight = 200, ...props }) => {
+  return (
+    <ModalBox
+      width={initialWidth}
+      height={initialHeight}
+      style={{
+        resize: 'both',
+        overflow: 'auto',
+        minWidth: `${minWidth}px`,
+        minHeight: `${minHeight}px`
+      }}
+      {...props}
+    >
+      {children}
+    </ModalBox>
+  );
+};
+
 export const ModalHeader = styled.div`
   display: flex;
   align-items: center;

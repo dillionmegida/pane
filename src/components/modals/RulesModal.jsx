@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Overlay, ModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Select, Label, Row } from './ModalPrimitives';
+import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Select, Label, Row } from './ModalPrimitives';
 import styled from 'styled-components';
 
 const RuleCard = styled.div`
@@ -165,7 +165,7 @@ export default function RulesModal({ onClose }) {
 
   return (
     <Overlay onClick={onClose}>
-      <ModalBox width="720px" onClick={e => e.stopPropagation()}>
+      <ResizableModalBox width="720px" onClick={e => e.stopPropagation()}>
         <ModalHeader>
           <ModalTitle>⚡ Auto-Organisation Rules</ModalTitle>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
@@ -288,7 +288,7 @@ export default function RulesModal({ onClose }) {
             </ModalFooter>
           </>
         )}
-      </ModalBox>
+      </ResizableModalBox>
     </Overlay>
   );
 }
