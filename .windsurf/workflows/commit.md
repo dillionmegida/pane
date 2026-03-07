@@ -84,7 +84,7 @@ Files changed:
 
 ## Automation
 
-This skill can be run automatically when you have staged changes and want to create a commit with proper grouping and messaging.
+This skill should not be run automatically.
 
 ## Notes
 

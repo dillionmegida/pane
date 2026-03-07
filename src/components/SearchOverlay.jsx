@@ -476,27 +476,39 @@ export default function SearchOverlay() {
   };
 
   const revealInColumns = async (filePath) => {
-    // Split path into components
-    const parts = filePath.split('/').filter(Boolean);
-    const fileName = parts.pop(); // Remove filename, keep directories
-
-    if (parts.length === 0) {
-      await navigateTo(activePane, '/');
-      // Select the file in root
-      setSelection(activePane, [filePath]);
-      toggleSearch();
-      return;
-    }
-
-    const targetPath = '/' + parts.join('/');
-
+    const fileDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '/';
+    
+    // If not in column view, switch to it
     if (pane.viewMode !== 'column') {
       setViewMode(activePane, 'column');
     }
 
-    await navigateTo(activePane, targetPath);
-    // Select the file in the directory
-    setSelection(activePane, [filePath]);
+    // Calculate column paths from the ROOT path (pane.path) to file's directory
+    // This preserves the full column hierarchy
+    const rootPath = pane.path;
+    let columnPaths = [];
+    
+    if (fileDir.startsWith(rootPath) && fileDir !== rootPath) {
+      // Build intermediate paths from root to fileDir
+      const relativePath = fileDir.slice(rootPath.length).replace(/^\//, '');
+      const segments = relativePath.split('/').filter(Boolean);
+      let buildPath = rootPath;
+      for (const segment of segments) {
+        buildPath = buildPath === '/' ? `/${segment}` : `${buildPath}/${segment}`;
+        columnPaths.push(buildPath);
+      }
+    }
+
+    // Set the reveal target for FilePane to handle
+    useStore.getState().setRevealTarget({
+      paneId: activePane,
+      filePath,
+      fileDir,
+      columnPaths,
+      basePath: rootPath,
+      triggerPreview: true, // Signal to trigger preview
+    });
+
     toggleSearch();
   };
 

@@ -214,19 +214,6 @@ export const useStore = create((set, get) => ({
     await navigateTo(paneId, dirPath);
   },
 
-  navigateToDirectoryAndSelect: async (paneId, filePath) => {
-    const { navigateTo } = get();
-    
-    // Extract directory path from file path
-    const dirPath = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '/';
-    
-    // Navigate to the directory first
-    await navigateTo(paneId, dirPath);
-    
-    // Then select the file
-    get().setSelection(paneId, [filePath]);
-  },
-
   // ── Preview ───────────────────────────────────────────────────────────────
   previewFile: null,
   showPreview: false,
@@ -283,8 +270,12 @@ export const useStore = create((set, get) => ({
     if (result.success) set({ allTags: result.tags });
   },
 
+  // ── Column View Reveal ───────────────────────────────────────────────────
+  revealTarget: null, // { paneId, filePath, columnPaths, fileDir, basePath }
+  setRevealTarget: (target) => set({ revealTarget: target }),
+  clearRevealTarget: () => set({ revealTarget: null }),
+
   // ── UI State ──────────────────────────────────────────────────────────────
-  activeModal: null, // 'batchRename' | 'rules' | 'duplicates' | 'smartFolders' | 'log' | 'settings' | 'tags' | 'sizeViz' | 'permissions'
   modalData: null,
   openModal: (name, data = null) => set({ activeModal: name, modalData: data }),
   closeModal: () => set({ activeModal: null, modalData: null }),

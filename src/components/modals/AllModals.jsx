@@ -489,6 +489,9 @@ export function SmartFoldersModal({ data, onClose }) {
   const [previewType, setPreviewType] = useState('text');
   const [loadingPreview, setLoadingPreview] = useState(false);
 
+  // Use breadcrumb path in column view, otherwise use regular path
+  const currentPath = pane?.viewMode === 'column' ? pane?.currentBreadcrumbPath || pane?.path : pane?.path;
+
   const FILTERS = {
     large: { name: '⚖️ Large Files', icon: '⚖️', desc: 'Files over 100MB', test: f => !f.isDirectory && f.size > 100 * 1024 * 1024 },
     recent: { name: '⬇️ Recent Downloads', icon: '⬇️', desc: 'Modified in last 7 days', test: f => !f.isDirectory && Date.now() - new Date(f.modified).getTime() < 7 * 86400000 },
@@ -551,7 +554,7 @@ export function SmartFoldersModal({ data, onClose }) {
     setLoadingPreview(false);
   };
 
-  useEffect(() => { if (pane) runFilter(); }, [activeFilter]);
+  useEffect(() => { if (currentPath) runFilter(); }, [activeFilter, currentPath]);
 
   useEffect(() => {
     if (selectedItem) {
@@ -560,11 +563,11 @@ export function SmartFoldersModal({ data, onClose }) {
   }, [selectedItem]);
 
   const runFilter = async () => {
-    if (!pane) return;
+    if (!currentPath) return;
     setScanning(true);
     // Deep scan the current folder
-    const r = await window.electronAPI.search({ rootPath: pane.path, query: '.', options: { maxResults: 1000 } });
-    if (r.success) {
+    const r = await window.electronAPI.search?.({ rootPath: currentPath, query: '.', options: { maxResults: 1000 } });
+    if (r?.success) {
       const filter = FILTERS[activeFilter];
       let filteredResults = r.results.filter(filter.test);
       
@@ -572,6 +575,9 @@ export function SmartFoldersModal({ data, onClose }) {
       filteredResults.sort((a, b) => b.size - a.size);
       
       setResults(filteredResults);
+    } else {
+      console.error('Search API failed or not available:', r);
+      setResults([]);
     }
     setScanning(false);
   };
@@ -599,7 +605,7 @@ export function SmartFoldersModal({ data, onClose }) {
             </div>
             <div style={{ flex: 1, overflow: 'auto', padding: 12, borderRight: '1px solid #2e2e35' }}>
               <div style={{ fontSize: 11, color: '#5a5a6b', marginBottom: 8 }}>
-                {FILTERS[activeFilter].desc} in <span style={{ color: '#9898a8' }}>{pane?.path}</span>
+                {FILTERS[activeFilter].desc} in <span style={{ color: '#9898a8' }}>{currentPath}</span>
               </div>
               {scanning && <div style={{ color: '#4A9EFF', fontSize: 12 }}>⏳ Scanning...</div>}
               {!scanning && results.length === 0 && <div style={{ color: '#5a5a6b', fontSize: 12, padding: '20px 0' }}>No files match this filter</div>}

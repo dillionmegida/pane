@@ -60,7 +60,9 @@ export const ModalFooter = styled.div`
   flex-shrink: 0;
 `;
 
-export const Btn = styled.button`
+export const Btn = styled.button.withConfig({
+  shouldForwardProp: (prop) => prop !== 'primary'
+})`
   padding: 6px 16px;
   border-radius: ${p => p.theme.radius.md};
   border: 1px solid ${p => p.primary ? p.theme.accent.blue : p.theme.border.normal};

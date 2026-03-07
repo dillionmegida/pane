@@ -579,13 +579,108 @@ export default function FilePane({ paneId }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [viewMode, focusedColumn, columnPaths, currentPath, files, columnFiles, selectedItems]);
 
+  // Handle reveal target from search or other sources
+  useEffect(() => {
+    const { revealTarget, clearRevealTarget } = useStore.getState();
+    if (!revealTarget || revealTarget.paneId !== paneId) return;
+
+    const { filePath, fileDir, columnPaths, triggerPreview } = revealTarget;
+
+    // Set column paths to show the path to the file
+    if (columnPaths.length > 0) {
+      setColumnPaths(columnPaths);
+      
+      // Load files for each column path
+      const loadColumnFiles = async () => {
+        const filesMap = { [currentPath]: files };
+        
+        for (const path of columnPaths) {
+          if (!filesMap[path]) {
+            const result = await window.electronAPI.readdir(path);
+            if (result.success) {
+              filesMap[path] = result.files;
+            }
+          }
+        }
+        
+        setColumnFiles(filesMap);
+        
+        // Build selected items for all columns in the path
+        // Column 0 (shows currentPath) should have columnPaths[0] selected
+        // Column 1 (shows columnPaths[0]) should have columnPaths[1] selected
+        // etc.
+        // Last column (shows columnPaths[last]) should have filePath selected
+        const newSelectedItems = {};
+        
+        // For each column path, it should be selected in its parent column
+        columnPaths.forEach((colPath, idx) => {
+          // colPath at idx is shown in column idx+1
+          // It should be selected in column idx (its parent)
+          newSelectedItems[idx] = colPath;
+        });
+        
+        // The file should be selected in the last column (which shows the file's parent dir)
+        newSelectedItems[columnPaths.length] = filePath;
+        
+        console.log('[Reveal Debug] columnPaths:', columnPaths);
+        console.log('[Reveal Debug] newSelectedItems:', newSelectedItems);
+        console.log('[Reveal Debug] currentPath:', currentPath);
+        console.log('[Reveal Debug] files count:', files.length);
+        
+        setSelectedItems(newSelectedItems);
+        setFocusedColumn(columnPaths.length);
+        setSelection(paneId, [filePath]);
+        
+        // Update breadcrumb to the file's parent directory
+        setCurrentBreadcrumbPath(paneId, fileDir);
+
+        // Trigger preview if requested and it's a file
+        if (triggerPreview && !filePath.endsWith('/')) {
+          // Find the file object in the last column's files
+          const lastColPath = columnPaths[columnPaths.length - 1];
+          const lastColFiles = filesMap[lastColPath] || [];
+          const fileObj = lastColFiles.find(f => f.path === filePath);
+          if (fileObj && !fileObj.isDirectory) {
+            setPreviewFile(fileObj);
+          }
+        }
+      };
+      
+      loadColumnFiles();
+    } else {
+      // File is in current directory
+      setSelection(paneId, [filePath]);
+      setCurrentBreadcrumbPath(paneId, fileDir);
+      
+      // Trigger preview if it's a file
+      if (triggerPreview && !filePath.endsWith('/')) {
+        const fileObj = files.find(f => f.path === filePath);
+        if (fileObj && !fileObj.isDirectory) {
+          setPreviewFile(fileObj);
+        }
+      }
+    }
+
+    // Clear the reveal target
+    clearRevealTarget();
+  }, [useStore.getState().revealTarget, paneId, currentPath, files]);
+
   // Reset column view state when navigating via bookmarks
   useEffect(() => {
     if (viewMode === 'column') {
+      // Don't reset if breadcrumb matches the last column path
+      // (this means reveal just updated the breadcrumb)
+      const lastColumnPath = columnPaths[columnPaths.length - 1];
+      if (currentBreadcrumbPath === lastColumnPath) return;
+
+      // Also don't reset if revealTarget exists (reveal in progress)
+      const { revealTarget } = useStore.getState();
+      if (revealTarget) return;
+
       // Check if currentBreadcrumbPath doesn't match the expected structure
       // This happens when navigating via bookmarks - we should reset column state
       const expectedBreadcrumb = columnPaths.length > 0 
-        ? columnPaths[columnPaths.length - 1] 
+        ? lastColumnPath 
         : currentPath;
       
       if (currentBreadcrumbPath !== expectedBreadcrumb && currentBreadcrumbPath !== currentPath) {
@@ -626,7 +721,15 @@ export default function FilePane({ paneId }) {
     setFocusedColumn(columnIndex);
     
     // Update selection for this column
-    setSelectedItems(prev => ({ ...prev, [columnIndex]: file.path }));
+    setSelectedItems(prev => ({ 
+      ...prev, 
+      [columnIndex]: file.path,
+      // Clear selections for all columns after this one
+      ...Object.fromEntries(
+        Object.entries(prev).filter(([key]) => parseInt(key) > columnIndex)
+          .map(([key]) => [key, undefined])
+      )
+    }));
     
     // Always remove columns after this one when selecting
     let newPaths;
@@ -680,9 +783,11 @@ export default function FilePane({ paneId }) {
   };
 
   const handleColumnEmptyClick = (columnIndex) => {
-    // Clear selection in this column
-    setSelectedItems(prev => ({ ...prev, [columnIndex]: null }));
-    
+    // Don't do anything if clicking the same column that's already focused and no columns after it
+    if (focusedColumn === columnIndex && columnPaths.length <= columnIndex) {
+      return;
+    }
+
     // Clear global selection
     setSelection(paneId, []);
     
@@ -690,11 +795,28 @@ export default function FilePane({ paneId }) {
     const newPaths = columnPaths.slice(0, columnIndex);
     setColumnPaths(newPaths);
     
+    // Clear ALL selection state from this column onwards
+    // This ensures no preselected directories in subsequent columns
+    setSelectedItems(prev => {
+      const newItems = {};
+      // Keep only selections from columns before this one
+      for (let i = 0; i < columnIndex; i++) {
+        if (prev[i] !== undefined) {
+          newItems[i] = prev[i];
+        }
+      }
+      return newItems;
+    });
+    
     // Clear files data for removed columns
     setColumnFiles(prev => {
       const newFiles = { ...prev };
+      // Remove files for columns that are no longer shown
       for (let i = columnIndex; i < columnPaths.length; i++) {
-        delete newFiles[columnPaths[i]];
+        const pathToRemove = columnPaths[i];
+        if (pathToRemove && newFiles[pathToRemove]) {
+          delete newFiles[pathToRemove];
+        }
       }
       return newFiles;
     });
