@@ -738,19 +738,20 @@ export default function FilePane({ paneId }) {
   };
 
   const handleColumnEmptyClick = (columnIndex) => {
-    // Don't do anything if clicking the same column that's already focused and no columns after it
-    if (focusedColumn === columnIndex && columnPaths.length <= columnIndex) {
-      return;
-    }
-
     // Clear global selection
     setSelection(paneId, []);
     
-    // Navigate to the directory of this column
-    const breadcrumbPath = columnIndex === 0 ? currentPath : columnPaths[columnIndex - 1];
-    setCurrentBreadcrumbPath(paneId, breadcrumbPath);
+    // If clicking the last column, just focus it and clear preview
+    if (columnIndex === columnPaths.length - 1) {
+      updateColumnState(paneId, { focusedIndex: columnIndex });
+      setPreviewFile(null);
+      return;
+    }
     
-    // Clear preview
+    // For earlier columns, navigate to that column's path
+    const breadcrumbPath = columnPaths[columnIndex];
+    setCurrentBreadcrumbPath(paneId, breadcrumbPath);
+    updateColumnState(paneId, { focusedIndex: columnIndex });
     setPreviewFile(null);
   };
 
