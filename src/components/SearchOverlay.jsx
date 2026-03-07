@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
-import { useStore, formatSize, formatDate, getFileIcon } from '../store';
+import { useStore, formatSize, formatDate, getFileIcon, PREVIEW_TYPES, getPreviewType } from '../store';
+
+// Resizable divider component
+const ResizableDivider = styled.div`
+  width: 4px;
+  background: ${p => p.theme.border.normal};
+  cursor: col-resize;
+  user-select: none;
+  transition: background 0.2s;
+  
+  &:hover {
+    background: ${p => p.theme.accent.blue};
+  }
+`;
 
 const Overlay = styled.div`
   position: fixed;
@@ -161,13 +174,14 @@ const ResultMeta = styled.div`
 `;
 
 const PreviewPane = styled.div`
-  width: 320px;
+  width: ${p => p.width || '320px'};
   display: flex;
   flex-direction: column;
   background: ${p => p.theme.bg.elevated};
   border-left: 1px solid ${p => p.theme.border.normal};
   position: relative;
   height: 100%;
+  flex-shrink: 0;
   `;
 
 const PreviewWrapper = styled.div`
@@ -286,7 +300,7 @@ const StatusBar = styled.div`
 `;
 
 export default function SearchOverlay() {
-  const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode, setSelection } = useStore();
+  const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode, setSelection, getActivePath, getBreadcrumbs } = useStore();
   const pane = panes.find(p => p.id === activePane);
 
   const [query, setQuery] = useState('');
@@ -306,14 +320,45 @@ export default function SearchOverlay() {
   const [previewContent, setPreviewContent] = useState('');
   const [previewType, setPreviewType] = useState('text');
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState(320);
+  const [isResizing, setIsResizing] = useState(false);
 
   const inputRef = useRef(null);
   const timerRef = useRef(null);
   const searchIdRef = useRef(null);
+  const mainContentRef = useRef(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Handle resize
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e) => {
+      if (!mainContentRef.current) return;
+      const container = mainContentRef.current;
+      const rect = container.getBoundingClientRect();
+      const newWidth = rect.right - e.clientX;
+      // Constrain width between 200px and 600px
+      if (newWidth >= 200 && newWidth <= 600) {
+        setPreviewWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
 
   // Load preview when selected item changes
   useEffect(() => {
@@ -323,36 +368,33 @@ export default function SearchOverlay() {
   }, [selectedItem]);
 
   const loadPreview = async (file) => {
-    if (file.isDirectory) {
+    const type = getPreviewType(file);
+    
+    if (type === 'directory') {
       setPreviewContent('');
       setPreviewType('text');
       return;
     }
 
-    const textExts = ['txt', 'md', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'json', 'py', 'rb', 'sh', 'yaml', 'yml', 'xml', 'csv', 'log'];
-    const videoExts = ['mp4', 'mov', 'webm'];
-    const audioExts = ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'];
-    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'];
-
-    if (videoExts.includes(file.extension)) {
+    if (type === 'video') {
       setPreviewType('video');
       setPreviewContent(`file://${file.path}`);
       return;
     }
 
-    if (audioExts.includes(file.extension)) {
+    if (type === 'audio') {
       setPreviewType('audio');
       setPreviewContent(`file://${file.path}`);
       return;
     }
 
-    if (imageExts.includes(file.extension)) {
+    if (type === 'image') {
       setPreviewType('image');
       setPreviewContent(`file://${file.path}`);
       return;
     }
 
-    if (!textExts.includes(file.extension)) {
+    if (type === 'unknown') {
       setPreviewContent('Preview not available for this file type');
       setPreviewType('text');
       return;
@@ -455,8 +497,9 @@ export default function SearchOverlay() {
     setResults([]);
     setSelectedIdx(0);
 
+    const searchRoot = getActivePath(activePane);
     await window.electronAPI.search({
-      rootPath: pane.viewMode === 'column' ? pane.currentBreadcrumbPath : pane.path,
+      rootPath: searchRoot,
       query,
       options: { useRegex, contentSearch, maxResults: 300, excludeDirs: excludedDirs },
       searchId: searchIdRef.current,
@@ -464,11 +507,8 @@ export default function SearchOverlay() {
   };
 
   const getBreadcrumbDisplay = () => {
-    const path = pane.viewMode === 'column' ? pane.currentBreadcrumbPath : pane.path;
-    if (!path) return '/';
-    if (path === '/') return '/';
-    const parts = path.split('/').filter(Boolean);
-    return parts.length > 0 ? parts.join(' › ') : '/';
+    const crumbs = getBreadcrumbs(activePane);
+    return crumbs.map(c => c.name).join(' › ');
   };
 
   const openResult = (file) => {
@@ -628,7 +668,7 @@ export default function SearchOverlay() {
           </SearchingIndicator>
         )}
 
-        <MainContent>
+        <MainContent ref={mainContentRef}>
           <ResultsPane>
             <Results>
               {results.map((file, i) => (
@@ -667,12 +707,15 @@ export default function SearchOverlay() {
                 {results.length} results
                 {!loading && searchComplete && results.length === 300 ? ' (limit reached)' : ''}
               </span>
-              <span>📁 {pane.viewMode === 'column' ? pane.currentBreadcrumbPath : pane.path || '/'}</span>
+              <span>📁 {getActivePath(activePane) || '/'}</span>
             </StatusBar>
           </ResultsPane>
 
+          {/* Resizable Divider */}
+          <ResizableDivider onMouseDown={() => setIsResizing(true)} />
+
           {/* Preview Pane */}
-          <PreviewPane>
+          <PreviewPane width={`${previewWidth}px`}>
             {selectedItem ? (
               <PreviewWrapper>
                 <PreviewHeader>

@@ -305,16 +305,39 @@ const ColumnsContainer = styled.div`
 `;
 
 const Column = styled.div`
-  width: 200px;
-  min-width: 200px;
+  width: ${p => p.width || '200px'};
+  min-width: 150px;
+  max-width: 600px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: ${p => p.theme.bg.primary};
   border-right: 1px solid ${p => p.theme.border.subtle};
+  position: relative;
+  flex-shrink: 0;
   
   &.active {
     background: ${p => p.theme.bg.secondary};
+  }
+`;
+
+const ColumnResizer = styled.div`
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.2s;
+  z-index: 10;
+  
+  &:hover {
+    background: ${p => p.theme.accent.blue}40;
+  }
+  
+  &.dragging {
+    background: ${p => p.theme.accent.blue}60;
   }
 `;
 
@@ -448,13 +471,16 @@ export default function FilePane({ paneId }) {
     addToClipboard, clipboardQueue, pasteClipboard,
     undo,
     setCurrentBreadcrumbPath,
+    updateColumnState,
+    clearColumnState,
+    getBreadcrumbs,
   } = useStore();
 
   const pane = panes.find(p => p.id === paneId);
 
   if (!pane) return null;
 
-  const { path: currentPath, files, loading, selectedFiles, sortBy, sortOrder, viewMode, tabs, activeTab, currentBreadcrumbPath } = pane;
+  const { path: currentPath, files, loading, selectedFiles, sortBy, sortOrder, viewMode, tabs, activeTab, currentBreadcrumbPath, columnState } = pane;
 
   const [history, setHistory] = useState([pane?.path]);
   const [historyIdx, setHistoryIdx] = useState(0);
@@ -464,16 +490,51 @@ export default function FilePane({ paneId }) {
   const [dragOver, setDragOver] = useState(null);
   const renameInputRef = useRef(null);
   
-  // Column view state
-  const [columnPaths, setColumnPaths] = useState([]);
-  const [columnFiles, setColumnFiles] = useState({});
-  const [selectedColumnPath, setSelectedColumnPath] = useState(null);
-  const [selectedItems, setSelectedItems] = useState({}); // Track selected items per column
-  const [focusedColumn, setFocusedColumn] = useState(0); // Track which column has focus
+  // Local column view UI state (widths, resizing) - not persisted to store
+  const [columnWidths, setColumnWidths] = useState({});
+  const [resizingColumn, setResizingColumn] = useState(null);
+  const columnsContainerRef = useRef(null);
+  
+  // Derived from store column state for convenience
+  const columnPaths = columnState.paths;
+  const columnFiles = columnState.filesByPath;
+  const selectedItems = columnState.selectedByColumn;
+  const focusedColumn = columnState.focusedIndex;
 
   useEffect(() => {
     if (renameFile && renameInputRef.current) renameInputRef.current.focus();
   }, [renameFile]);
+
+  // Handle column resize
+  useEffect(() => {
+    if (resizingColumn === null) return;
+
+    const handleMouseMove = (e) => {
+      if (!columnsContainerRef.current) return;
+      const container = columnsContainerRef.current;
+      const rect = container.getBoundingClientRect();
+      const newWidth = e.clientX - rect.left - (resizingColumn * 200); // Approximate position
+      
+      if (newWidth >= 150 && newWidth <= 600) {
+        setColumnWidths(prev => ({
+          ...prev,
+          [resizingColumn]: newWidth
+        }));
+      }
+    };
+
+    const handleMouseUp = () => {
+      setResizingColumn(null);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizingColumn]);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -498,19 +559,18 @@ export default function FilePane({ paneId }) {
           e.preventDefault();
           if (currentIndex > 0) {
             const newSelection = columnFilesList[currentIndex - 1];
-            setSelectedItems(prev => ({ ...prev, [focusedColumn]: newSelection.path }));
+            updateColumnState(paneId, { selectedByColumn: { ...selectedItems, [focusedColumn]: newSelection.path } });
             setSelection(paneId, [newSelection.path]);
             
             if (newSelection.isDirectory) {
-              setSelectedColumnPath(newSelection.path);
-              setCurrentBreadcrumbPath(paneId,  newSelection.path);
+              setCurrentBreadcrumbPath(paneId, newSelection.path);
               // Directories auto-open on selection
               handleColumnClick(newSelection, focusedColumn);
             } else {
               setPreviewFile(newSelection);
               // For files, remove the next column since we're not showing directory contents
               const newPaths = focusedColumn === 0 ? [] : columnPaths.slice(0, focusedColumn);
-              setColumnPaths(newPaths);
+              updateColumnState(paneId, { paths: newPaths });
             }
           }
           break;
@@ -519,19 +579,18 @@ export default function FilePane({ paneId }) {
           e.preventDefault();
           if (currentIndex < columnFilesList.length - 1) {
             const newSelection = columnFilesList[currentIndex + 1];
-            setSelectedItems(prev => ({ ...prev, [focusedColumn]: newSelection.path }));
+            updateColumnState(paneId, { selectedByColumn: { ...selectedItems, [focusedColumn]: newSelection.path } });
             setSelection(paneId, [newSelection.path]);
             
             if (newSelection.isDirectory) {
-              setSelectedColumnPath(newSelection.path);
-              setCurrentBreadcrumbPath(paneId,  newSelection.path);
+              setCurrentBreadcrumbPath(paneId, newSelection.path);
               // Directories auto-open on selection
               handleColumnClick(newSelection, focusedColumn);
             } else {
               setPreviewFile(newSelection);
               // For files, remove the next column since we're not showing directory contents
               const newPaths = focusedColumn === 0 ? [] : columnPaths.slice(0, focusedColumn);
-              setColumnPaths(newPaths);
+              updateColumnState(paneId, { paths: newPaths });
             }
           }
           break;
@@ -545,11 +604,9 @@ export default function FilePane({ paneId }) {
               const nextColumnKey = selectedItem.path;
               const nextColumnFiles = columnFiles[nextColumnKey] || [];
               if (nextColumnFiles.length > 0) {
-                setSelectedItems(prev => ({ ...prev, [focusedColumn + 1]: nextColumnFiles[0].path }));
-                setFocusedColumn(focusedColumn + 1);
+                updateColumnState(paneId, { selectedByColumn: { ...selectedItems, [focusedColumn + 1]: nextColumnFiles[0].path }, focusedIndex: focusedColumn + 1 });
                 setSelection(paneId, [nextColumnFiles[0].path]);
                 if (nextColumnFiles[0].isDirectory) {
-                  setSelectedColumnPath(nextColumnFiles[0].path);
                   setCurrentBreadcrumbPath(paneId, nextColumnFiles[0].path);
                 } else {
                   setPreviewFile(nextColumnFiles[0]);
@@ -566,8 +623,7 @@ export default function FilePane({ paneId }) {
           e.preventDefault();
           if (focusedColumn > 0) {
             // Unselect current column before moving left
-            setSelectedItems(prev => ({ ...prev, [focusedColumn]: null }));
-            setFocusedColumn(focusedColumn - 1);
+            updateColumnState(paneId, { selectedByColumn: { ...selectedItems, [focusedColumn]: null }, focusedIndex: focusedColumn - 1 });
             // Clear preview when moving left
             setPreviewFile(null);
           }
@@ -577,7 +633,7 @@ export default function FilePane({ paneId }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [viewMode, focusedColumn, columnPaths, currentPath, files, columnFiles, selectedItems]);
+  }, [viewMode, columnPaths, currentPath, files, paneId, setSelection, setCurrentBreadcrumbPath, setPreviewFile]);
 
   // Handle reveal target from search or other sources
   useEffect(() => {
@@ -588,8 +644,6 @@ export default function FilePane({ paneId }) {
 
     // Set column paths to show the path to the file
     if (columnPaths.length > 0) {
-      setColumnPaths(columnPaths);
-      
       // Load files for each column path
       const loadColumnFiles = async () => {
         const filesMap = { [currentPath]: files };
@@ -602,8 +656,6 @@ export default function FilePane({ paneId }) {
             }
           }
         }
-        
-        setColumnFiles(filesMap);
         
         // Build selected items for all columns in the path
         // Column 0 (shows currentPath) should have columnPaths[0] selected
@@ -622,13 +674,12 @@ export default function FilePane({ paneId }) {
         // The file should be selected in the last column (which shows the file's parent dir)
         newSelectedItems[columnPaths.length] = filePath;
         
-        console.log('[Reveal Debug] columnPaths:', columnPaths);
-        console.log('[Reveal Debug] newSelectedItems:', newSelectedItems);
-        console.log('[Reveal Debug] currentPath:', currentPath);
-        console.log('[Reveal Debug] files count:', files.length);
-        
-        setSelectedItems(newSelectedItems);
-        setFocusedColumn(columnPaths.length);
+        updateColumnState(paneId, { 
+          paths: columnPaths, 
+          filesByPath: filesMap, 
+          selectedByColumn: newSelectedItems, 
+          focusedIndex: columnPaths.length 
+        });
         setSelection(paneId, [filePath]);
         
         // Update breadcrumb to the file's parent directory
@@ -663,19 +714,15 @@ export default function FilePane({ paneId }) {
 
     // Clear the reveal target
     clearRevealTarget();
-  }, [useStore.getState().revealTarget, paneId, currentPath, files]);
+  }, [paneId, currentPath, files]);
 
   // Reset column view state when navigating via bookmarks
   useEffect(() => {
-    if (viewMode === 'column') {
+    if (viewMode === 'column' && columnPaths.length > 0) {
       // Don't reset if breadcrumb matches the last column path
       // (this means reveal just updated the breadcrumb)
       const lastColumnPath = columnPaths[columnPaths.length - 1];
       if (currentBreadcrumbPath === lastColumnPath) return;
-
-      // Also don't reset if revealTarget exists (reveal in progress)
-      const { revealTarget } = useStore.getState();
-      if (revealTarget) return;
 
       // Check if currentBreadcrumbPath doesn't match the expected structure
       // This happens when navigating via bookmarks - we should reset column state
@@ -685,15 +732,11 @@ export default function FilePane({ paneId }) {
       
       if (currentBreadcrumbPath !== expectedBreadcrumb && currentBreadcrumbPath !== currentPath) {
         // Reset column view state for bookmark navigation
-        setColumnPaths([]);
-        setSelectedItems({});
-        setSelectedColumnPath(null);
-        setFocusedColumn(0);
-        setColumnFiles({ [currentPath]: files });
+        clearColumnState(paneId);
         setPreviewFile(null);
       }
     }
-  }, [viewMode, currentBreadcrumbPath, currentPath, columnPaths, files]);
+  }, [viewMode, currentBreadcrumbPath, currentPath, columnPaths.length, paneId]);
 
   const navigate = (p) => {
     const newHistory = [...history.slice(0, historyIdx + 1), p];
@@ -717,19 +760,15 @@ export default function FilePane({ paneId }) {
   };
 
   const handleColumnClick = (file, columnIndex) => {
-    // Update focus to clicked column
-    setFocusedColumn(columnIndex);
-    
-    // Update selection for this column
-    setSelectedItems(prev => ({ 
-      ...prev, 
+    // Update selection for this column and clear selections for all columns after this one
+    const newSelectedItems = { 
       [columnIndex]: file.path,
       // Clear selections for all columns after this one
       ...Object.fromEntries(
-        Object.entries(prev).filter(([key]) => parseInt(key) > columnIndex)
+        Object.entries(selectedItems).filter(([key]) => parseInt(key) > columnIndex)
           .map(([key]) => [key, undefined])
       )
-    }));
+    };
     
     // Always remove columns after this one when selecting
     let newPaths;
@@ -743,8 +782,11 @@ export default function FilePane({ paneId }) {
     if (file.isDirectory) {
       // Add this directory's path to create the next column
       newPaths.push(file.path);
-      setColumnPaths(newPaths);
-      setSelectedColumnPath(file.path);
+      updateColumnState(paneId, { 
+        paths: newPaths, 
+        selectedByColumn: newSelectedItems,
+        focusedIndex: columnIndex 
+      });
       setCurrentBreadcrumbPath(paneId, file.path);
       
       // Clear preview when directory is selected
@@ -753,13 +795,16 @@ export default function FilePane({ paneId }) {
       // Immediately load files for the new directory
       window.electronAPI.readdir(file.path).then(result => {
         if (result.success) {
-          setColumnFiles(prev => ({ ...prev, [file.path]: result.files }));
+          updateColumnState(paneId, { filesByPath: { ...columnFiles, [file.path]: result.files } });
         }
       });
     } else {
       // For files, just update paths without adding new column
-      setColumnPaths(newPaths);
-      setSelectedColumnPath(file.path);
+      updateColumnState(paneId, { 
+        paths: newPaths, 
+        selectedByColumn: newSelectedItems,
+        focusedIndex: columnIndex 
+      });
       setPreviewFile(file);
       // Update breadcrumb to show parent directory of selected file
       const parentPath = file.path.split('/').slice(0, -1).join('/') || '/';
@@ -767,19 +812,16 @@ export default function FilePane({ paneId }) {
     }
     
     // Clear files data for columns that were removed
-    setColumnFiles(prev => {
-      const newFiles = { ...prev };
-      // Only clear files for columns that were actually removed
-      const oldLength = columnPaths.length;
-      const newLength = newPaths.length;
-      for (let i = newLength; i < oldLength; i++) {
-        const removedPath = columnPaths[i];
-        if (removedPath) {
-          delete newFiles[removedPath];
-        }
+    const newFiles = { ...columnFiles };
+    const oldLength = columnPaths.length;
+    const newLength = newPaths.length;
+    for (let i = newLength; i < oldLength; i++) {
+      const removedPath = columnPaths[i];
+      if (removedPath) {
+        delete newFiles[removedPath];
       }
-      return newFiles;
-    });
+    }
+    updateColumnState(paneId, { filesByPath: newFiles });
   };
 
   const handleColumnEmptyClick = (columnIndex) => {
@@ -793,36 +835,33 @@ export default function FilePane({ paneId }) {
     
     // Remove all columns after this one
     const newPaths = columnPaths.slice(0, columnIndex);
-    setColumnPaths(newPaths);
     
     // Clear ALL selection state from this column onwards
     // This ensures no preselected directories in subsequent columns
-    setSelectedItems(prev => {
-      const newItems = {};
-      // Keep only selections from columns before this one
-      for (let i = 0; i < columnIndex; i++) {
-        if (prev[i] !== undefined) {
-          newItems[i] = prev[i];
-        }
+    const newItems = {};
+    // Keep only selections from columns before this one
+    for (let i = 0; i < columnIndex; i++) {
+      if (selectedItems[i] !== undefined) {
+        newItems[i] = selectedItems[i];
       }
-      return newItems;
-    });
+    }
     
     // Clear files data for removed columns
-    setColumnFiles(prev => {
-      const newFiles = { ...prev };
-      // Remove files for columns that are no longer shown
-      for (let i = columnIndex; i < columnPaths.length; i++) {
-        const pathToRemove = columnPaths[i];
-        if (pathToRemove && newFiles[pathToRemove]) {
-          delete newFiles[pathToRemove];
-        }
+    const newFiles = { ...columnFiles };
+    // Remove files for columns that are no longer shown
+    for (let i = columnIndex; i < columnPaths.length; i++) {
+      const pathToRemove = columnPaths[i];
+      if (pathToRemove && newFiles[pathToRemove]) {
+        delete newFiles[pathToRemove];
       }
-      return newFiles;
-    });
+    }
     
-    // Update focus to clicked column
-    setFocusedColumn(columnIndex);
+    updateColumnState(paneId, { 
+      paths: newPaths, 
+      selectedByColumn: newItems,
+      filesByPath: newFiles,
+      focusedIndex: columnIndex 
+    });
     
     // Update breadcrumb to the directory of this column
     const breadcrumbPath = columnIndex === 0 ? currentPath : columnPaths[columnIndex - 1];
@@ -835,19 +874,6 @@ export default function FilePane({ paneId }) {
   const goUp = () => {
     const parent = currentPath.split('/').slice(0, -1).join('/') || '/';
     navigate(parent);
-  };
-
-  const getBreadcrumbs = () => {
-    const path = viewMode === 'column' ? currentBreadcrumbPath : currentPath;
-    if (path === '/') return [{ name: '/', path: '/' }];
-    const parts = path.split('/').filter(Boolean);
-    return [
-      { name: '/', path: '/' },
-      ...parts.map((part, i) => ({
-        name: part,
-        path: '/' + parts.slice(0, i + 1).join('/'),
-      })),
-    ];
   };
 
   const handleFileClick = (e, file) => {
@@ -1121,9 +1147,9 @@ export default function FilePane({ paneId }) {
           <GridWrap>{files.map(renderGridItem)}</GridWrap>
         )}
         {!loading && viewMode === 'column' && (
-          <ColumnsContainer>
+          <ColumnsContainer ref={columnsContainerRef}>
             {/* First column - current path */}
-            <Column className={focusedColumn === 0 ? 'active' : ''}>
+            <Column width={columnWidths[0] ? `${columnWidths[0]}px` : '200px'} className={focusedColumn === 0 ? 'active' : ''}>
               <ColViewHeader>{currentPath === '/' ? 'Root' : currentPath.split('/').pop()}</ColViewHeader>
               <ColumnList onClick={() => handleColumnEmptyClick(0)}>
                 {files.map(file => (
@@ -1140,13 +1166,14 @@ export default function FilePane({ paneId }) {
                   </ColumnItem>
                 ))}
               </ColumnList>
+              <ColumnResizer onMouseDown={() => setResizingColumn(0)} />
             </Column>
             
             {/* Additional columns for nested selections */}
             {columnPaths.map((colPath, idx) => {
               const colFiles = columnFiles[colPath] || [];
               return (
-                <Column key={colPath} className={focusedColumn === idx + 1 ? 'active' : ''}>
+                <Column key={colPath} width={columnWidths[idx + 1] ? `${columnWidths[idx + 1]}px` : '200px'} className={focusedColumn === idx + 1 ? 'active' : ''}>
                   <ColViewHeader>{colPath.split('/').pop() || 'Root'}</ColViewHeader>
                   <ColumnList onClick={() => handleColumnEmptyClick(idx + 1)}>
                     {colFiles.map(file => (
@@ -1163,6 +1190,7 @@ export default function FilePane({ paneId }) {
                       </ColumnItem>
                     ))}
                   </ColumnList>
+                  <ColumnResizer onMouseDown={() => setResizingColumn(idx + 1)} />
                 </Column>
               );
             })}

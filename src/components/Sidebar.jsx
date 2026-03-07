@@ -94,16 +94,17 @@ const FOLDER_ICONS = {
 export default function Sidebar() {
   const {
     bookmarks, setBookmarks,
-    panes, activePane, navigateTo, navigateToBookmark,
+    activePane, navigateTo, navigateToBookmark,
     allTags, loadAllTags,
     openModal,
+    getActivePath,
   } = useStore();
 
   const [recentPaths, setRecentPaths] = useState([]);
   const [dragOver, setDragOver] = useState(null);
   const [expandedSections, setExpandedSections] = useState({ bookmarks: true, tags: true, recent: true });
 
-  const activePath = panes.find(p => p.id === activePane)?.path;
+  const activePath = getActivePath(activePane);
 
   useEffect(() => {
     loadAllTags();

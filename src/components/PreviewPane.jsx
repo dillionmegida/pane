@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
-import { useStore, formatSize, formatDate } from '../store/index';
+import { useStore, formatSize, formatDate, PREVIEW_TYPES } from '../store/index';
 
 const Pane = styled.div`
   width: ${p => p.width}px;
@@ -196,10 +196,10 @@ export default function PreviewPane() {
   const [editContent, setEditContent] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(previewFile?.extension);
-  const isText = ['txt', 'md', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'json', 'py', 'rb', 'sh', 'yaml', 'yml', 'xml', 'csv', 'log', 'conf', 'go', 'rs', 'java', 'c', 'cpp', 'h'].includes(previewFile?.extension);
-  const isVideo = ['mp4', 'mov', 'webm'].includes(previewFile?.extension);
-  const isAudio = ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'].includes(previewFile?.extension);
+  const isImage = PREVIEW_TYPES.imageExts.includes(previewFile?.extension);
+  const isText = PREVIEW_TYPES.textExts.includes(previewFile?.extension);
+  const isVideo = PREVIEW_TYPES.videoExts.includes(previewFile?.extension);
+  const isAudio = PREVIEW_TYPES.audioExts.includes(previewFile?.extension);
   const isPdf = previewFile?.extension === 'pdf';
 
   useEffect(() => {
