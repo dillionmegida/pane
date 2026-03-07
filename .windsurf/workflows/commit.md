@@ -21,6 +21,7 @@ Run this skill when you have made changes to multiple files and want to create a
 ## File Grouping Logic
 
 Files are grouped based on:
+
 - **Component changes**: React components, UI elements
 - **Configuration changes**: package.json, webpack configs, build files
 - **Documentation changes**: README, docs, comments
@@ -40,13 +41,15 @@ When a file contains changes for multiple features, hunks are analyzed and group
 ## Commit Message Format
 
 Commits follow conventional commit format:
-```
+
+```bash
 type(scope): description
 
 [optional detailed body]
 ```
 
 Types used:
+
 - `feat`: New features
 - `fix`: Bug fixes
 - `refactor`: Code refactoring
@@ -59,7 +62,7 @@ Types used:
 
 **Commit 1:**
 
-```
+```bash
 feat(featureA): implement initial feature A functionality
 
 - Add new feature logic to file1
@@ -71,7 +74,8 @@ Files changed:
 ```
 
 **Commit 2:**
-```
+
+```bash
 feat(featureB): implement feature B functionality
 
 - Add feature B logic to file3
@@ -85,6 +89,13 @@ Files changed:
 ## Automation
 
 This skill should not be run automatically.
+
+### Explicit Rules
+
+- **NEVER run commit automatically** - Only run when explicitly requested by the user
+- **Wait for user confirmation** - Always ask before committing any changes
+- **No auto-commit triggers** - Do not commit after code changes, refactoring, or fixes
+- **Manual execution only** - This workflow requires explicit user command to execute
 
 ## Notes
 
