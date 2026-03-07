@@ -74,6 +74,7 @@ const MainContent = styled.div`
   display: flex;
   flex: 1;
   overflow: hidden;
+  border-top: 1px solid ${p => p.theme.border.normal};
 `;
 
 const ResultsPane = styled.div`
@@ -163,13 +164,14 @@ const PreviewPane = styled.div`
   width: 320px;
   display: flex;
   flex-direction: column;
-  padding: 16px;
   overflow-y: auto;
   background: ${p => p.theme.bg.elevated};
-  border-left: 1px solid ${p => p.theme.border.secondary};
+  border-left: 1px solid ${p => p.theme.border.normal};
 `;
 
+
 const PreviewHeader = styled.div`
+  padding: 16px;
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid ${p => p.theme.border.subtle};
@@ -197,25 +199,26 @@ const PreviewContent = styled.div`
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  border-top: 1px solid ${p => p.theme.text.secondary}; 
+  border-top: 1px solid ${p => p.theme.border.normal}; 
 `;
 
 const PreviewLabel = styled.div`
   font-size: 12px;
   font-weight: 600;
   color: ${p => p.theme.text.secondary};
-  margin-bottom: 8px;
+  padding: 16px;
+  
+  span {
+    display: inline-block;
+    border: 1px solid ${p => p.theme.border.normal};
+    padding: 8px;
+  }
 `;
 
 const PreviewMedia = styled.div`
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   img, video {
     max-width: 100%;
     max-height: 200px;
-    border-radius: 4px;
   }
   audio {
     width: 100%;
@@ -225,15 +228,13 @@ const PreviewMedia = styled.div`
 const PreviewText = styled.pre`
   font-size: 10px;
   color: ${p => p.theme.text.primary};
-  background: ${p => p.theme.bg.secondary};
-  padding: 8px;
-  border-radius: 4px;
+  border-bottom: 1px solid ${p => p.theme.border.normal};
+  padding: 16px 16px 30px;
   overflow: auto;
-  flex: 1;
   margin: 0;
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 200px;
+  max-height: 300px;
 `;
 
 const PreviewActions = styled.div`
@@ -384,11 +385,14 @@ export default function SearchOverlay() {
     const handleProgress = ({ result, total, searchId }) => {
       if (searchId === searchIdRef.current) {
         setResults(prev => {
-          // Avoid duplicates
-          if (prev.find(r => r.path === result.path)) return prev;
-          return [...prev, result];
+          const newResults = [...prev, result];
+          // Select first item if this is the first result and nothing is selected
+          if (newResults.length === 1 && !selectedItem) {
+            setSelectedIdx(0);
+            setSelectedItem(result);
+          }
+          return newResults;
         });
-        setSelectedIdx(0); // Reset selection to first item
       }
     };
 
@@ -397,6 +401,11 @@ export default function SearchOverlay() {
         setLoading(false);
         setSearchComplete(true);
         searchIdRef.current = null;
+        // Select first item if search completed with results but nothing selected
+        if (results.length > 0 && !selectedItem) {
+          setSelectedIdx(0);
+          setSelectedItem(results[0]);
+        }
       }
     };
 
@@ -472,7 +481,7 @@ export default function SearchOverlay() {
     const fileName = parts.pop(); // Remove filename, keep directories
 
     if (parts.length === 0) {
-      navigateTo(activePane, '/');
+      navigateToDirectoryAndSelect(activePane, filePath);
       toggleSearch();
       return;
     }
@@ -483,7 +492,7 @@ export default function SearchOverlay() {
       setViewMode(activePane, 'column');
     }
 
-    navigateTo(activePane, targetPath);
+    navigateToDirectoryAndSelect(activePane, filePath);
     toggleSearch();
   };
 
@@ -667,7 +676,7 @@ export default function SearchOverlay() {
                 </PreviewHeader>
 
                 <PreviewContent>
-                  <PreviewLabel>Preview</PreviewLabel>
+                  <PreviewLabel><span>Preview</span></PreviewLabel>
                   {loadingPreview ? (
                     <div style={{ color: '#4A9EFF', fontSize: 11 }}>Loading preview...</div>
                   ) : (

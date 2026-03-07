@@ -214,6 +214,19 @@ export const useStore = create((set, get) => ({
     await navigateTo(paneId, dirPath);
   },
 
+  navigateToDirectoryAndSelect: async (paneId, filePath) => {
+    const { navigateTo } = get();
+    
+    // Extract directory path from file path
+    const dirPath = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '/';
+    
+    // Navigate to the directory first
+    await navigateTo(paneId, dirPath);
+    
+    // Then select the file
+    get().setSelection(paneId, [filePath]);
+  },
+
   // ── Preview ───────────────────────────────────────────────────────────────
   previewFile: null,
   showPreview: false,
