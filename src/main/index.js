@@ -333,18 +333,103 @@ ipcMain.handle('fs:getDrives', async () => {
 });
 
 // ─── IPC: Search ─────────────────────────────────────────────────────────────
+let activeSearch = null;
+
 ipcMain.handle('fs:search', async (event, { rootPath, query, options = {} }) => {
+  const searchId = Date.now();
+  activeSearch = searchId;
   const results = [];
   const { useRegex, caseSensitive, contentSearch, maxResults = 500, excludeDirs = [] } = options;
 
-  function searchDir(dirPath, depth = 0) {
-    if (depth > 10 || results.length >= maxResults) return;
+  // Expanded default exclude patterns for root directory searches
+  const defaultExcludes = ['node_modules', '.git', '.svn', '.hg', 'bower_components', '.vscode', '.idea', 'dist', 'build', 'target', 'bin', 'obj', 'packages', '.next', '.nuxt', 'coverage', '.cache', 'tmp', 'temp'];
+  const allExcludes = [...new Set([...defaultExcludes, ...excludeDirs])];
+
+  try {
+    // Use find command for much faster search (async version)
+    const { exec } = require('child_process');
+    
+    // Build find command with proper escaping
+    const escapedPath = rootPath.replace(/'/g, "'\"'\"'");
+    const excludePatterns = allExcludes.map(dir => `-not -path "${escapedPath}/${dir}/*" -not -path "${escapedPath}/${dir}"`).join(' ');
+    
+    let findCommand;
+    if (useRegex) {
+      findCommand = `find '${escapedPath}' ${excludePatterns} -regextype posix-extended -regex ".*${query}.*" -type f,l 2>/dev/null | head -n ${maxResults}`;
+    } else {
+      const searchPattern = caseSensitive ? `*${query}*` : `*${query.toLowerCase()}*`;
+      findCommand = `find '${escapedPath}' ${excludePatterns} -iname "${searchPattern}" -type f,l 2>/dev/null | head -n ${maxResults}`;
+    }
+    
+    // Use async exec to avoid blocking
+    exec(findCommand, { encoding: 'utf8' }, (error, stdout, stderr) => {
+      if (activeSearch !== searchId) return; // Search was cancelled
+      
+      if (error) {
+        // Fallback to manual search if find command fails
+        fallbackSearch(event, rootPath, query, options, searchId, results);
+        return;
+      }
+      
+      const foundPaths = stdout.trim().split('\n').filter(Boolean);
+      
+      // Process results in batches for streaming
+      (async () => {
+        for (const filePath of foundPaths) {
+          if (activeSearch !== searchId) break;
+          
+          try {
+            const stat = await fs.promises.stat(filePath);
+            const result = {
+              name: filePath.split('/').pop(),
+              path: filePath,
+              isDirectory: stat.isDirectory(),
+              size: stat.size,
+              modified: stat.mtime.toISOString(),
+              extension: filePath.split('.').pop().toLowerCase(),
+            };
+            
+            results.push(result);
+            
+            // Send incremental result to renderer
+            if (activeSearch === searchId) {
+              event.sender.send('search:progress', { result, total: results.length, searchId });
+            }
+          } catch (e) {
+            // Skip files we can't stat
+          }
+        }
+        
+        // Send final results
+        if (activeSearch === searchId) {
+          event.sender.send('search:complete', { results, searchId });
+        }
+      })();
+    });
+  } catch (e) {
+    // Fallback to manual search if find command fails
+    await fallbackSearch(event, rootPath, query, options, searchId, results);
+  }
+});
+
+async function fallbackSearch(event, rootPath, query, options, searchId, results) {
+  const { useRegex, caseSensitive, contentSearch, maxResults = 500, excludeDirs = [] } = options;
+  const defaultExcludes = ['node_modules', '.git', '.svn', '.hg', 'bower_components', '.vscode', '.idea', 'dist', 'build', 'target', 'bin', 'obj', 'packages', '.next', '.nuxt', 'coverage', '.cache', 'tmp', 'temp'];
+  const allExcludes = [...new Set([...defaultExcludes, ...excludeDirs])];
+
+  async function searchDir(dirPath, depth = 0) {
+    if (activeSearch !== searchId) return;
+    if (depth > 8 || results.length >= maxResults) return;
+    
     try {
-      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+      
       for (const entry of entries) {
-        if (entry.name.startsWith('.')) continue;
-        // Skip excluded directories
-        if (entry.isDirectory() && excludeDirs.includes(entry.name)) continue;
+        if (activeSearch !== searchId) return;
+        
+        if (entry.name.startsWith('.' && !entry.name.startsWith('.'))) continue;
+        if (entry.isDirectory() && allExcludes.includes(entry.name)) continue;
+        
         const fullPath = path.join(dirPath, entry.name);
         let matches = false;
 
@@ -356,35 +441,45 @@ ipcMain.handle('fs:search', async (event, { rootPath, query, options = {} }) => 
             matches = caseSensitive ? entry.name.includes(query) : entry.name.toLowerCase().includes(query.toLowerCase());
           }
 
-          if (!matches && contentSearch && !entry.isDirectory()) {
-            const textExts = ['txt', 'md', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'json', 'py', 'rb', 'sh', 'yaml', 'yml', 'xml', 'csv'];
-            const ext = path.extname(entry.name).slice(1).toLowerCase();
-            if (textExts.includes(ext)) {
-              const content = fs.readFileSync(fullPath, 'utf8');
-              matches = content.toLowerCase().includes(query.toLowerCase());
-            }
-          }
-
           if (matches) {
-            const stat = fs.statSync(fullPath);
-            results.push({
+            const stat = await fs.promises.stat(fullPath);
+            const result = {
               name: entry.name,
               path: fullPath,
               isDirectory: entry.isDirectory(),
               size: stat.size,
               modified: stat.mtime.toISOString(),
               extension: path.extname(entry.name).slice(1).toLowerCase(),
-            });
+            };
+            results.push(result);
+            
+            if (activeSearch === searchId) {
+              event.sender.send('search:progress', { result, total: results.length, searchId });
+            }
           }
 
-          if (entry.isDirectory()) searchDir(fullPath, depth + 1);
-        } catch (e) {}
+          if (entry.isDirectory()) {
+            await searchDir(fullPath, depth + 1);
+          }
+        } catch (e) {
+          // Skip files we can't access
+        }
       }
-    } catch (e) {}
+    } catch (e) {
+      // Skip directories we can't access
+    }
   }
 
-  searchDir(rootPath);
-  return { success: true, results };
+  await searchDir(rootPath);
+  
+  if (activeSearch === searchId) {
+    event.sender.send('search:complete', { results, searchId });
+  }
+}
+
+ipcMain.handle('fs:searchCancel', () => {
+  activeSearch = null;
+  return { success: true };
 });
 
 // ─── IPC: Zip ─────────────────────────────────────────────────────────────────
