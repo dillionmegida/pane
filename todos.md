@@ -1,5 +1,11 @@
 # TODO List
 
+## Test Suite Issues
+- There are still some failing tests in the test suite
+  - Need to debug and fix the remaining failing tests
+  - Tests are exiting with code 1 indicating failures
+  - Need to identify which specific tests are failing and why
+
 ## Search Reveal Functionality
 - The search reveal functionality doesn't work well yet
   - Visual selection indicators are not showing correctly for all columns
