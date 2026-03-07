@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import styled from 'styled-components';
 import { useStore, formatSize, formatDate, getFileIcon, sortFiles } from '../store';
 import path from 'path-browserify';
@@ -12,6 +13,7 @@ const PaneContainer = styled.div`
   background: ${p => p.theme.bg.primary};
   border: 1px solid ${p => p.theme.border.subtle};
   transition: border-color 0.15s;
+  position: relative;
 
   &.active {
     border: 1px solid ${p => p.theme.border.focus + '40'};
@@ -216,7 +218,7 @@ const FileRow = styled.div`
   height: 28px;
   align-items: center;
   cursor: pointer;
-  background: ${p => p.selected ? p.theme.bg.selection : 'transparent'};
+  background: ${p => p.contextMenuSelected ? p.theme.bg.hover : p.selected ? p.theme.bg.selection : 'transparent'};
   border-radius: ${p => p.theme.radius.sm};
   margin: 0 2px;
   position: relative;
@@ -367,6 +369,7 @@ const ColumnItem = styled.div`
   font-size: 12px;
   cursor: pointer;
   color: ${p => p.theme.text.primary};
+  background: ${p => p.contextMenuSelected ? p.theme.bg.hover : 'transparent'};
   
   &:hover {
     background: ${p => p.theme.bg.hover};
@@ -392,7 +395,7 @@ const ColumnItem = styled.div`
 `;
 
 const ContextMenu = styled.div`
-  position: fixed;
+  position: absolute;
   z-index: 1000;
   background: ${p => p.theme.bg.elevated};
   border: 1px solid ${p => p.theme.border.normal};
@@ -494,10 +497,12 @@ export default function FilePane({ paneId }) {
   const [history, setHistory] = useState([pane?.path]);
   const [historyIdx, setHistoryIdx] = useState(0);
   const [contextMenu, setContextMenu] = useState(null);
+  const [contextMenuFile, setContextMenuFile] = useState(null);
   const [renameFile, setRenameFile] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [dragOver, setDragOver] = useState(null);
   const renameInputRef = useRef(null);
+  const paneRef = useRef(null);
   
   // Local column view UI state (widths, resizing) - not persisted to store
   const [columnWidths, setColumnWidths] = useState({});
@@ -577,9 +582,15 @@ export default function FilePane({ paneId }) {
   // Close context menu on outside click
   useEffect(() => {
     if (!contextMenu) return;
-    const handler = () => setContextMenu(null);
-    window.addEventListener('click', handler);
-    return () => window.removeEventListener('click', handler);
+    const handler = (e) => {
+      // Don't close if clicking inside the context menu
+      if (e.target.closest('.context-menu')) return;
+      setContextMenu(null);
+      setContextMenuFile(null);
+    };
+    // Add to document to catch clicks outside the pane
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
   }, [contextMenu]);
 
   // Keyboard navigation for column view
@@ -714,6 +725,10 @@ export default function FilePane({ paneId }) {
   };
 
   const handleColumnClick = (file, columnIndex) => {
+    // Clear context menu when clicking another file
+    setContextMenu(null);
+    setContextMenuFile(null);
+    
     if (file.isDirectory) {
       // For directories, update breadcrumb path and load files if needed
       setCurrentBreadcrumbPath(paneId, file.path);
@@ -738,6 +753,10 @@ export default function FilePane({ paneId }) {
   };
 
   const handleColumnEmptyClick = (columnIndex) => {
+    // Clear context menu when clicking empty space
+    setContextMenu(null);
+    setContextMenuFile(null);
+    
     // Clear global selection
     setSelection(paneId, []);
     
@@ -763,6 +782,9 @@ export default function FilePane({ paneId }) {
   const handleFileClick = (e, file) => {
     e.stopPropagation();
     setActivePane(paneId);
+    // Clear context menu when clicking another file
+    setContextMenu(null);
+    setContextMenuFile(null);
 
     if (e.metaKey || e.ctrlKey) {
       toggleSelection(paneId, file.path, true);
@@ -799,12 +821,30 @@ export default function FilePane({ paneId }) {
     if (!selectedFiles.has(file.path)) {
       setSelection(paneId, [file.path]);
     }
-    setContextMenu({ x: e.clientX, y: e.clientY, file });
+    const rect = paneRef.current.getBoundingClientRect();
+    const zoom = useStore.getState().zoom;
+    const fileElement = e.currentTarget;
+    const fileRect = fileElement.getBoundingClientRect();
+    let menuY = (fileRect.bottom / zoom) - (rect.top / zoom) - 8;
+    const menuX = (fileRect.right / zoom) - (rect.left / zoom) - 8;
+    
+    // Check if menu would clip at bottom of screen
+    const estimatedMenuHeight = 200; // approximate height in pixels
+    const paneBottom = (window.innerHeight / zoom) - (rect.top / zoom);
+    if (menuY + estimatedMenuHeight > paneBottom) {
+      // Position above: bottom of menu at top of file
+      menuY = (fileRect.top / zoom) - (rect.top / zoom) - estimatedMenuHeight;
+    }
+    
+    setContextMenu({ x: menuX, y: menuY, file });
+    setContextMenuFile(file);
   };
 
   const handleBackgroundContextMenu = (e) => {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, file: null, background: true });
+    const rect = paneRef.current.getBoundingClientRect();
+    const zoom = useStore.getState().zoom;
+    setContextMenu({ x: (e.clientX / zoom) - (rect.left / zoom), y: (e.clientY / zoom) - (rect.top / zoom), file: null, background: true });
   };
 
   const handleDrop = async (e, destFile) => {
@@ -863,11 +903,13 @@ export default function FilePane({ paneId }) {
   const renderFileRow = (file) => {
     const isSelected = selectedFiles.has(file.path);
     const isRenaming = renameFile?.path === file.path;
+    const isContextMenuSelected = contextMenuFile?.path === file.path;
 
     return (
       <FileRow
         key={file.path}
         selected={isSelected}
+        contextMenuSelected={isContextMenuSelected}
         className={dragOver === file.path ? 'drag-over' : ''}
         onClick={e => handleFileClick(e, file)}
         onDoubleClick={() => handleDoubleClick(file)}
@@ -942,7 +984,7 @@ export default function FilePane({ paneId }) {
   const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
 
   return (
-    <PaneContainer className={activePane === paneId ? 'active' : ''} onClick={() => setActivePane(paneId)}>
+    <PaneContainer ref={paneRef} className={activePane === paneId ? 'active' : ''} onClick={() => setActivePane(paneId)}>
       {/* Tab Bar */}
       <TabBar>
         {tabs.map((tab, i) => (
@@ -1015,7 +1057,11 @@ export default function FilePane({ paneId }) {
         onDragOver={e => e.preventDefault()}
         onDrop={e => handleDrop(e, null)}
         onContextMenu={handleBackgroundContextMenu}
-        onClick={() => setSelection(paneId, [])}
+        onClick={() => {
+          setSelection(paneId, []);
+          setContextMenu(null);
+          setContextMenuFile(null);
+        }}
       >
         {loading && (
           <EmptyState>
@@ -1065,10 +1111,12 @@ export default function FilePane({ paneId }) {
                       <ColumnItem
                         key={file.path}
                         className={selectedItems[idx] === file.path ? 'selected' : ''}
+                        contextMenuSelected={contextMenuFile?.path === file.path}
                         onClick={e => {
                           e.stopPropagation();
                           handleColumnClick(file, idx);
                         }}
+                        onContextMenu={e => handleContextMenu(e, file)}
                       >
                         <span className="icon">{getFileIcon(file)}</span>
                         <span className="name">{file.name}</span>
@@ -1091,59 +1139,52 @@ export default function FilePane({ paneId }) {
 
       {/* Context Menu */}
       {contextMenu && (
-        <ContextMenu style={{ left: contextMenu.x, top: contextMenu.y }} onClick={e => e.stopPropagation()}>
+        <ContextMenu className="context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={e => e.stopPropagation()}>
           {contextMenu.background ? (
             <>
-              <MenuItem onClick={() => { createFolder(); setContextMenu(null); }}>📁 New Folder</MenuItem>
-              <MenuItem onClick={() => { refreshPane(paneId); setContextMenu(null); }}>↺ Refresh</MenuItem>
+              <MenuItem onClick={() => { createFolder(); setContextMenu(null); setContextMenuFile(null); }}>📁 New Folder</MenuItem>
+              <MenuItem onClick={() => { refreshPane(paneId); setContextMenu(null); setContextMenuFile(null); }}>↺ Refresh</MenuItem>
               {clipboardQueue.length > 0 && (
-                <MenuItem onClick={() => { pasteClipboard(currentPath); setContextMenu(null); }}>
+                <MenuItem onClick={() => { pasteClipboard(currentPath); setContextMenu(null); setContextMenuFile(null); }}>
                   📋 Paste {clipboardQueue.length} item{clipboardQueue.length > 1 ? 's' : ''}
                 </MenuItem>
               )}
               <MenuDivider />
-              <MenuItem onClick={() => { openModal('sizeViz', { path: currentPath }); setContextMenu(null); }}>
+              <MenuItem onClick={() => { openModal('sizeViz', { path: currentPath }); setContextMenu(null); setContextMenuFile(null); }}>
                 📊 Disk Usage Map
               </MenuItem>
             </>
           ) : (
             <>
-              <MenuItem onClick={() => { handleDoubleClick(contextMenu.file); setContextMenu(null); }}>
-                {contextMenu.file?.isDirectory ? '📂 Open' : '⬆️ Open'}
-              </MenuItem>
-              <MenuItem onClick={() => { window.electronAPI.showInFinder(contextMenu.file.path); setContextMenu(null); }}>
-                🔍 Reveal in Finder
-              </MenuItem>
-              <MenuDivider />
-              <MenuItem onClick={() => { startRename(contextMenu.file); }}>✏️ Rename</MenuItem>
+              <MenuItem onClick={() => { startRename(contextMenu.file); setContextMenu(null); setContextMenuFile(null); }}>✏️ Rename</MenuItem>
               {selectedFiles.size > 1 && (
                 <MenuItem onClick={() => {
                   openModal('batchRename', { files: selectedFileObjects, basePath: currentPath });
-                  setContextMenu(null);
+                  setContextMenu(null); setContextMenuFile(null);
                 }}>✏️ Batch Rename...</MenuItem>
               )}
               <MenuDivider />
               <MenuItem onClick={() => {
                 addToClipboard([...selectedFiles], 'copy');
-                setContextMenu(null);
+                setContextMenu(null); setContextMenuFile(null);
               }}>📋 Copy</MenuItem>
               <MenuItem onClick={() => {
                 addToClipboard([...selectedFiles], 'cut');
-                setContextMenu(null);
+                setContextMenu(null); setContextMenuFile(null);
               }}>✂️ Cut</MenuItem>
               {clipboardQueue.length > 0 && (
-                <MenuItem onClick={() => { pasteClipboard(currentPath); setContextMenu(null); }}>
+                <MenuItem onClick={() => { pasteClipboard(currentPath); setContextMenu(null); setContextMenuFile(null); }}>
                   📋 Paste
                 </MenuItem>
               )}
               <MenuDivider />
               <MenuItem onClick={() => {
                 openModal('tags', { file: contextMenu.file });
-                setContextMenu(null);
+                setContextMenu(null); setContextMenuFile(null);
               }}>🏷️ Tags...</MenuItem>
               <MenuItem onClick={() => {
                 openModal('permissions', { file: contextMenu.file });
-                setContextMenu(null);
+                setContextMenu(null); setContextMenuFile(null);
               }}>🔒 Permissions...</MenuItem>
               {!contextMenu.file?.isDirectory && (
                 <>
@@ -1153,7 +1194,7 @@ export default function FilePane({ paneId }) {
                     const dest = `${currentPath}/${sel.map(p => p.split('/').pop()).join('_')}.zip`;
                     await window.electronAPI.zip({ files: sel, destPath: dest });
                     refreshPane(paneId);
-                    setContextMenu(null);
+                    setContextMenu(null); setContextMenuFile(null);
                   }}>📦 Zip</MenuItem>
                   {contextMenu.file?.extension === 'zip' && (
                     <MenuItem onClick={async () => {
@@ -1161,7 +1202,7 @@ export default function FilePane({ paneId }) {
                       const destDir = zipFile.path.replace('.zip', '');
                       await window.electronAPI.unzip({ filePath: zipFile.path, destDir });
                       refreshPane(paneId);
-                      setContextMenu(null);
+                      setContextMenu(null); setContextMenuFile(null);
                     }}>📂 Unzip Here</MenuItem>
                   )}
                 </>
@@ -1169,7 +1210,7 @@ export default function FilePane({ paneId }) {
               <MenuDivider />
               <MenuItem danger onClick={() => {
                 deleteSelected();
-                setContextMenu(null);
+                setContextMenu(null); setContextMenuFile(null);
               }}>🗑️ Move to Trash</MenuItem>
             </>
           )}
