@@ -464,7 +464,7 @@ export function getFileIcon(file) {
     // Images
     jpg: '🖼️', jpeg: '🖼️', png: '🖼️', gif: '🖼️', webp: '🖼️', svg: '🖼️', ico: '🖼️',
     // Video
-    mp4: '🎬', mov: '🎬', avi: '🎬', mkv: '🎬', webm: '🎬',
+    mp4: '🎬', mov: '🎬', m4v: '🎬', avi: '🎬', mkv: '🎬', webm: '🎬',
     // Audio
     mp3: '🎵', wav: '🎵', flac: '🎵', aac: '🎵', m4a: '🎵',
     // Code
@@ -488,7 +488,7 @@ export function getFileIcon(file) {
 export function isPreviewable(file) {
   const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'];
   const textExts = ['txt', 'md', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'json', 'py', 'rb', 'sh', 'yaml', 'yml', 'xml', 'csv', 'log', 'conf', 'go', 'rs', 'java', 'c', 'cpp', 'h'];
-  const videoExts = ['mp4', 'mov', 'webm', 'avi', 'mkv'];
+  const videoExts = ['mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv'];
   const audioExts = ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'];
   const pdfExts = ['pdf'];
   const ext = file.extension?.toLowerCase();
@@ -499,7 +499,7 @@ export function isPreviewable(file) {
 export const PREVIEW_TYPES = {
   imageExts: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'],
   textExts: ['txt', 'md', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'json', 'py', 'rb', 'sh', 'yaml', 'yml', 'xml', 'csv', 'log'],
-  videoExts: ['mp4', 'mov', 'webm'],
+  videoExts: ['mp4', 'mov', 'm4v', 'webm'],
   audioExts: ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'],
 };
 
