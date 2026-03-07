@@ -4,21 +4,19 @@
  */
 
 // Mock window.electronAPI globally for all tests
-global.window = {
-  electronAPI: {
-    readdir: jest.fn(),
-    stat: jest.fn(),
-    watcherStart: jest.fn(),
-    onWatcherChange: jest.fn(),
-    getHomeDir: jest.fn(),
-    getBookmarks: jest.fn(),
-    saveBookmarks: jest.fn(),
-    getAllTags: jest.fn(),
-    search: jest.fn(),
-    copy: jest.fn(),
-    move: jest.fn(),
-    getLog: jest.fn(),
-  },
+window.electronAPI = {
+  readdir: jest.fn(),
+  stat: jest.fn(),
+  watcherStart: jest.fn(),
+  onWatcherChange: jest.fn(),
+  getHomeDir: jest.fn(),
+  getBookmarks: jest.fn(),
+  saveBookmarks: jest.fn(),
+  getAllTags: jest.fn(),
+  search: jest.fn(),
+  copy: jest.fn(),
+  move: jest.fn(),
+  getLog: jest.fn(),
 };
 
 // Suppress console errors in tests (optional)

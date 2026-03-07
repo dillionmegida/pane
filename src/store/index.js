@@ -1,8 +1,6 @@
 import { create } from 'zustand';
 import path from 'path-browserify';
 
-const api = window.electronAPI;
-
 // ─── Helper ───────────────────────────────────────────────────────────────────
 const createPane = (id, initialPath = '/') => ({
   id,
@@ -17,6 +15,8 @@ const createPane = (id, initialPath = '/') => ({
   tabs: [{ id: `tab-${Date.now()}`, path: initialPath, label: 'Home' }],
   activeTab: 0,
   currentBreadcrumbPath: initialPath,
+  basePath: initialPath, // New: starting point for column navigation
+  activeBookmarkId: null, // New: ID of active bookmark for visual indication
   // Column view state
   columnState: {
     paths: [],
@@ -28,7 +28,7 @@ const createPane = (id, initialPath = '/') => ({
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useStore = create((set, get) => ({
-  // ── Panes ────────────────────────────────────────────────────────────────
+  // ── State ───────────────────────────────────────────────────────────────────
   panes: [createPane('left'), createPane('right')],
   activePane: 'left',
   splitRatio: 0.5,
@@ -48,10 +48,10 @@ export const useStore = create((set, get) => ({
     if (!pane) return;
 
     set(s => ({
-      panes: s.panes.map(p => p.id === paneId ? { ...p, loading: true, error: null } : p),
+      panes: s.panes.map(p => p.id === paneId ? { ...p, loading: true, error: null, currentBreadcrumbPath: dirPath, basePath: dirPath, activeBookmarkId: null } : p),
     }));
 
-    const result = await api.readdir(dirPath);
+    const result = await window.electronAPI.readdir(dirPath);
     if (!result.success) {
       set(s => ({
         panes: s.panes.map(p => p.id === paneId ? { ...p, loading: false, error: result.error } : p),
@@ -72,10 +72,10 @@ export const useStore = create((set, get) => ({
     }));
 
     // Start watching this directory
-    api.watcherStart(dirPath);
+    window.electronAPI.watcherStart(dirPath);
   },
 
-  navigateToBookmark: async (paneId, dirPath) => {
+  navigateToBookmark: async (paneId, dirPath, bookmarkId) => {
     const { panes } = get();
     const pane = panes.find(p => p.id === paneId);
     if (!pane) return;
@@ -85,12 +85,14 @@ export const useStore = create((set, get) => ({
         ...p,
         loading: true,
         error: null,
-        // Reset column view state for bookmarks
+        // Set bookmark navigation state
         currentBreadcrumbPath: dirPath,
+        basePath: dirPath, // Bookmark becomes the starting point
+        activeBookmarkId: bookmarkId,
       } : p),
     }));
 
-    const result = await api.readdir(dirPath);
+    const result = await window.electronAPI.readdir(dirPath);
     if (!result.success) {
       set(s => ({
         panes: s.panes.map(p => p.id === paneId ? { ...p, loading: false, error: result.error } : p),
@@ -111,7 +113,7 @@ export const useStore = create((set, get) => ({
     }));
 
     // Start watching this directory
-    api.watcherStart(dirPath);
+    window.electronAPI.watcherStart(dirPath);
   },
 
   setSelection: (paneId, files) => set(s => ({
@@ -172,7 +174,7 @@ export const useStore = create((set, get) => ({
       panes: s.panes.map(p => p.id === paneId ? { ...p, loading: true, error: null } : p),
     }));
 
-    const result = await api.readdir(pane.path);
+    const result = await window.electronAPI.readdir(pane.path);
     if (!result.success) {
       set(s => ({
         panes: s.panes.map(p => p.id === paneId ? { ...p, loading: false, error: result.error } : p),
@@ -232,7 +234,7 @@ export const useStore = create((set, get) => ({
     await navigateTo(paneId, dirPath);
     
     // Set the file as preview
-    const file = await api.stat(filePath);
+    const file = await window.electronAPI.stat(filePath);
     if (file.success) {
       const fileInfo = {
         ...file.stat,
@@ -273,10 +275,10 @@ export const useStore = create((set, get) => ({
   bookmarks: [],
   setBookmarks: (bookmarks) => {
     set({ bookmarks });
-    api.saveBookmarks(bookmarks);
+    window.electronAPI.saveBookmarks(bookmarks);
   },
   loadBookmarks: async () => {
-    const bookmarks = await api.getBookmarks();
+    const bookmarks = await window.electronAPI.getBookmarks();
     set({ bookmarks });
   },
 
@@ -296,8 +298,8 @@ export const useStore = create((set, get) => ({
     const { clipboardQueue, clipboardMode, activePane, refreshPane } = get();
     for (const src of clipboardQueue) {
       const dest = `${destDir}/${src.split('/').pop()}`;
-      if (clipboardMode === 'copy') await api.copy(src, dest);
-      else await api.move(src, dest);
+      if (clipboardMode === 'copy') await window.electronAPI.copy(src, dest);
+      else await window.electronAPI.move(src, dest);
     }
     if (clipboardMode === 'cut') set({ clipboardQueue: [] });
     get().panes.forEach(p => get().refreshPane(p.id));
@@ -306,7 +308,7 @@ export const useStore = create((set, get) => ({
   // ── Tags ─────────────────────────────────────────────────────────────────
   allTags: [],
   loadAllTags: async () => {
-    const result = await api.getAllTags();
+    const result = await window.electronAPI.getAllTags();
     if (result.success) set({ allTags: result.tags });
   },
 
@@ -337,7 +339,7 @@ export const useStore = create((set, get) => ({
     if (!pane || !query.trim()) return;
 
     set({ searchLoading: true, searchResults: [] });
-    const result = await api.search({ rootPath: pane.path, query, options: opts });
+    const result = await window.electronAPI.search({ rootPath: pane.path, query, options: opts });
     set({ searchLoading: false, searchResults: result.success ? result.files : [] });
   },
 
@@ -353,7 +355,7 @@ export const useStore = create((set, get) => ({
   // ── Activity Log ──────────────────────────────────────────────────────────
   activityLog: [],
   loadLog: async (params = {}) => {
-    const result = await api.getLog(params);
+    const result = await window.electronAPI.getLog(params);
     if (result.success) set({ activityLog: result.logs });
   },
 
@@ -378,12 +380,43 @@ export const useStore = create((set, get) => ({
     ];
   },
 
+  getColumnPaths: (paneId) => {
+    const { panes } = get();
+    const pane = panes.find(p => p.id === paneId);
+    if (!pane || pane.viewMode !== 'column') return [];
+
+    const fullPath = pane.currentBreadcrumbPath;
+    const base = pane.basePath;
+
+    if (!fullPath.startsWith(base)) return [base]; // Fallback
+
+    const fullParts = fullPath.split('/');
+    const baseParts = base.split('/');
+
+    const columnPaths = [];
+    let current = '';
+    for (let i = 0; i < fullParts.length; i++) {
+      current += (i === 0 ? '' : '/') + fullParts[i];
+      if (current.startsWith(base) && current.length >= base.length) {
+        columnPaths.push(current);
+      }
+    }
+    return columnPaths;
+  },
+
+  getActiveBookmark: (paneId) => {
+    const { panes, bookmarks } = get();
+    const pane = panes.find(p => p.id === paneId);
+    if (!pane || !pane.activeBookmarkId) return null;
+    return bookmarks.find(bm => bm.id === pane.activeBookmarkId) || null;
+  },
+
   readDirSorted: async (dirPath, paneId) => {
     const { panes } = get();
     const pane = panes.find(p => p.id === paneId);
     if (!pane) return { success: false, files: [] };
 
-    const result = await api.readdir(dirPath);
+    const result = await window.electronAPI.readdir(dirPath);
     if (!result.success) return result;
 
     const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
@@ -393,7 +426,7 @@ export const useStore = create((set, get) => ({
   // ── Init ─────────────────────────────────────────────────────────────────
   initialized: false,
   init: async () => {
-    const homeDir = await api.getHomeDir();
+    const homeDir = await window.electronAPI.getHomeDir();
     const { panes } = get();
 
     await Promise.all([
@@ -404,7 +437,7 @@ export const useStore = create((set, get) => ({
     ]);
 
     // Set up watcher listener
-    api.onWatcherChange((change) => {
+    window.electronAPI.onWatcherChange((change) => {
       const { panes, refreshPane } = get();
       panes.forEach(p => {
         if (p.path === change.dir) refreshPane(p.id);

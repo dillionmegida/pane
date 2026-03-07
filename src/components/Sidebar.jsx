@@ -106,6 +106,9 @@ export default function Sidebar() {
 
   const activePath = getActivePath(activePane);
 
+  // Get the active bookmark for the current pane
+  const activeBookmark = useStore.getState().getActiveBookmark(activePane);
+
   useEffect(() => {
     loadAllTags();
   }, []);
@@ -124,8 +127,11 @@ export default function Sidebar() {
     navigateTo(activePane, path);
   };
 
-  const navigateBookmark = (path) => {
-    navigateToBookmark(activePane, path);
+  const navigateBookmark = (bookmarkPath) => {
+    const bookmark = bookmarks.find(bm => bm.path === bookmarkPath);
+    if (bookmark) {
+      navigateToBookmark(activePane, bookmark.path, bookmark.id);
+    }
   };
 
   const handleDrop = (e, targetIdx) => {
@@ -147,7 +153,7 @@ export default function Sidebar() {
     if (!result.canceled && result.filePaths[0]) {
       const p = result.filePaths[0];
       const name = p.split('/').pop() || p;
-      setBookmarks([...bookmarks, { name, path: p, icon: 'default' }]);
+      setBookmarks([...bookmarks, { id: `bm-${Date.now()}`, name, path: p, icon: 'default' }]);
     }
   };
 
@@ -186,7 +192,7 @@ export default function Sidebar() {
           {expandedSections.bookmarks && bookmarks.map((bm, idx) => (
             <BookmarkItem
               key={bm.path + idx}
-              className={`${dragOver === idx ? 'drag-over' : ''} ${activePath === bm.path ? 'active' : ''}`}
+              className={`${dragOver === idx ? 'drag-over' : ''} ${activePath === bm.path ? 'active' : ''} ${activeBookmark && activeBookmark.id === bm.id ? 'bookmark-active' : ''}`}
               draggable
               onDragStart={e => e.dataTransfer.setData('bookmark-index', idx)}
               onDragOver={e => { e.preventDefault(); setDragOver(idx); }}
