@@ -1,5 +1,5 @@
 {
-  "name": "finder-pro",
+  "name": "pane",
   "version": "1.0.0",
   "description": "A powerful custom file manager for macOS",
   "main": "src/main/index.js",
@@ -8,7 +8,8 @@
     "dev": "concurrently -k \"webpack --config webpack-renderer.js --mode development --watch\" \"sleep 4 && electron . \"",
     "renderer": "webpack --config webpack-renderer.js --mode development --watch",
     "electron": "electron .",
-    "build": "npm run build:renderer && npm run build:electron",
+    "clean": "rm -rf dist/mac-* dist/*.dmg dist/*.zip dist/*.blockmap dist/latest-*.yml dist/builder-*.yml",
+    "build": "npm run clean && npm run build:renderer && npm run build:electron",
     "build:renderer": "webpack --config webpack-renderer.js --mode production",
     "build:electron": "electron-builder --mac",
     "pack": "electron-builder --dir",
@@ -48,21 +49,35 @@
     "path-browserify": "^1.0.1"
   },
   "build": {
-    "appId": "com.finderpro.app",
-    "productName": "Finder Pro",
-    "compression": "maximum",
+    "appId": "com.pane.app",
+    "productName": "Pane",
+    "compression": "normal",
+    "files": [
+      "dist/index.html",
+      "dist/renderer.js",
+      "dist/*.renderer.js",
+      "dist/assets/**/*",
+      "src/main/**/*",
+      "icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/better-sqlite3",
+        "to": "better-sqlite3"
+      }
+    ],
     "mac": {
       "category": "public.app-category.utilities",
       "target": [
         "dmg",
         "zip"
       ],
-      "icon": "icon.png",
+      "icon": "icon.icns",
       "darkModeSupport": true,
       "gatekeeperAssess": false
     },
     "dmg": {
-      "title": "Finder Pro",
+      "title": "Pane",
       "contents": [
         {
           "x": 410,
@@ -76,17 +91,6 @@
           "type": "file"
         }
       ]
-    },
-    "files": [
-      "dist/**/*",
-      "src/main/**/*",
-      "icon.png"
-    ],
-    "extraResources": [
-      {
-        "from": "node_modules/better-sqlite3",
-        "to": "better-sqlite3"
-      }
-    ]
+    }
   }
 }

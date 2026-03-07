@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const os = require('os');
 
 // Set app name
-app.name = 'Finder Pro';
+app.name = 'Pane';
 
 // Force dark mode
 nativeTheme.themeSource = 'dark';
@@ -20,7 +20,7 @@ let chokidarWatchers = new Map();
 function initDB() {
   try {
     const Database = require('better-sqlite3');
-    const dbPath = path.join(app.getPath('userData'), 'finderpro.db');
+    const dbPath = path.join(app.getPath('userData'), 'pane.db');
     db = new Database(dbPath);
 
     db.exec(`

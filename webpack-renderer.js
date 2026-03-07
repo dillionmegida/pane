@@ -16,6 +16,7 @@ module.exports = {
     path: path.resolve(__dirname, 'dist'),
     filename: 'renderer.js',
     publicPath: './',
+    clean: true,
   },
   resolve: {
     extensions: ['.js', '.jsx', '.ts', '.tsx'],

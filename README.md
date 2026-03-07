@@ -1,6 +1,6 @@
-# Finder Pro
+# Pane
 
-A powerful custom file manager for macOS built with Electron and React. Finder Pro provides an intuitive column-based file browsing experience similar to macOS Finder, with additional features for power users.
+A powerful custom file manager for macOS built with Electron and React. Pane provides an intuitive column-based file browsing experience similar to macOS Finder, with additional features for power users.
 
 ## Features
 

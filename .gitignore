@@ -1,2 +1,10 @@
 node_modules
-dist
+
+dist/
+*.dmg
+*.zip
+*.blockmap
+latest-*.yml
+builder-*.yml
+mac-*/
+icon.iconset/

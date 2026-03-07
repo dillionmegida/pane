@@ -128,7 +128,7 @@ export default function App() {
     return (
       <AppShell style={{ alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ color: '#4A9EFF', fontFamily: '"SF Mono", monospace', fontSize: 13 }}>
-          Loading Finder Pro...
+          Loading Pane...
         </div>
       </AppShell>
     );
