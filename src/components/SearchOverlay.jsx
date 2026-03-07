@@ -278,7 +278,7 @@ const StatusBar = styled.div`
 `;
 
 export default function SearchOverlay() {
-  const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode } = useStore();
+  const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode, setSelection } = useStore();
   const pane = panes.find(p => p.id === activePane);
 
   const [query, setQuery] = useState('');
@@ -475,13 +475,15 @@ export default function SearchOverlay() {
     toggleSearch();
   };
 
-  const revealInColumns = (filePath) => {
+  const revealInColumns = async (filePath) => {
     // Split path into components
     const parts = filePath.split('/').filter(Boolean);
     const fileName = parts.pop(); // Remove filename, keep directories
 
     if (parts.length === 0) {
-      navigateToDirectoryAndSelect(activePane, filePath);
+      await navigateTo(activePane, '/');
+      // Select the file in root
+      setSelection(activePane, [filePath]);
       toggleSearch();
       return;
     }
@@ -492,7 +494,9 @@ export default function SearchOverlay() {
       setViewMode(activePane, 'column');
     }
 
-    navigateToDirectoryAndSelect(activePane, filePath);
+    await navigateTo(activePane, targetPath);
+    // Select the file in the directory
+    setSelection(activePane, [filePath]);
     toggleSearch();
   };
 
@@ -706,7 +710,6 @@ export default function SearchOverlay() {
                       setSelectedItem(null);
                     }
                   }}>🗑️ Delete</ActionBtn>
-                  <ActionBtn onClick={() => openResult(selectedItem)}>👁️ Open</ActionBtn>
                 </PreviewActions>
               </>
             ) : (
