@@ -913,7 +913,7 @@ export default function FilePane({ paneId }) {
   const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
 
   return (
-    <PaneContainer className={isActive ? 'active' : ''} onClick={() => setActivePane(paneId)}>
+    <PaneContainer className={activePane === paneId ? 'active' : ''} onClick={() => setActivePane(paneId)}>
       {/* Tab Bar */}
       <TabBar>
         {tabs.map((tab, i) => (
