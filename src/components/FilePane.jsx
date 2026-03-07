@@ -1054,7 +1054,7 @@ export default function FilePane({ paneId }) {
     );
   };
 
-  const crumbs = getBreadcrumbs();
+  const crumbs = getBreadcrumbs(paneId);
   const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
 
   return (
