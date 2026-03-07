@@ -357,42 +357,43 @@ ipcMain.handle('fs:search', async (event, { rootPath, query, options = {}, searc
     
     let findCommand;
     if (useRegex) {
-      findCommand = `find '${escapedPath}' ${excludePatterns} -regextype posix-extended -regex ".*${query}.*" -type f,l 2>/dev/null | head -n ${maxResults}`;
+      findCommand = `find '${escapedPath}' ${excludePatterns} -regextype posix-extended -regex ".*${query}.*" 2>/dev/null | head -n ${maxResults}`;
     } else {
-      const searchPattern = caseSensitive ? `*${query}*` : `*${query.toLowerCase()}*`;
-      findCommand = `find '${escapedPath}' ${excludePatterns} -iname "${searchPattern}" -type f,l 2>/dev/null | head -n ${maxResults}`;
+      findCommand = `find '${escapedPath}' ${excludePatterns} -iname "${searchPattern}" 2>/dev/null | head -n ${maxResults}`;
     }
     
     // Use async exec to avoid blocking
     exec(findCommand, { encoding: 'utf8' }, (error, stdout, stderr) => {
       if (activeSearch !== activeSearchId) return; // Search was cancelled
-      
+
       if (error) {
         // Fallback to manual search if find command fails
         fallbackSearch(event, rootPath, query, options, activeSearchId, results);
         return;
       }
-      
+
       const foundPaths = stdout.trim().split('\n').filter(Boolean);
-      
+
       // Process results in batches for streaming
       (async () => {
         for (const filePath of foundPaths) {
           if (activeSearch !== activeSearchId) break;
-          
+
           try {
             const stat = await fs.promises.stat(filePath);
+            const name = filePath.split('/').pop();
+            const isDirectory = stat.isDirectory();
             const result = {
-              name: filePath.split('/').pop(),
+              name,
               path: filePath,
-              isDirectory: stat.isDirectory(),
+              isDirectory,
               size: stat.size,
               modified: stat.mtime.toISOString(),
-              extension: filePath.split('.').pop().toLowerCase(),
+              extension: isDirectory ? '' : (name.includes('.') ? name.split('.').pop().toLowerCase() : ''),
             };
-            
+
             results.push(result);
-            
+
             // Send incremental result to renderer
             if (activeSearch === activeSearchId) {
               event.sender.send('search:progress', { result, total: results.length, searchId: activeSearchId });
@@ -401,7 +402,7 @@ ipcMain.handle('fs:search', async (event, { rootPath, query, options = {}, searc
             // Skip files we can't stat
           }
         }
-        
+
         // Send final results
         if (activeSearch === activeSearchId) {
           event.sender.send('search:complete', { results, searchId: activeSearchId });
