@@ -11,6 +11,7 @@ const PreviewPane = styled.div`
   position: relative;
   height: 100%;
   flex-shrink: 0;
+  padding-bottom: 50px;
 `;
 
 const PreviewWrapper = styled.div`
@@ -62,6 +63,7 @@ const PreviewLabel = styled.div`
 `;
 
 const PreviewMedia = styled.div`
+  max-width: 400px;
   img, video {
     width: 100%;
   }
@@ -75,7 +77,6 @@ const PreviewText = styled.pre`
   color: ${p => p.theme.text.primary};
   border-bottom: 1px solid ${p => p.theme.border.normal};
   padding: 16px 16px 30px;
-  overflow: auto;
   margin: 0;
   white-space: pre-wrap;
   word-break: break-all;
@@ -275,7 +276,7 @@ export default function ModalPreviewPane({
             ) : (
               <PreviewMedia>
                 {previewType === 'directory' && (
-                  <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                  <div>
                     {directoryContents.length > 0 ? (
                       directoryContents.map((item, index) => (
                         <DirectoryItem key={item.path}>
