@@ -647,6 +647,10 @@ export default function FilePane({ paneId }) {
       setColumnPaths(newPaths);
       setSelectedColumnPath(file.path);
       setCurrentBreadcrumbPath(file.path);
+      
+      // Update the store's pane path so other components know where we are
+      navigateTo(paneId, file.path);
+      
       // Clear preview when directory is selected
       setPreviewFile(null);
       
@@ -686,8 +690,11 @@ export default function FilePane({ paneId }) {
     // Clear selection in this column
     setSelectedItems(prev => ({ ...prev, [columnIndex]: null }));
     
+    // Clear global selection
+    setSelection(paneId, []);
+    
     // Remove all columns after this one
-    const newPaths = columnIndex === 0 ? [] : columnPaths.slice(0, columnIndex - 1);
+    const newPaths = columnPaths.slice(0, columnIndex);
     setColumnPaths(newPaths);
     
     // Clear files data for removed columns
@@ -701,6 +708,10 @@ export default function FilePane({ paneId }) {
     
     // Update focus to clicked column
     setFocusedColumn(columnIndex);
+    
+    // Update breadcrumb to the directory of this column
+    const breadcrumbPath = columnIndex === 0 ? currentPath : columnPaths[columnIndex - 1];
+    setCurrentBreadcrumbPath(breadcrumbPath);
     
     // Clear preview
     setPreviewFile(null);
