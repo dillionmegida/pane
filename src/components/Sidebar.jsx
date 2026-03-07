@@ -94,7 +94,7 @@ const FOLDER_ICONS = {
 export default function Sidebar() {
   const {
     bookmarks, setBookmarks,
-    panes, activePane, navigateTo,
+    panes, activePane, navigateTo, navigateToBookmark,
     allTags, loadAllTags,
     openModal,
   } = useStore();
@@ -121,6 +121,10 @@ export default function Sidebar() {
 
   const navigate = (path) => {
     navigateTo(activePane, path);
+  };
+
+  const navigateBookmark = (path) => {
+    navigateToBookmark(activePane, path);
   };
 
   const handleDrop = (e, targetIdx) => {
@@ -187,7 +191,7 @@ export default function Sidebar() {
               onDragOver={e => { e.preventDefault(); setDragOver(idx); }}
               onDragLeave={() => setDragOver(null)}
               onDrop={e => handleDrop(e, idx)}
-              onClick={() => navigate(bm.path)}
+              onClick={() => navigateBookmark(bm.path)}
             >
               <span className="icon">{FOLDER_ICONS[bm.icon] || '📁'}</span>
               <span className="name">{bm.name}</span>

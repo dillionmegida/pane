@@ -579,29 +579,26 @@ export default function FilePane({ paneId }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [viewMode, focusedColumn, columnPaths, currentPath, files, columnFiles, selectedItems]);
 
-  // Load column view data
+  // Reset column view state when navigating via bookmarks
   useEffect(() => {
     if (viewMode === 'column') {
-      const loadColumns = async () => {
-        const paths = [currentPath, ...columnPaths];
-        const filesMap = { [currentPath]: files };
-        
-        for (const path of columnPaths) {
-          if (!filesMap[path]) {
-            const result = await window.electronAPI.readdir(path);
-            if (result.success) {
-              filesMap[path] = result.files;
-            }
-          }
-        }
-        setColumnFiles(filesMap);
-      };
-      loadColumns();
-    } else {
-      // Reset breadcrumb when leaving column view
-      setCurrentBreadcrumbPath(paneId, currentPath);
+      // Check if currentBreadcrumbPath doesn't match the expected structure
+      // This happens when navigating via bookmarks - we should reset column state
+      const expectedBreadcrumb = columnPaths.length > 0 
+        ? columnPaths[columnPaths.length - 1] 
+        : currentPath;
+      
+      if (currentBreadcrumbPath !== expectedBreadcrumb && currentBreadcrumbPath !== currentPath) {
+        // Reset column view state for bookmark navigation
+        setColumnPaths([]);
+        setSelectedItems({});
+        setSelectedColumnPath(null);
+        setFocusedColumn(0);
+        setColumnFiles({ [currentPath]: files });
+        setPreviewFile(null);
+      }
     }
-  }, [viewMode, currentPath, files, columnPaths]);
+  }, [viewMode, currentBreadcrumbPath, currentPath, columnPaths, files]);
 
   const navigate = (p) => {
     const newHistory = [...history.slice(0, historyIdx + 1), p];

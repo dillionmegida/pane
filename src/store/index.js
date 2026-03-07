@@ -72,9 +72,43 @@ export const useStore = create((set, get) => ({
     api.watcherStart(dirPath);
   },
 
-  refreshPane: async (paneId) => {
-    const pane = get().panes.find(p => p.id === paneId);
-    if (pane) get().navigateTo(paneId, pane.path);
+  navigateToBookmark: async (paneId, dirPath) => {
+    const { panes } = get();
+    const pane = panes.find(p => p.id === paneId);
+    if (!pane) return;
+
+    set(s => ({
+      panes: s.panes.map(p => p.id === paneId ? {
+        ...p,
+        loading: true,
+        error: null,
+        // Reset column view state for bookmarks
+        currentBreadcrumbPath: dirPath,
+      } : p),
+    }));
+
+    const result = await api.readdir(dirPath);
+    if (!result.success) {
+      set(s => ({
+        panes: s.panes.map(p => p.id === paneId ? { ...p, loading: false, error: result.error } : p),
+      }));
+      return;
+    }
+
+    const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
+    const newTabs = pane.tabs.map((t, i) =>
+      i === pane.activeTab ? { ...t, path: dirPath, label: dirPath === '/' ? '/' : dirPath.split('/').pop() } : t
+    );
+
+    set(s => ({
+      panes: s.panes.map(p => p.id === paneId
+        ? { ...p, path: dirPath, files, loading: false, selectedFiles: new Set(), tabs: newTabs }
+        : p
+      ),
+    }));
+
+    // Start watching this directory
+    api.watcherStart(dirPath);
   },
 
   setSelection: (paneId, files) => set(s => ({
