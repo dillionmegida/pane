@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { formatSize, formatDate, getFileIcon, PREVIEW_TYPES, getPreviewType } from '../store';
+import { formatSize, formatDate, getFileIcon, PREVIEW_TYPES, getPreviewType, useStore } from '../store';
 
 const PreviewPane = styled.div`
   width: ${p => p.width || '320px'};
@@ -109,6 +109,40 @@ const ActionBtn = styled.button`
   }
 `;
 
+const DirectoryItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  font-size: 0.75rem;
+  color: ${p => p.theme.text.primary};
+  border-bottom: 1px solid ${p => p.theme.border.subtle};
+  &:last-child { border-bottom: none; }
+`;
+
+const DirectoryItemIcon = styled.span`
+  font-size: 0.875rem;
+  flex-shrink: 0;
+`;
+
+const DirectoryItemInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+`;
+
+const DirectoryItemName = styled.div`
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const DirectoryItemMeta = styled.div`
+  font-size: 0.625rem;
+  color: ${p => p.theme.text.tertiary};
+  margin-top: 2px;
+`;
+
 const EmptyState = styled.div`
   display: flex;
   align-items: center;
@@ -127,6 +161,9 @@ export default function ModalPreviewPane({
   const [previewContent, setPreviewContent] = useState('');
   const [previewType, setPreviewType] = useState('text');
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [directoryContents, setDirectoryContents] = useState([]);
+
+  const { activePane, readDirSorted } = useStore();
 
   useEffect(() => {
     if (file) {
@@ -134,6 +171,7 @@ export default function ModalPreviewPane({
     } else {
       setPreviewContent('');
       setPreviewType('text');
+      setDirectoryContents([]);
     }
   }, [file]);
 
@@ -141,8 +179,19 @@ export default function ModalPreviewPane({
     const type = getPreviewType(file);
 
     if (type === 'directory') {
-      setPreviewContent('');
-      setPreviewType('text');
+      setLoadingPreview(true);
+      setPreviewType('directory');
+      try {
+        const result = await readDirSorted(file.path, activePane);
+        if (result.success) {
+          setDirectoryContents(result.files);
+        } else {
+          setDirectoryContents([]);
+        }
+      } catch (err) {
+        setDirectoryContents([]);
+      }
+      setLoadingPreview(false);
       return;
     }
 
@@ -225,6 +274,27 @@ export default function ModalPreviewPane({
               <div style={{ color: '#4A9EFF', fontSize: '0.6875rem', padding: '16px' }}>Loading preview...</div>
             ) : (
               <PreviewMedia>
+                {previewType === 'directory' && (
+                  <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                    {directoryContents.length > 0 ? (
+                      directoryContents.map((item, index) => (
+                        <DirectoryItem key={item.path}>
+                          <DirectoryItemIcon>{getFileIcon(item)}</DirectoryItemIcon>
+                          <DirectoryItemInfo>
+                            <DirectoryItemName>{item.name}</DirectoryItemName>
+                            <DirectoryItemMeta>
+                              {item.isDirectory ? 'folder' : item.extension || 'file'} • {formatSize(item.size)}
+                            </DirectoryItemMeta>
+                          </DirectoryItemInfo>
+                        </DirectoryItem>
+                      ))
+                    ) : (
+                      <div style={{ padding: '16px', textAlign: 'center', color: '#5a5a6b' }}>
+                        Empty directory
+                      </div>
+                    )}
+                  </div>
+                )}
                 {previewType === 'video' && (
                   <video src={previewContent} controls style={{ maxWidth: '100%' }} />
                 )}
