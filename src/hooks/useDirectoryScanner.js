@@ -68,11 +68,7 @@ export const useConcurrentDirectoryScanner = () => {
         }
 
         if (matchedFiles.length > 0 && !abortController.aborted) {
-          setScanResults(previousResults => {
-            const mergedResults = [...previousResults, ...matchedFiles];
-            mergedResults.sort((a, b) => b.size - a.size);
-            return mergedResults;
-          });
+          setScanResults(previousResults => [...previousResults, ...matchedFiles]);
         }
       } catch (error) {
         console.error('Error reading directory:', directoryPath, error);
@@ -137,8 +133,6 @@ export const useConcurrentDirectoryScanner = () => {
           
           let filteredResults = data.results.filter(filterTest);
           console.log(`After filtering, ${filteredResults.length} results remain`);
-
-          filteredResults.sort((a, b) => b.size - a.size);
 
           setScanResults(filteredResults);
           setIsScanning(false);

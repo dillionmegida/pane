@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import styled from 'styled-components';
 import { useStore, formatSize, formatDate } from '../../store';
 import ModalPreviewPane from '../ModalPreviewPane';
@@ -145,12 +145,21 @@ const StopBtn = styled.button`
   background: #d9534f;
   border: none;
   border-radius: 4px;
-  padding: 3px 8px;
-  font-size: 10px;
-  color: #fff;
+  padding: 2px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+  transition: all 0.2s ease;
   &:hover {
     background: #c9302c;
+    transform: scale(1.1);
+  }
+  svg {
+    width: 10px;
+    height: 10px;
   }
 `;
 
@@ -209,6 +218,8 @@ const FooterInfo = styled.span`
   font-size: 11px;
   color: #5a5a6b;
   margin-right: auto;
+  display: flex;
+  gap: 8px;
 `;
 
 export function SmartFoldersModal({ data, onClose }) {
@@ -217,8 +228,7 @@ export function SmartFoldersModal({ data, onClose }) {
   
   const [selectedFilterType, setSelectedFilterType] = useState(data?.id || 'large');
   const [selectedFile, setSelectedFile] = useState(null);
-  const [fileSizeInputMB, setFileSizeInputMB] = useState('100');
-  const [fileSizeThresholdMB, setFileSizeThresholdMB] = useState(100);
+  const [fileSizeInputMB, setFileSizeInputMB] = useState('1000');
   const [leftPaneWidthPx, setLeftPaneWidthPx] = useState(160);
   const [rightPaneWidthPx, setRightPaneWidthPx] = useState(300);
   const [isResizingLeftPane, setIsResizingLeftPane] = useState(false);
@@ -227,16 +237,21 @@ export function SmartFoldersModal({ data, onClose }) {
   const [excludedDirectories, setExcludedDirectories] = useState(DEFAULT_EXCLUDED_DIRECTORIES);
   const [exclusionInputValue, setExclusionInputValue] = useState('');
   const modalContainerRef = useRef(null);
-  const debounceTimerRef = useRef(null);
 
   const { isScanning, scanResults, scanForLargeFiles, scanWithGenericSearch, abortScan } = useConcurrentDirectoryScanner();
 
   const displaySizeLabel = fileSizeInputMB.trim() === '' ? '0' : fileSizeInputMB;
+  const parsedSizeMB = useMemo(() => {
+    const parsed = parseFileSizeInput(fileSizeInputMB);
+    return parsed === null ? 0 : parsed;
+  }, [fileSizeInputMB]);
   const currentDirectoryPath = currentPane?.viewMode === 'column' 
     ? currentPane?.currentBreadcrumbPath || currentPane?.path 
     : currentPane?.path;
 
   const filterDefinitions = createFilterDefinitions(displaySizeLabel);
+
+  const visibleResults = useMemo(() => scanResults.slice(0, 200), [scanResults]);
 
   const stopEventPropagation = (e) => {
     e.stopPropagation();
@@ -244,17 +259,6 @@ export function SmartFoldersModal({ data, onClose }) {
 
   const handleFileSizeInputChange = (inputValue) => {
     setFileSizeInputMB(inputValue);
-    
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    
-    debounceTimerRef.current = setTimeout(() => {
-      const parsedSize = parseFileSizeInput(inputValue);
-      if (parsedSize !== null) {
-        setFileSizeThresholdMB(parsedSize);
-      }
-    }, 500);
   };
 
   useEffect(() => {
@@ -309,23 +313,24 @@ export function SmartFoldersModal({ data, onClose }) {
 
   useEffect(() => {
     if (!currentDirectoryPath) return;
-    
-    if (selectedFilterType === 'large') {
-      if (fileSizeThresholdMB > 0) {
+
+    const runScan = () => {
+      if (selectedFilterType === 'large') {
+        if (parsedSizeMB > 0) {
+          executeFilterScan(parsedSizeMB);
+        }
+      } else {
         executeFilterScan();
       }
-    } else {
-      executeFilterScan();
-    }
-  }, [selectedFilterType, currentDirectoryPath, fileSizeThresholdMB, excludedDirectories]);
-
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
     };
-  }, []);
+
+    if (selectedFilterType === 'large') {
+      const handle = setTimeout(runScan, 500);
+      return () => clearTimeout(handle);
+    }
+
+    runScan();
+  }, [selectedFilterType, currentDirectoryPath, parsedSizeMB, excludedDirectories]);
 
   const handleFileAction = async (actionKey, file) => {
     switch (actionKey) {
@@ -346,13 +351,14 @@ export function SmartFoldersModal({ data, onClose }) {
     }
   };
 
-  const executeFilterScan = async () => {
+  const executeFilterScan = async (sizeThresholdMB = parsedSizeMB) => {
     if (!currentDirectoryPath) return;
 
     if (selectedFilterType === 'large') {
+      if (sizeThresholdMB <= 0) return;
       await scanForLargeFiles({
         rootPath: currentDirectoryPath,
-        fileSizeThresholdBytes: fileSizeThresholdMB * 1024 * 1024,
+        fileSizeThresholdBytes: sizeThresholdMB * 1024 * 1024,
         excludedDirectories,
         maxConcurrentScans: 3
       });
@@ -465,7 +471,6 @@ export function SmartFoldersModal({ data, onClose }) {
                     onBlur={() => {
                       if (fileSizeInputMB.trim() === '') {
                         setFileSizeInputMB('0');
-                        setFileSizeThresholdMB(0);
                       }
                     }}
                     aria-label="Minimum file size in megabytes"
@@ -474,19 +479,13 @@ export function SmartFoldersModal({ data, onClose }) {
                   <Unit>MB</Unit>
                 </LargeFilterBox>
               )}
-              {isScanning && (
-                <ScanningText>
-                  <span>⏳ Scanning{scanResults.length > 0 ? ` (${scanResults.length} found so far)` : ''}...</span>
-                  <StopBtn onClick={abortScan}>Stop</StopBtn>
-                </ScanningText>
-              )}
-              {!isScanning && selectedFilterType === 'large' && fileSizeThresholdMB === 0 && (
+              {selectedFilterType === 'large' && parsedSizeMB === 0 && (
                 <InfoMessage>Enter a size threshold to begin search</InfoMessage>
               )}
-              {!isScanning && scanResults.length === 0 && !(selectedFilterType === 'large' && fileSizeThresholdMB === 0) && (
+              {!isScanning && scanResults.length === 0 && !(selectedFilterType === 'large' && parsedSizeMB === 0) && (
                 <EmptyState>No files match this filter</EmptyState>
               )}
-              {scanResults.slice(0, 200).map(file => (
+              {visibleResults.map(file => (
                 <ResultRow
                   key={file.path}
                   selected={selectedFile?.path === file.path}
@@ -512,7 +511,22 @@ export function SmartFoldersModal({ data, onClose }) {
           </ModalContent>
         </ModalBody>
         <ModalFooter>
-          <FooterInfo>{scanResults.length} results</FooterInfo>
+          <FooterInfo>
+            {isScanning && (
+              <StopBtn onClick={abortScan} title="Stop scanning">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              </StopBtn>
+            )}
+            {isScanning ? (
+              <>
+                ⏳ Scanning{scanResults.length > 0 ? ` (${scanResults.length} found so far)` : ''}...
+              </>
+            ) : (
+              `${scanResults.length} results`
+            )}
+          </FooterInfo>
           <Btn primary onClick={onClose}>Close</Btn>
         </ModalFooter>
       </ResizableModalBox>
