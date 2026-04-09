@@ -1,47 +1,276 @@
 import React, { useState, useEffect, useRef } from 'react';
+import styled from 'styled-components';
 import { useStore, formatSize, formatDate } from '../../store';
 import ModalPreviewPane from '../ModalPreviewPane';
 import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
+import { DEFAULT_EXCLUDED_DIRECTORIES, createFilterDefinitions, parseFileSizeInput } from '../../helpers/smartFolders';
+import { useConcurrentDirectoryScanner } from '../../hooks/useDirectoryScanner';
+
+const ModalContent = styled.div`
+  display: flex;
+  height: 100%;
+`;
+
+const LeftPane = styled.div`
+  width: ${({ width }) => `${width}px`};
+  border-right: 1px solid #2e2e35;
+  padding: 8px 0;
+  overflow: auto;
+`;
+
+const FilterItem = styled.div`
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 12px;
+  color: ${({ active }) => (active ? '#4A9EFF' : '#9898a8')};
+  background: ${({ active }) => (active ? '#1a3a5c20' : 'transparent')};
+  border-left: ${({ active }) => (active ? '2px solid #4A9EFF' : '2px solid transparent')};
+`;
+
+const Divider = styled.div`
+  width: 4px;
+  background: #2e2e35;
+  cursor: col-resize;
+  user-select: none;
+`;
+
+const ContentArea = styled.div`
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  border-right: 1px solid #2e2e35;
+`;
+
+const FilterInfo = styled.div`
+  font-size: 11px;
+  color: #5a5a6b;
+  margin-bottom: 8px;
+`;
+
+const Options = styled.div`
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+`;
+
+const OptBtnWrapper = styled.div`
+  padding: 6px 10px;
+  background: ${({ active }) => (active ? '#2a2a2f' : '#1a1a1e')};
+  border: 1px solid ${({ active }) => (active ? '#3a3a45' : '#2e2e35')};
+  border-radius: 6px;
+  font-size: 11px;
+  color: ${({ active }) => (active ? '#e8e8ed' : '#9898a8')};
+  cursor: pointer;
+  user-select: none;
+`;
+
+const ExcludePill = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #2a2a2f;
+  border: 1px solid #3a3a45;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: #9898a8;
+`;
+
+const ExcludeInput = styled.input`
+  flex: 1;
+  background: #2a2a2f;
+  border: 1px solid #3a3a45;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #e8e8ed;
+  outline: none;
+`;
+
+const ExcludeAddBtn = styled.button`
+  background: #3a3a45;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: #e8e8ed;
+  cursor: pointer;
+`;
+
+const PathText = styled.span`
+  color: #9898a8;
+`;
+
+const LargeFilterBox = styled.div`
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #1a1a1e;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const FilterLabel = styled.label`
+  font-size: 11px;
+  color: #9898a8;
+  white-space: nowrap;
+`;
+
+const SizeInput = styled.input`
+  flex: 1;
+  padding: 4px 6px;
+  background: #2a2a2f;
+  border: 1px solid #3a3a3f;
+  border-radius: 3px;
+  color: #e8e8ed;
+  font-size: 11px;
+`;
+
+const Unit = styled.span`
+  font-size: 11px;
+  color: #9898a8;
+  white-space: nowrap;
+`;
+
+const ScanningText = styled.div`
+  color: #4A9EFF;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const StopBtn = styled.button`
+  background: #d9534f;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  color: #fff;
+  cursor: pointer;
+  &:hover {
+    background: #c9302c;
+  }
+`;
+
+const InfoMessage = styled.div`
+  color: #9898a8;
+  font-size: 11px;
+  padding: 8px 0;
+  font-style: italic;
+`;
+
+const EmptyState = styled.div`
+  color: #5a5a6b;
+  font-size: 12px;
+  padding: 20px 0;
+`;
+
+const ResultRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 4px;
+  background: ${({ selected }) => (selected ? '#1a3a5c20' : 'transparent')};
+  border-left: ${({ selected }) => (selected ? '2px solid #4A9EFF' : '2px solid transparent')};
+
+  &:hover {
+    background: #2a2a2f;
+  }
+`;
+
+const ResultIcon = styled.span`
+  font-size: 13px;
+`;
+
+const FileName = styled.span`
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #e8e8ed;
+`;
+
+const SizeText = styled.span`
+  color: #5a5a6b;
+  font-family: monospace;
+`;
+
+const ModifiedText = styled.span`
+  color: #5a5a6b;
+  font-size: 10px;
+`;
+
+const FooterInfo = styled.span`
+  font-size: 11px;
+  color: #5a5a6b;
+  margin-right: auto;
+`;
 
 export function SmartFoldersModal({ data, onClose }) {
-  const { panes, activePane, navigateTo, refreshPane } = useStore();
-  const pane = panes.find(p => p.id === activePane);
-  const [results, setResults] = useState([]);
-  const [activeFilter, setActiveFilter] = useState(data?.id || 'large');
-  const [scanning, setScanning] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [largeFileSize, setLargeFileSize] = useState(100); // MB
-  const [leftPaneWidth, setLeftPaneWidth] = useState(160);
-  const [rightPaneWidth, setRightPaneWidth] = useState(300);
-  const [isResizingLeft, setIsResizingLeft] = useState(false);
-  const [isResizingRight, setIsResizingRight] = useState(false);
-  const containerRef = useRef(null);
+  const { panes, activePane, navigateTo } = useStore();
+  const currentPane = panes.find(p => p.id === activePane);
+  
+  const [selectedFilterType, setSelectedFilterType] = useState(data?.id || 'large');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [fileSizeInputMB, setFileSizeInputMB] = useState('100');
+  const [fileSizeThresholdMB, setFileSizeThresholdMB] = useState(100);
+  const [leftPaneWidthPx, setLeftPaneWidthPx] = useState(160);
+  const [rightPaneWidthPx, setRightPaneWidthPx] = useState(300);
+  const [isResizingLeftPane, setIsResizingLeftPane] = useState(false);
+  const [isResizingRightPane, setIsResizingRightPane] = useState(false);
+  const [showExclusionInput, setShowExclusionInput] = useState(false);
+  const [excludedDirectories, setExcludedDirectories] = useState(DEFAULT_EXCLUDED_DIRECTORIES);
+  const [exclusionInputValue, setExclusionInputValue] = useState('');
+  const modalContainerRef = useRef(null);
+  const debounceTimerRef = useRef(null);
 
-  // Use breadcrumb path in column view, otherwise use regular path
-  const currentPath = pane?.viewMode === 'column' ? pane?.currentBreadcrumbPath || pane?.path : pane?.path;
+  const { isScanning, scanResults, scanForLargeFiles, scanWithGenericSearch, abortScan } = useConcurrentDirectoryScanner();
 
-  const FILTERS = {
-    large: { name: '⚖️ Large Files', icon: '⚖️', desc: `Files over ${largeFileSize}MB`, test: f => !f.isDirectory && f.size > largeFileSize * 1024 * 1024 },
-    recent: { name: '⬇️ Recent Downloads', icon: '⬇️', desc: 'Modified in last 7 days', test: f => !f.isDirectory && Date.now() - new Date(f.modified).getTime() < 7 * 86400000 },
-    empty: { name: '📭 Empty Folders', icon: '📭', desc: 'Folders with no files', test: f => f.isDirectory && f.size === 0 },
-    old: { name: '🗓️ Old Files', icon: '🗓️', desc: 'Not accessed in over 1 year', test: f => !f.isDirectory && Date.now() - new Date(f.modified).getTime() > 365 * 86400000 },
+  const displaySizeLabel = fileSizeInputMB.trim() === '' ? '0' : fileSizeInputMB;
+  const currentDirectoryPath = currentPane?.viewMode === 'column' 
+    ? currentPane?.currentBreadcrumbPath || currentPane?.path 
+    : currentPane?.path;
+
+  const filterDefinitions = createFilterDefinitions(displaySizeLabel);
+
+  const stopEventPropagation = (e) => {
+    e.stopPropagation();
   };
 
-  // Handle left pane resize
+  const handleFileSizeInputChange = (inputValue) => {
+    setFileSizeInputMB(inputValue);
+    
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    debounceTimerRef.current = setTimeout(() => {
+      const parsedSize = parseFileSizeInput(inputValue);
+      if (parsedSize !== null) {
+        setFileSizeThresholdMB(parsedSize);
+      }
+    }, 500);
+  };
+
   useEffect(() => {
-    if (!isResizingLeft) return;
+    if (!isResizingLeftPane) return;
 
     const handleMouseMove = (e) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const newWidth = e.clientX - rect.left;
-      if (newWidth >= 100 && newWidth <= 300) {
-        setLeftPaneWidth(newWidth);
+      if (!modalContainerRef.current) return;
+      const containerRect = modalContainerRef.current.getBoundingClientRect();
+      const newWidthPx = e.clientX - containerRect.left;
+      if (newWidthPx >= 100 && newWidthPx <= 300) {
+        setLeftPaneWidthPx(newWidthPx);
       }
     };
 
     const handleMouseUp = () => {
-      setIsResizingLeft(false);
+      setIsResizingLeftPane(false);
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -51,23 +280,22 @@ export function SmartFoldersModal({ data, onClose }) {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizingLeft]);
+  }, [isResizingLeftPane]);
 
-  // Handle right pane resize
   useEffect(() => {
-    if (!isResizingRight) return;
+    if (!isResizingRightPane) return;
 
     const handleMouseMove = (e) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const newWidth = rect.right - e.clientX;
-      if (newWidth >= 200 && newWidth <= 600) {
-        setRightPaneWidth(newWidth);
+      if (!modalContainerRef.current) return;
+      const containerRect = modalContainerRef.current.getBoundingClientRect();
+      const newWidthPx = containerRect.right - e.clientX;
+      if (newWidthPx >= 200 && newWidthPx <= 600) {
+        setRightPaneWidthPx(newWidthPx);
       }
     };
 
     const handleMouseUp = () => {
-      setIsResizingRight(false);
+      setIsResizingRightPane(false);
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -77,156 +305,214 @@ export function SmartFoldersModal({ data, onClose }) {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizingRight]);
+  }, [isResizingRightPane]);
 
-  useEffect(() => { if (currentPath) runFilter(); }, [activeFilter, currentPath, largeFileSize]);
+  useEffect(() => {
+    if (!currentDirectoryPath) return;
+    
+    if (selectedFilterType === 'large') {
+      if (fileSizeThresholdMB > 0) {
+        executeFilterScan();
+      }
+    } else {
+      executeFilterScan();
+    }
+  }, [selectedFilterType, currentDirectoryPath, fileSizeThresholdMB, excludedDirectories]);
 
-  const handlePreviewAction = async (actionKey, file) => {
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleFileAction = async (actionKey, file) => {
     switch (actionKey) {
       case 'open':
         if (file.isDirectory) {
           navigateTo(activePane, file.path);
         } else {
-          // Open file (you might want to add a navigateToFile function or handle differently)
           console.log('Open file:', file.path);
         }
         onClose();
         break;
       case 'delete':
-        const r = await window.electronAPI.delete(file.path);
-        if (r.success) {
-          setResults(prev => prev.filter(item => item.path !== file.path));
-          setSelectedItem(null);
+        const deleteResponse = await window.electronAPI.delete(file.path);
+        if (deleteResponse.success) {
+          setSelectedFile(null);
         }
         break;
     }
   };
 
-  const runFilter = async () => {
-    if (!currentPath) return;
-    setScanning(true);
-    setResults([]);
+  const executeFilterScan = async () => {
+    if (!currentDirectoryPath) return;
 
-    try {
-      // Set up event listeners for search results
-      const searchId = Date.now();
-      const allResults = [];
-
-      const handleComplete = (data) => {
-        if (data.searchId === searchId) {
-          const filter = FILTERS[activeFilter];
-          let filteredResults = data.results.filter(filter.test);
-
-          // Sort all results by size (largest to smallest)
-          filteredResults.sort((a, b) => b.size - a.size);
-
-          setResults(filteredResults);
-          setScanning(false);
-
-          // Clean up listeners
-          window.electronAPI.offSearchComplete?.();
-        }
-      };
-
-      window.electronAPI.onSearchComplete?.(handleComplete);
-
-      // Start the search - search for all files with '.' pattern
-      await window.electronAPI.search?.({
-        rootPath: currentPath,
-        query: '.',
-        options: { maxResults: 1000 },
-        searchId
+    if (selectedFilterType === 'large') {
+      await scanForLargeFiles({
+        rootPath: currentDirectoryPath,
+        fileSizeThresholdBytes: fileSizeThresholdMB * 1024 * 1024,
+        excludedDirectories,
+        maxConcurrentScans: 3
       });
-    } catch (err) {
-      console.error('Search error:', err);
-      setResults([]);
-      setScanning(false);
+    } else {
+      const currentFilter = filterDefinitions[selectedFilterType];
+      await scanWithGenericSearch({
+        rootPath: currentDirectoryPath,
+        excludedDirectories,
+        filterTest: currentFilter.test
+      });
     }
   };
 
   return (
-    <Overlay onClick={onClose}>
-      <ResizableModalBox width="900px" height="500px" onClick={e => e.stopPropagation()}>
+    <Overlay
+      onClick={(e) => { stopEventPropagation(e); onClose(); }}
+      onMouseDown={stopEventPropagation}
+      onKeyDown={stopEventPropagation}
+      onKeyUp={stopEventPropagation}
+      onWheel={stopEventPropagation}
+    >
+      <ResizableModalBox
+        width="900px"
+        height="500px"
+        onClick={stopEventPropagation}
+        onMouseDown={stopEventPropagation}
+        onKeyDown={stopEventPropagation}
+        onKeyUp={stopEventPropagation}
+        onWheel={stopEventPropagation}
+        tabIndex={-1}
+      >
         <ModalHeader>
           <ModalTitle>🗂️ Smart Folders</ModalTitle>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
         </ModalHeader>
         <ModalBody pad="0">
-          <div style={{ display: 'flex', height: '100%' }} ref={containerRef}>
-            <div style={{ width: leftPaneWidth, borderRight: '1px solid #2e2e35', padding: '8px 0', overflow: 'auto' }}>
-              {Object.entries(FILTERS).map(([key, f]) => (
-                <div key={key} onClick={() => setActiveFilter(key)} style={{
-                  padding: '8px 14px', cursor: 'pointer', fontSize: 12,
-                  color: activeFilter === key ? '#4A9EFF' : '#9898a8',
-                  background: activeFilter === key ? '#1a3a5c20' : 'transparent',
-                  borderLeft: activeFilter === key ? '2px solid #4A9EFF' : '2px solid transparent',
-                }}>
-                  {f.name}
-                </div>
+          <ModalContent ref={modalContainerRef}>
+            <LeftPane width={leftPaneWidthPx}>
+              {Object.entries(filterDefinitions).map(([filterKey, filterConfig]) => (
+                <FilterItem 
+                  key={filterKey} 
+                  active={selectedFilterType === filterKey} 
+                  onClick={() => setSelectedFilterType(filterKey)}
+                >
+                  {filterConfig.name}
+                </FilterItem>
               ))}
-            </div>
-            <div style={{ width: 4, background: '#2e2e35', cursor: 'col-resize', userSelect: 'none' }} onMouseDown={() => setIsResizingLeft(true)} />
-            <div style={{ flex: 1, overflow: 'auto', padding: 12, borderRight: '1px solid #2e2e35' }}>
-              <div style={{ fontSize: 11, color: '#5a5a6b', marginBottom: 8 }}>
-                {FILTERS[activeFilter].desc} in <span style={{ color: '#9898a8' }}>{currentPath}</span>
-              </div>
-              {activeFilter === 'large' && (
-                <div style={{ marginBottom: 12, padding: 8, background: '#1a1a1e', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <label style={{ fontSize: 11, color: '#9898a8', whiteSpace: 'nowrap' }}>Size threshold:</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10000"
-                    value={largeFileSize}
-                    onChange={(e) => setLargeFileSize(Math.max(1, parseInt(e.target.value) || 100))}
-                    style={{
-                      flex: 1,
-                      padding: '4px 6px',
-                      background: '#2a2a2f',
-                      border: '1px solid #3a3a3f',
-                      borderRadius: 3,
-                      color: '#e8e8ed',
-                      fontSize: 11
-                    }}
-                  />
-                  <span style={{ fontSize: 11, color: '#9898a8', whiteSpace: 'nowrap' }}>MB</span>
+            </LeftPane>
+            <Divider onMouseDown={() => setIsResizingLeftPane(true)} />
+            <ContentArea>
+              <FilterInfo>
+                {filterDefinitions[selectedFilterType].desc} in <PathText>{currentDirectoryPath}</PathText>
+              </FilterInfo>
+              <Options>
+                <OptBtnWrapper active={excludedDirectories.length > 0} onClick={() => setShowExclusionInput(prev => !prev)}>
+                  {showExclusionInput ? '▼' : '▶'} Excluded ({excludedDirectories.length})
+                </OptBtnWrapper>
+              </Options>
+              {showExclusionInput && (
+                <div style={{ padding: '8px 10px', border: '1px solid #2e2e35', borderRadius: 6, background: '#1a1a1e', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                    {excludedDirectories.map(directoryName => (
+                      <ExcludePill key={directoryName}>
+                        {directoryName}
+                        <span 
+                          style={{ cursor: 'pointer', color: '#5a5a6b' }} 
+                          onClick={() => setExcludedDirectories(prev => prev.filter(name => name !== directoryName))}
+                        >
+                          ✕
+                        </span>
+                      </ExcludePill>
+                    ))}
+                    {excludedDirectories.length === 0 && (
+                      <span style={{ fontSize: '11px', color: '#5a5a6b' }}>No exclusions</span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <ExcludeInput
+                      value={exclusionInputValue}
+                      onChange={e => setExclusionInputValue(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && exclusionInputValue.trim()) {
+                          setExcludedDirectories(prev => [...prev, exclusionInputValue.trim()]);
+                          setExclusionInputValue('');
+                        }
+                      }}
+                      placeholder="Add directory to exclude..."
+                    />
+                    <ExcludeAddBtn
+                      onClick={() => {
+                        if (exclusionInputValue.trim()) {
+                          setExcludedDirectories(prev => [...prev, exclusionInputValue.trim()]);
+                          setExclusionInputValue('');
+                        }
+                      }}
+                    >
+                      Add
+                    </ExcludeAddBtn>
+                  </div>
                 </div>
               )}
-              {scanning && <div style={{ color: '#4A9EFF', fontSize: 12 }}>⏳ Scanning...</div>}
-              {!scanning && results.length === 0 && <div style={{ color: '#5a5a6b', fontSize: 12, padding: '20px 0' }}>No files match this filter</div>}
-              {!scanning && results.slice(0, 200).map(f => (
-                <div
-                  key={f.path}
-                  onClick={() => setSelectedItem(f)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '5px 8px', fontSize: 11, cursor: 'pointer', borderRadius: 4,
-                    background: selectedItem?.path === f.path ? '#1a3a5c20' : 'transparent',
-                    borderLeft: selectedItem?.path === f.path ? '2px solid #4A9EFF' : '2px solid transparent',
-                    '&:hover': { background: '#2a2a2f' }
-                  }}
+              {selectedFilterType === 'large' && (
+                <LargeFilterBox>
+                  <FilterLabel>Size threshold:</FilterLabel>
+                  <SizeInput
+                    type="text"
+                    inputMode="decimal"
+                    value={fileSizeInputMB}
+                    onChange={(e) => handleFileSizeInputChange(e.target.value)}
+                    onBlur={() => {
+                      if (fileSizeInputMB.trim() === '') {
+                        setFileSizeInputMB('0');
+                        setFileSizeThresholdMB(0);
+                      }
+                    }}
+                    aria-label="Minimum file size in megabytes"
+                    placeholder="e.g. 0.5"
+                  />
+                  <Unit>MB</Unit>
+                </LargeFilterBox>
+              )}
+              {isScanning && (
+                <ScanningText>
+                  <span>⏳ Scanning{scanResults.length > 0 ? ` (${scanResults.length} found so far)` : ''}...</span>
+                  <StopBtn onClick={abortScan}>Stop</StopBtn>
+                </ScanningText>
+              )}
+              {!isScanning && selectedFilterType === 'large' && fileSizeThresholdMB === 0 && (
+                <InfoMessage>Enter a size threshold to begin search</InfoMessage>
+              )}
+              {!isScanning && scanResults.length === 0 && !(selectedFilterType === 'large' && fileSizeThresholdMB === 0) && (
+                <EmptyState>No files match this filter</EmptyState>
+              )}
+              {scanResults.slice(0, 200).map(file => (
+                <ResultRow
+                  key={file.path}
+                  selected={selectedFile?.path === file.path}
+                  onClick={() => setSelectedFile(file)}
                 >
-                  <span style={{ fontSize: 13 }}>{f.isDirectory ? '📁' : '📄'}</span>
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#e8e8ed' }}>{f.name}</span>
-                  <span style={{ color: '#5a5a6b', fontFamily: 'monospace' }}>{formatSize(f.size)}</span>
-                  <span style={{ color: '#5a5a6b', fontSize: 10 }}>{formatDate(f.modified)}</span>
-                </div>
+                  <ResultIcon>{file.isDirectory ? '📁' : '📄'}</ResultIcon>
+                  <FileName>{file.name}</FileName>
+                  <SizeText>{formatSize(file.size)}</SizeText>
+                  <ModifiedText>{formatDate(file.modified)}</ModifiedText>
+                </ResultRow>
               ))}
-            </div>
-            <div style={{ width: 4, background: '#2e2e35', cursor: 'col-resize', userSelect: 'none' }} onMouseDown={() => setIsResizingRight(true)} />
+            </ContentArea>
+            <Divider onMouseDown={() => setIsResizingRightPane(true)} />
             <ModalPreviewPane
-              file={selectedItem}
-              width={`${rightPaneWidth}px`}
+              file={selectedFile}
+              width={`${rightPaneWidthPx}px`}
               actions={[
                 { key: 'open', label: 'Open' },
                 { key: 'delete', label: 'Delete' }
               ]}
-              onActionClick={handlePreviewAction}
+              onActionClick={handleFileAction}
             />
-          </div>
+          </ModalContent>
         </ModalBody>
         <ModalFooter>
-          <span style={{ fontSize: 11, color: '#5a5a6b', marginRight: 'auto' }}>{results.length} results</span>
+          <FooterInfo>{scanResults.length} results</FooterInfo>
           <Btn primary onClick={onClose}>Close</Btn>
         </ModalFooter>
       </ResizableModalBox>
