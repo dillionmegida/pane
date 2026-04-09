@@ -5,8 +5,8 @@
   "main": "src/main/index.js",
   "scripts": {
     "start": "webpack --config webpack-renderer.js --mode development && electron .",
-    "dev": "concurrently -k \"webpack --config webpack-renderer.js --mode development --watch\" \"sleep 4 && electron . \"",
-    "renderer": "webpack --config webpack-renderer.js --mode development --watch",
+    "dev": "concurrently -k \"webpack serve --config webpack-renderer.js --mode development\" \"wait-on http://localhost:3000 && electron .\"",
+    "renderer": "webpack serve --config webpack-renderer.js --mode development",
     "electron": "electron .",
     "clean": "rm -rf dist/mac-* dist/*.dmg dist/*.zip dist/*.blockmap dist/latest-*.yml dist/builder-*.yml",
     "build": "npm run clean && npm run build:renderer && npm run build:electron",

@@ -126,7 +126,7 @@ function createWindow() {
   });
 
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-  const url = isDev ? `file://${path.join(__dirname, '../../dist/index.html')}` : `file://${path.join(__dirname, '../../dist/index.html')}`;
+  const url = isDev ? 'http://localhost:3000' : `file://${path.join(__dirname, '../../dist/index.html')}`;
 
   mainWindow.loadURL(url);
 
