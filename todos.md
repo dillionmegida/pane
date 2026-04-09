@@ -19,14 +19,16 @@
 
 - arrow navigation for files and folders is broken
 
-## Drag and Drop Functionality
-- Implement drag and drop for files between folders (like Finder behavior)
-  - When a folder is open, allow dragging files into other folders
-  - User should be able to drag files to the filename box of target folders
-  - Need to implement visual feedback during drag operations
-  - Handle file movement logic and update folder contents
-  - Add drag-over states for target folders
-  - Implement proper file system operations for moving files
+## ✅ Drag and Drop Functionality (COMPLETED)
+- ✅ Implemented drag and drop for files between folders (exactly like Finder behavior)
+  - ✅ Dragging files into folders works in all view modes (list, grid, column)
+  - ✅ Drag files to folder names/icons with visual feedback
+  - ✅ Custom drag image showing file name or item count
+  - ✅ Blue highlight on drag-over for target folders
+  - ✅ Option/Alt key to copy instead of move (Finder behavior)
+  - ✅ Prevents dropping into same directory
+  - ✅ Proper file system operations (move/copy) with error handling
+  - ✅ Auto-refresh both panes after drop
 
 ## Modal Navigation Controls
 - Lock up and down arrow keys when modals are open

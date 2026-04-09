@@ -370,6 +370,7 @@ const ColumnItem = styled.div`
   cursor: pointer;
   color: ${p => p.theme.text.primary};
   background: ${p => p.contextMenuSelected ? p.theme.bg.hover : 'transparent'};
+  position: relative;
   
   &:hover {
     background: ${p => p.theme.bg.hover};
@@ -378,6 +379,12 @@ const ColumnItem = styled.div`
   &.selected {
     background: ${p => p.theme.bg.selection};
     color: ${p => p.theme.accent.blue};
+  }
+  
+  &.drag-over {
+    background: ${p => p.theme.accent.blue}15;
+    border-left: 3px solid ${p => p.theme.accent.blue};
+    padding-left: 7px;
   }
   
   .icon {
@@ -443,7 +450,18 @@ const GridItem = styled.div`
   cursor: pointer;
   background: ${p => p.selected ? p.theme.bg.selection : 'transparent'};
   transition: background 0.07s;
+  position: relative;
   &:hover { background: ${p => p.selected ? p.theme.bg.selection : p.theme.bg.hover}; }
+  
+  &.drag-over::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 2px solid ${p => p.theme.accent.blue};
+    border-radius: ${p => p.theme.radius.md};
+    background: ${p => p.theme.accent.blue}15;
+    pointer-events: none;
+  }
 `;
 
 const GridIcon = styled.span`
@@ -501,8 +519,11 @@ export default function FilePane({ paneId }) {
   const [renameFile, setRenameFile] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [dragOver, setDragOver] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggedFiles, setDraggedFiles] = useState([]);
   const renameInputRef = useRef(null);
   const paneRef = useRef(null);
+  const dragCounterRef = useRef(0);
   
   // Local column view UI state (widths, resizing) - not persisted to store
   const [columnWidths, setColumnWidths] = useState({});
@@ -847,22 +868,80 @@ export default function FilePane({ paneId }) {
     setContextMenu({ x: (e.clientX / zoom) - (rect.left / zoom), y: (e.clientY / zoom) - (rect.top / zoom), file: null, background: true });
   };
 
-  const handleDrop = async (e, destFile) => {
+  const handleDrop = async (e, destFile, destPath = null) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOver(null);
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+    
     const droppedPaths = e.dataTransfer.getData('file-paths');
     if (!droppedPaths) return;
+    
     const paths = JSON.parse(droppedPaths);
-    const destDir = destFile?.isDirectory ? destFile.path : currentPath;
-    for (const src of paths) {
-      const dest = `${destDir}/${src.split('/').pop()}`;
-      if (e.altKey) await window.electronAPI.copy(src, dest);
-      else await window.electronAPI.move(src, dest);
+    
+    // Determine destination directory
+    let destDir;
+    if (destPath) {
+      destDir = destPath;
+    } else if (destFile?.isDirectory) {
+      destDir = destFile.path;
+    } else {
+      destDir = currentPath;
     }
-    refreshPane(paneId);
-    // Refresh other pane too
+    
+    // Prevent no-op moves within same directory (unless copying)
+    const isSameDir = paths.some(src => {
+      const srcDir = src.split('/').slice(0, -1).join('/') || '/';
+      return srcDir === destDir;
+    });
+    if (isSameDir && !e.altKey) return;
+    
+    const isCopy = e.altKey;
+    const affectedDirs = new Set();
+
+    for (const src of paths) {
+      const fileName = src.split('/').pop();
+      const dest = `${destDir}/${fileName}`;
+      if (src === dest) continue;
+      try {
+        if (isCopy) {
+          await window.electronAPI.copy(src, dest);
+        } else {
+          await window.electronAPI.move(src, dest);
+        }
+
+        // Track directories that need refresh (source and destination)
+        const srcDir = src.split('/').slice(0, -1).join('/') || '/';
+        affectedDirs.add(srcDir);
+        affectedDirs.add(destDir);
+      } catch (err) {
+        console.error(`Failed to ${isCopy ? 'copy' : 'move'} ${src}:`, err);
+      }
+    }
+    
+    // Refresh both panes and await to ensure UI updates immediately
     const otherPane = paneId === 'left' ? 'right' : 'left';
-    refreshPane(otherPane);
+    await Promise.all([
+      refreshPane(paneId),
+      refreshPane(otherPane),
+    ]);
+
+    // In column view, also refresh cached column directories that were affected
+    if (viewMode === 'column' && affectedDirs.size > 0) {
+      const updatedFilesByPath = { ...columnFiles };
+      for (const dir of affectedDirs) {
+        try {
+          const res = await window.electronAPI.readdir(dir);
+          if (res.success) {
+            updatedFilesByPath[dir] = sortFiles(res.files, sortBy, sortOrder);
+          }
+        } catch (err) {
+          console.error('Failed to refresh column dir', dir, err);
+        }
+      }
+      updateColumnState(paneId, { filesByPath: updatedFilesByPath });
+    }
   };
 
   const startRename = (file) => {
@@ -919,16 +998,55 @@ export default function FilePane({ paneId }) {
           const paths = selectedFiles.has(file.path)
             ? [...selectedFiles]
             : [file.path];
+          if (!selectedFiles.has(file.path)) {
+            setSelection(paneId, paths);
+          }
+          setDraggedFiles(paths);
+          setIsDragging(true);
           e.dataTransfer.setData('file-paths', JSON.stringify(paths));
           e.dataTransfer.effectAllowed = 'copyMove';
+          
+          // Create custom drag image
+          const dragImg = document.createElement('div');
+          dragImg.style.cssText = `
+            position: absolute;
+            top: -1000px;
+            padding: 6px 12px;
+            background: rgba(74, 158, 255, 0.9);
+            color: white;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          `;
+          dragImg.textContent = paths.length === 1 ? file.name : `${paths.length} items`;
+          document.body.appendChild(dragImg);
+          e.dataTransfer.setDragImage(dragImg, 0, 0);
+          setTimeout(() => document.body.removeChild(dragImg), 0);
+        }}
+        onDragEnd={() => {
+          setIsDragging(false);
+          setDraggedFiles([]);
+          setDragOver(null);
         }}
         onDragOver={e => {
-          if (file.isDirectory) {
+          if (file.isDirectory && !draggedFiles.includes(file.path)) {
             e.preventDefault();
+            e.dataTransfer.dropEffect = e.altKey ? 'copy' : 'move';
             setDragOver(file.path);
           }
         }}
-        onDragLeave={() => setDragOver(null)}
+        onDragEnter={e => {
+          if (file.isDirectory && !draggedFiles.includes(file.path)) {
+            e.preventDefault();
+          }
+        }}
+        onDragLeave={e => {
+          // Only clear if we're actually leaving the element
+          if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget)) {
+            setDragOver(null);
+          }
+        }}
         onDrop={e => handleDrop(e, file)}
       >
         <FileIcon>{getFileIcon(file)}</FileIcon>
@@ -965,14 +1083,62 @@ export default function FilePane({ paneId }) {
       <GridItem
         key={file.path}
         selected={isSelected}
+        className={dragOver === file.path ? 'drag-over' : ''}
         onClick={e => handleFileClick(e, file)}
         onDoubleClick={() => handleDoubleClick(file)}
         onContextMenu={e => handleContextMenu(e, file)}
         draggable
         onDragStart={e => {
           const paths = selectedFiles.has(file.path) ? [...selectedFiles] : [file.path];
+          if (!selectedFiles.has(file.path)) {
+            setSelection(paneId, paths);
+          }
+          setDraggedFiles(paths);
+          setIsDragging(true);
           e.dataTransfer.setData('file-paths', JSON.stringify(paths));
+          e.dataTransfer.effectAllowed = 'copyMove';
+          
+          // Create custom drag image
+          const dragImg = document.createElement('div');
+          dragImg.style.cssText = `
+            position: absolute;
+            top: -1000px;
+            padding: 6px 12px;
+            background: rgba(74, 158, 255, 0.9);
+            color: white;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          `;
+          dragImg.textContent = paths.length === 1 ? file.name : `${paths.length} items`;
+          document.body.appendChild(dragImg);
+          e.dataTransfer.setDragImage(dragImg, 0, 0);
+          setTimeout(() => document.body.removeChild(dragImg), 0);
         }}
+        onDragEnd={() => {
+          setIsDragging(false);
+          setDraggedFiles([]);
+          setDragOver(null);
+        }}
+        onDragOver={e => {
+          if (file.isDirectory && !draggedFiles.includes(file.path)) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = e.altKey ? 'copy' : 'move';
+            setDragOver(file.path);
+          }
+        }}
+        onDragEnter={e => {
+          if (file.isDirectory && !draggedFiles.includes(file.path)) {
+            e.preventDefault();
+          }
+        }}
+        onDragLeave={e => {
+          if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget)) {
+            setDragOver(null);
+          }
+        }}
+        onDrop={e => handleDrop(e, file)}
       >
         <GridIcon>{getFileIcon(file)}</GridIcon>
         <GridName>{file.name}</GridName>
@@ -1054,7 +1220,20 @@ export default function FilePane({ paneId }) {
 
       {/* File List */}
       <FileListArea
-        onDragOver={e => e.preventDefault()}
+        onDragOver={e => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = e.altKey ? 'copy' : 'move';
+        }}
+        onDragEnter={e => {
+          e.preventDefault();
+          dragCounterRef.current++;
+        }}
+        onDragLeave={e => {
+          dragCounterRef.current--;
+          if (dragCounterRef.current === 0) {
+            setDragOver(null);
+          }
+        }}
         onDrop={e => handleDrop(e, null)}
         onContextMenu={handleBackgroundContextMenu}
         onClick={() => {
@@ -1106,17 +1285,90 @@ export default function FilePane({ paneId }) {
               return (
                 <Column key={colPath} width={columnWidths[idx] ? `${columnWidths[idx]}px` : '200px'} className={focusedColumn === idx ? 'active' : ''}>
                   <ColViewHeader>{colPath === '/' ? 'Root' : colPath.split('/').pop()}</ColViewHeader>
-                  <ColumnList onClick={() => handleColumnEmptyClick(idx)}>
+                  <ColumnList 
+                    onClick={() => handleColumnEmptyClick(idx)}
+                    onDragOver={e => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = e.altKey ? 'copy' : 'move';
+                    }}
+                    onDrop={e => {
+                      e.stopPropagation();
+                      handleDrop(e, null, colPath);
+                    }}
+                  >
                     {colFiles.map(file => (
                       <ColumnItem
                         key={file.path}
-                        className={selectedItems[idx] === file.path ? 'selected' : ''}
+                        className={`${selectedFiles.has(file.path) ? 'selected' : ''} ${dragOver === file.path ? 'drag-over' : ''}`}
                         contextMenuSelected={contextMenuFile?.path === file.path}
                         onClick={e => {
                           e.stopPropagation();
+                          setActivePane(paneId);
+                          if (e.metaKey || e.ctrlKey) {
+                            toggleSelection(paneId, file.path, true);
+                          } else {
+                            setSelection(paneId, [file.path]);
+                          }
                           handleColumnClick(file, idx);
                         }}
                         onContextMenu={e => handleContextMenu(e, file)}
+                        draggable
+                        onDragStart={e => {
+                          const paths = selectedFiles.has(file.path) ? [...selectedFiles] : [file.path];
+                          if (!selectedFiles.has(file.path)) {
+                            setSelection(paneId, paths);
+                          }
+                          setDraggedFiles(paths);
+                          setIsDragging(true);
+                          e.dataTransfer.setData('file-paths', JSON.stringify(paths));
+                          e.dataTransfer.effectAllowed = 'copyMove';
+                          
+                          // Create custom drag image
+                          const dragImg = document.createElement('div');
+                          dragImg.style.cssText = `
+                            position: absolute;
+                            top: -1000px;
+                            padding: 6px 12px;
+                            background: rgba(74, 158, 255, 0.9);
+                            color: white;
+                            border-radius: 6px;
+                            font-size: 12px;
+                            font-weight: 500;
+                            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                          `;
+                          dragImg.textContent = paths.length === 1 ? file.name : `${paths.length} items`;
+                          document.body.appendChild(dragImg);
+                          e.dataTransfer.setDragImage(dragImg, 0, 0);
+                          setTimeout(() => document.body.removeChild(dragImg), 0);
+                        }}
+                        onDragEnd={() => {
+                          setIsDragging(false);
+                          setDraggedFiles([]);
+                          setDragOver(null);
+                        }}
+                        onDragOver={e => {
+                          if (file.isDirectory && !draggedFiles.includes(file.path)) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            e.dataTransfer.dropEffect = e.altKey ? 'copy' : 'move';
+                            setDragOver(file.path);
+                          }
+                        }}
+                        onDragEnter={e => {
+                          if (file.isDirectory && !draggedFiles.includes(file.path)) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }
+                        }}
+                        onDragLeave={e => {
+                          if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget)) {
+                            setDragOver(null);
+                          }
+                        }}
+                        onDrop={e => {
+                          e.stopPropagation();
+                          handleDrop(e, file);
+                        }}
                       >
                         <span className="icon">{getFileIcon(file)}</span>
                         <span className="name">{file.name}</span>
