@@ -338,7 +338,7 @@ export function SmartFoldersModal({ data, onClose }) {
         if (file.isDirectory) {
           navigateTo(activePane, file.path);
         } else {
-          console.log('Open file:', file.path);
+          await window.electronAPI.openPath(file.path);
         }
         onClose();
         break;
@@ -346,6 +346,7 @@ export function SmartFoldersModal({ data, onClose }) {
         const deleteResponse = await window.electronAPI.delete(file.path);
         if (deleteResponse.success) {
           setSelectedFile(null);
+          await executeFilterScan();
         }
         break;
     }

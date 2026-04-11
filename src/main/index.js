@@ -180,36 +180,48 @@ function registerGlobalShortcuts() {
 ipcMain.handle('fs:readdir', async (event, dirPath) => {
   try {
     const showHidden = store ? store.get('showHidden', false) : false;
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
     const files = [];
+    const batchSize = 32; // Bound concurrency for stat calls
 
-    for (const entry of entries) {
-      if (!showHidden && entry.name.startsWith('.')) continue;
-      const fullPath = path.join(dirPath, entry.name);
-      try {
-        const stat = fs.statSync(fullPath);
-        files.push({
-          name: entry.name,
-          path: fullPath,
-          isDirectory: entry.isDirectory(),
-          isSymlink: entry.isSymbolicLink(),
-          size: stat.size,
-          modified: stat.mtime.toISOString(),
-          created: stat.birthtime.toISOString(),
-          accessed: stat.atime.toISOString(),
-          extension: path.extname(entry.name).slice(1).toLowerCase(),
-          permissions: {
-            mode: stat.mode,
-            octal: (stat.mode & 0o777).toString(8).padStart(3, '0'),
-            readable: !!(stat.mode & fs.constants.S_IRUSR),
-            writable: !!(stat.mode & fs.constants.S_IWUSR),
-            executable: !!(stat.mode & fs.constants.S_IXUSR),
-          },
-        });
-      } catch (e) {
-        // Skip files we can't stat
-      }
+    for (let i = 0; i < entries.length; i += batchSize) {
+      const batch = entries.slice(i, i + batchSize);
+      const results = await Promise.allSettled(batch.map(async (entry) => {
+        if (!showHidden && entry.name.startsWith('.')) return null;
+
+        const fullPath = path.join(dirPath, entry.name);
+        try {
+          const stat = await fs.promises.stat(fullPath);
+          return {
+            name: entry.name,
+            path: fullPath,
+            isDirectory: entry.isDirectory(),
+            isSymlink: entry.isSymbolicLink(),
+            size: stat.size,
+            modified: stat.mtime.toISOString(),
+            created: stat.birthtime.toISOString(),
+            accessed: stat.atime.toISOString(),
+            extension: path.extname(entry.name).slice(1).toLowerCase(),
+            permissions: {
+              mode: stat.mode,
+              octal: (stat.mode & 0o777).toString(8).padStart(3, '0'),
+              readable: !!(stat.mode & fs.constants.S_IRUSR),
+              writable: !!(stat.mode & fs.constants.S_IWUSR),
+              executable: !!(stat.mode & fs.constants.S_IXUSR),
+            },
+          };
+        } catch (e) {
+          return null; // Skip files we can't stat
+        }
+      }));
+
+      results.forEach(result => {
+        if (result.status === 'fulfilled' && result.value) {
+          files.push(result.value);
+        }
+      });
     }
+
     return { success: true, files };
   } catch (err) {
     return { success: false, error: err.message };
