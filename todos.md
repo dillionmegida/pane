@@ -38,3 +38,9 @@
   - Need to capture and prevent default arrow key behavior
   - Restore normal arrow key functionality when modal closes
   - Ensure focus management for accessibility
+
+
+
+- after deleting from large files, the item still there
+- reuse large files logic for other smart folders
+- make some files in the list undeletable..for example files that appear under certain directories like System or something
