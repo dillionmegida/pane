@@ -346,7 +346,6 @@ export const useStore = create((set, get) => ({
   // ── Smart Folders ─────────────────────────────────────────────────────────
   smartFolders: [
     { id: 'large', name: 'Large Files', icon: '⚖️', filter: f => f.size > 100 * 1024 * 1024 },
-    { id: 'recent', name: 'Recent Downloads', icon: '⬇️', filter: f => { const d = new Date(f.modified); return Date.now() - d.getTime() < 7 * 86400000; } },
     { id: 'empty', name: 'Empty Folders', icon: '📭', filter: f => f.isDirectory && f.size === 0 },
     { id: 'old', name: 'Old Files', icon: '🗓️', filter: f => { const d = new Date(f.accessed || f.modified); return Date.now() - d.getTime() > 365 * 86400000; } },
   ],

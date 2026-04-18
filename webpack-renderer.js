@@ -5,6 +5,7 @@ module.exports = (env, argv) => {
   const isDev = argv.mode === 'development';
 
   return {
+    devtool: process.env.NODE_ENV === 'development' ? 'cheap-module-source-map' : false,
     entry: { main: './src/index.jsx' },
     target: 'web',
     optimization: {

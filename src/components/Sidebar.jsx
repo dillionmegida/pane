@@ -216,7 +216,6 @@ export default function Sidebar() {
           </SectionHeader>
           {[
             { id: 'large', name: 'Large Files', icon: '⚖️' },
-            { id: 'recent', name: 'Recent Downloads', icon: '⬇️' },
             { id: 'empty', name: 'Empty Folders', icon: '📭' },
             { id: 'old', name: 'Old Files', icon: '🗓️' },
           ].map(sf => (

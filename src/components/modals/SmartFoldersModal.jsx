@@ -44,13 +44,15 @@ const ContentArea = styled.div`
 const FilterInfo = styled.div`
   font-size: 11px;
   color: #5a5a6b;
-  margin-bottom: 8px;
+  margin-left: 12px;
+  flex: 1;
 `;
 
 const Options = styled.div`
   display: flex;
   gap: 6px;
   margin-bottom: 8px;
+  align-items: center;
 `;
 
 const OptBtnWrapper = styled.div`
@@ -222,6 +224,14 @@ const FooterInfo = styled.span`
   gap: 8px;
 `;
 
+const HeaderInfo = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  color: #5a5a6b;
+`;
+
 export function SmartFoldersModal({ data, onClose }) {
   const { panes, activePane, navigateTo } = useStore();
   const currentPane = panes.find(p => p.id === activePane);
@@ -236,9 +246,16 @@ export function SmartFoldersModal({ data, onClose }) {
   const [showExclusionInput, setShowExclusionInput] = useState(false);
   const [excludedDirectories, setExcludedDirectories] = useState(DEFAULT_EXCLUDED_DIRECTORIES);
   const [exclusionInputValue, setExclusionInputValue] = useState('');
+  const [hasScannedOnce, setHasScannedOnce] = useState(false);
   const modalContainerRef = useRef(null);
+  const cachedResultsRef = useRef({});
+  const lastCacheKeyRef = useRef('');
 
-  const { isScanning, scanResults, scanForLargeFiles, scanWithGenericSearch, abortScan } = useConcurrentDirectoryScanner();
+  const { isScanning, scanResults, setScanResults, scanForLargeFiles, scanWithConcurrentWalking, scanWithGenericSearch, abortScan } = useConcurrentDirectoryScanner();
+
+  const getCacheKey = () => {
+    return `${selectedFilterType}-${currentDirectoryPath}-${selectedFilterType === 'large' ? parsedSizeMB : ''}-${excludedDirectories.join(',')}`;
+  };
 
   const displaySizeLabel = fileSizeInputMB.trim() === '' ? '0' : fileSizeInputMB;
   const parsedSizeMB = useMemo(() => {
@@ -312,15 +329,49 @@ export function SmartFoldersModal({ data, onClose }) {
   }, [isResizingRightPane]);
 
   useEffect(() => {
+    if (!isScanning && hasScannedOnce) {
+      const cacheKey = getCacheKey();
+      cachedResultsRef.current[cacheKey] = scanResults;
+    }
+  }, [isScanning, scanResults, hasScannedOnce]);
+
+  useEffect(() => {
     if (!currentDirectoryPath) return;
 
-    const runScan = () => {
+    const newCacheKey = getCacheKey();
+    const prevCacheKey = lastCacheKeyRef.current;
+
+    // Persist partial results from previous filter before switching
+    if (prevCacheKey && prevCacheKey !== newCacheKey) {
+      cachedResultsRef.current[prevCacheKey] = scanResults;
+    }
+
+    // Always stop any in-flight scan when switching tabs
+    if (prevCacheKey !== newCacheKey) {
+      abortScan();
+    }
+
+    lastCacheKeyRef.current = newCacheKey;
+
+    const cached = cachedResultsRef.current[newCacheKey];
+
+    if (cached !== undefined) {
+      setScanResults(cached);
+      setHasScannedOnce(true);
+      return;
+    }
+
+    setHasScannedOnce(false);
+
+    const runScan = async () => {
       if (selectedFilterType === 'large') {
         if (parsedSizeMB > 0) {
-          executeFilterScan(parsedSizeMB);
+          await executeFilterScan(parsedSizeMB);
+          setHasScannedOnce(true);
         }
       } else {
-        executeFilterScan();
+        await executeFilterScan();
+        setHasScannedOnce(true);
       }
     };
 
@@ -363,6 +414,14 @@ export function SmartFoldersModal({ data, onClose }) {
         excludedDirectories,
         maxConcurrentScans: 3
       });
+    } else if (selectedFilterType === 'empty' || selectedFilterType === 'old') {
+      const currentFilter = filterDefinitions[selectedFilterType];
+      await scanWithConcurrentWalking({
+        rootPath: currentDirectoryPath,
+        excludedDirectories,
+        maxConcurrentScans: 3,
+        filterTest: currentFilter.test
+      });
     } else {
       const currentFilter = filterDefinitions[selectedFilterType];
       await scanWithGenericSearch({
@@ -393,6 +452,11 @@ export function SmartFoldersModal({ data, onClose }) {
       >
         <ModalHeader>
           <ModalTitle>🗂️ Smart Folders</ModalTitle>
+          <HeaderInfo>
+            <FilterInfo>
+              <PathText>{currentDirectoryPath}</PathText>: {filterDefinitions[selectedFilterType].desc}
+            </FilterInfo>
+          </HeaderInfo>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
         </ModalHeader>
         <ModalBody pad="0">
@@ -410,13 +474,28 @@ export function SmartFoldersModal({ data, onClose }) {
             </LeftPane>
             <Divider onMouseDown={() => setIsResizingLeftPane(true)} />
             <ContentArea>
-              <FilterInfo>
-                {filterDefinitions[selectedFilterType].desc} in <PathText>{currentDirectoryPath}</PathText>
-              </FilterInfo>
               <Options>
                 <OptBtnWrapper active={excludedDirectories.length > 0} onClick={() => setShowExclusionInput(prev => !prev)}>
                   {showExclusionInput ? '▼' : '▶'} Excluded ({excludedDirectories.length})
                 </OptBtnWrapper>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {isScanning && (
+                    <StopBtn onClick={abortScan} title="Stop scanning">
+                      <svg viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="6" width="12" height="12" rx="2" />
+                      </svg>
+                    </StopBtn>
+                  )}
+                  <span style={{ whiteSpace: 'nowrap' }}>
+                    {isScanning ? (
+                      <>⏳ Scanning{scanResults.length > 0 ? ` (${scanResults.length} found so far)` : ''}...</>
+                    ) : hasScannedOnce ? (
+                      `${scanResults.length} results`
+                    ) : (
+                      '—'
+                    )}
+                  </span>
+                </div>
               </Options>
               {showExclusionInput && (
                 <div style={{ padding: '8px 10px', border: '1px solid #2e2e35', borderRadius: 6, background: '#1a1a1e', marginBottom: 10 }}>
@@ -483,7 +562,7 @@ export function SmartFoldersModal({ data, onClose }) {
               {selectedFilterType === 'large' && parsedSizeMB === 0 && (
                 <InfoMessage>Enter a size threshold to begin search</InfoMessage>
               )}
-              {!isScanning && scanResults.length === 0 && !(selectedFilterType === 'large' && parsedSizeMB === 0) && (
+              {!isScanning && hasScannedOnce && scanResults.length === 0 && !(selectedFilterType === 'large' && parsedSizeMB === 0) && (
                 <EmptyState>No files match this filter</EmptyState>
               )}
               {visibleResults.map(file => (
@@ -512,22 +591,6 @@ export function SmartFoldersModal({ data, onClose }) {
           </ModalContent>
         </ModalBody>
         <ModalFooter>
-          <FooterInfo>
-            {isScanning && (
-              <StopBtn onClick={abortScan} title="Stop scanning">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="6" y="6" width="12" height="12" rx="2" />
-                </svg>
-              </StopBtn>
-            )}
-            {isScanning ? (
-              <>
-                ⏳ Scanning{scanResults.length > 0 ? ` (${scanResults.length} found so far)` : ''}...
-              </>
-            ) : (
-              `${scanResults.length} results`
-            )}
-          </FooterInfo>
           <Btn primary onClick={onClose}>Close</Btn>
         </ModalFooter>
       </ResizableModalBox>

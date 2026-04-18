@@ -117,7 +117,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
-      webSecurity: true,
+      webSecurity: false,
       allowRunningInsecureContent: false,
       sandbox: false,
       spellcheck: false,
@@ -132,7 +132,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    // if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
+    if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
   });
 
   mainWindow.on('resize', () => {

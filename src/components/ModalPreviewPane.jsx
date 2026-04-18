@@ -2,6 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { formatSize, formatDate, getFileIcon, PREVIEW_TYPES, getPreviewType, useStore } from '../store';
 
+const getVideoMime = (path) => {
+  const ext = path.split('.').pop().toLowerCase();
+  const map = { mp4: 'video/mp4', mov: 'video/quicktime', mkv: 'video/x-matroska', webm: 'video/webm', avi: 'video/x-msvideo' };
+  return map[ext] || 'video/mp4';
+};
+
 const PreviewPane = styled.div`
   width: ${p => p.width || '320px'};
   display: flex;
@@ -197,19 +203,19 @@ export default function ModalPreviewPane({
 
     if (type === 'video') {
       setPreviewType('video');
-      setPreviewContent(`file://${file.path}`);
+      setPreviewContent(file.path);
       return;
     }
 
     if (type === 'audio') {
       setPreviewType('audio');
-      setPreviewContent(`file://${file.path}`);
+      setPreviewContent(file.path);
       return;
     }
 
     if (type === 'image') {
       setPreviewType('image');
-      setPreviewContent(`file://${file.path}`);
+      setPreviewContent(file.path);
       return;
     }
 
@@ -296,13 +302,17 @@ export default function ModalPreviewPane({
                   </div>
                 )}
                 {previewType === 'video' && (
-                  <video src={previewContent} controls style={{ maxWidth: '100%' }} />
+                  <video controls style={{ maxWidth: '100%' }} key={previewContent}>
+                   <source src={`file://${previewContent}`} type={getVideoMime(previewContent)} />
+                  </video>
                 )}
                 {previewType === 'audio' && (
-                  <audio src={previewContent} controls style={{ width: '100%' }} />
+                  <audio controls style={{ width: '100%' }} key={previewContent}>
+                    <source src={`file://${previewContent}`} />
+                  </audio>
                 )}
                 {previewType === 'image' && (
-                  <img src={previewContent} alt={file.name} style={{ maxWidth: '100%', objectFit: 'contain' }} />
+                  <img src={`file://${previewContent}`} alt={file.name} style={{ maxWidth: '100%', objectFit: 'contain' }} />
                 )}
                 {previewType === 'text' && (
                   <PreviewText>{previewContent || 'No preview available'}</PreviewText>

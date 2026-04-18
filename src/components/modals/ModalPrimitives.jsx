@@ -48,7 +48,6 @@ export const ResizableModalBox = ({ children, width: initialWidth = '700px', hei
 export const ModalHeader = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 14px 18px;
   border-bottom: 1px solid ${p => p.theme.border.subtle};
   flex-shrink: 0;
@@ -102,6 +101,7 @@ export const CloseBtn = styled.button`
   height: 24px;
   display: flex;
   align-items: center;
+  margin-left: auto;
   justify-content: center;
   border-radius: ${p => p.theme.radius.sm};
   &:hover { color: ${p => p.theme.text.primary}; background: ${p => p.theme.bg.hover}; }

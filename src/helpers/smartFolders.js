@@ -44,12 +44,6 @@ export const createFilterDefinitions = (fileSizeThresholdMB) => {
       desc: `Files over ${sizeLabel}MB`,
       test: (file) => !file.isDirectory && file.size > sizeThresholdBytes
     },
-    recent: {
-      name: '⬇️ Recent Downloads',
-      icon: '⬇️',
-      desc: 'Modified in last 7 days',
-      test: (file) => !file.isDirectory && Date.now() - new Date(file.modified).getTime() < sevenDaysInMs
-    },
     empty: {
       name: '📭 Empty Folders',
       icon: '📭',

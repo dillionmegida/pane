@@ -110,6 +110,92 @@ export const useConcurrentDirectoryScanner = () => {
     }
   };
 
+  const scanWithConcurrentWalking = async ({
+    rootPath,
+    excludedDirectories = [],
+    maxConcurrentScans = 3,
+    filterTest
+  }) => {
+    if (!rootPath) return;
+
+    abortScan();
+    const abortController = { aborted: false };
+    abortControllerRef.current = abortController;
+
+    setIsScanning(true);
+    setScanResults([]);
+
+    const directoryQueue = [rootPath];
+    let activeScans = 0;
+    let resolveWhenIdle;
+
+    const processDirectory = async (directoryPath) => {
+      if (abortController.aborted) return;
+
+      try {
+        const response = await window.electronAPI.readdir(directoryPath);
+        if (abortController.aborted || !response.success) return;
+
+        const matchedFiles = [];
+        
+        for (const file of response.files) {
+          if (abortController.aborted) return;
+
+          if (file.isDirectory) {
+            if (!matchesExcludePattern(file.name, excludedDirectories)) {
+              directoryQueue.push(file.path);
+              if (filterTest(file)) {
+                matchedFiles.push(file);
+              }
+            }
+          } else if (filterTest(file)) {
+            matchedFiles.push(file);
+          }
+        }
+
+        if (matchedFiles.length > 0 && !abortController.aborted) {
+          setScanResults(previousResults => [...previousResults, ...matchedFiles]);
+        }
+      } catch (error) {
+        console.error('Error reading directory:', directoryPath, error);
+      }
+    };
+
+    const pumpQueue = () => {
+      while (activeScans < maxConcurrentScans && directoryQueue.length > 0 && !abortController.aborted) {
+        const nextDirectory = directoryQueue.shift();
+        activeScans++;
+        
+        processDirectory(nextDirectory).finally(() => {
+          activeScans--;
+          
+          if (abortController.aborted) {
+            if (activeScans === 0 && resolveWhenIdle) resolveWhenIdle();
+            return;
+          }
+
+          if (directoryQueue.length > 0) {
+            pumpQueue();
+          } else if (activeScans === 0) {
+            if (resolveWhenIdle) resolveWhenIdle();
+          }
+        });
+      }
+    };
+
+    try {
+      await new Promise(resolve => {
+        resolveWhenIdle = resolve;
+        pumpQueue();
+        if (activeScans === 0) resolve();
+      });
+    } finally {
+      if (!abortController.aborted) {
+        setIsScanning(false);
+      }
+    }
+  };
+
   const scanWithGenericSearch = async ({
     rootPath,
     excludedDirectories = [],
@@ -166,7 +252,9 @@ export const useConcurrentDirectoryScanner = () => {
   return {
     isScanning,
     scanResults,
+    setScanResults,
     scanForLargeFiles,
+    scanWithConcurrentWalking,
     scanWithGenericSearch,
     abortScan
   };
