@@ -228,7 +228,8 @@ export const useStore = create((set, get) => ({
     if (!pane) return;
 
     // Extract directory path from file path
-    const dirPath = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '/';
+    const lastSlash = filePath.lastIndexOf('/');
+    const dirPath = lastSlash <= 0 ? '/' : filePath.substring(0, lastSlash);
     
     // Navigate to the directory first
     await navigateTo(paneId, dirPath);
@@ -250,7 +251,8 @@ export const useStore = create((set, get) => ({
     const { navigateTo } = get();
     
     // Extract directory path from file path
-    const dirPath = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '/';
+    const lastSlash = filePath.lastIndexOf('/');
+    const dirPath = lastSlash <= 0 ? '/' : filePath.substring(0, lastSlash);
     
     // Navigate to the directory
     await navigateTo(paneId, dirPath);
@@ -326,6 +328,9 @@ export const useStore = create((set, get) => ({
   terminalHeight: 260,
   toggleTerminal: () => set(s => ({ showTerminal: !s.showTerminal })),
   setTerminalHeight: (h) => set({ terminalHeight: h }),
+
+  showSidebar: true,
+  toggleSidebar: () => set(s => ({ showSidebar: !s.showSidebar })),
 
   showSearch: false,
   searchQuery: '',

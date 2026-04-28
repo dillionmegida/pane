@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useStore, formatSize, formatDate, getFileIcon, PREVIEW_TYPES, getPreviewType } from '../store';
 import ModalPreviewPane from './ModalPreviewPane';
+import { useConcurrentDirectoryScanner } from '../hooks/useDirectoryScanner';
 
 // Resizable divider component
 const ResizableDivider = styled.div`
@@ -181,26 +182,36 @@ export default function SearchOverlay() {
   const pane = panes.find(p => p.id === activePane);
 
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [useRegex, setUseRegex] = useState(false);
   const [contentSearch, setContentSearch] = useState(false);
   const [excludedDirs, setExcludedDirs] = useState(['node_modules', '.git', 'venv', '.venv', '__pycache__', '.pytest_cache']);
   const [showExcludeInput, setShowExcludeInput] = useState(false);
   const [excludeInput, setExcludeInput] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const [searchCancelled, setSearchCancelled] = useState(false);
-  const [searchComplete, setSearchComplete] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   // Preview state
   const [selectedItem, setSelectedItem] = useState(null);
   const [previewWidth, setPreviewWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
 
+  // Content search fallback state (uses old streaming API)
+  const [contentResults, setContentResults] = useState([]);
+  const [contentLoading, setContentLoading] = useState(false);
+  const [contentComplete, setContentComplete] = useState(false);
+  const contentSearchIdRef = useRef(null);
+
   const inputRef = useRef(null);
   const timerRef = useRef(null);
-  const searchIdRef = useRef(null);
   const mainContentRef = useRef(null);
+
+  // Use the concurrent directory scanner for fast file name search
+  const { isScanning, scanResults, setScanResults, scanWithConcurrentWalking, abortScan } = useConcurrentDirectoryScanner();
+
+  // Determine which results to show based on search mode
+  const results = contentSearch ? contentResults : scanResults;
+  const loading = contentSearch ? contentLoading : isScanning;
+  const searchComplete = contentSearch ? contentComplete : hasSearched && !isScanning;
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -215,7 +226,6 @@ export default function SearchOverlay() {
       const container = mainContentRef.current;
       const rect = container.getBoundingClientRect();
       const newWidth = rect.right - e.clientX;
-      // Constrain width between 200px and 600px
       if (newWidth >= 200 && newWidth <= 600) {
         setPreviewWidth(newWidth);
       }
@@ -234,27 +244,12 @@ export default function SearchOverlay() {
     };
   }, [isResizing]);
 
-  // Load preview when selected item changes
-  useEffect(() => {
-    // Preview loading is now handled by ModalPreviewPane
-  }, [selectedItem]);
-
-  const cancelCurrentSearch = useCallback(() => {
-    if (searchIdRef.current) {
-      window.electronAPI.searchCancel();
-      searchIdRef.current = null;
-      setSearchCancelled(true);
-      setTimeout(() => setSearchCancelled(false), 100);
-    }
-  }, []);
-
-  // Handle streaming search progress
+  // Content search streaming handlers (fallback for content search mode)
   useEffect(() => {
     const handleProgress = ({ result, total, searchId }) => {
-      if (searchId === searchIdRef.current) {
-        setResults(prev => {
+      if (searchId === contentSearchIdRef.current) {
+        setContentResults(prev => {
           const newResults = [...prev, result];
-          // Select first item if this is the first result and nothing is selected
           if (newResults.length === 1 && !selectedItem) {
             setSelectedIdx(0);
             setSelectedItem(result);
@@ -265,15 +260,10 @@ export default function SearchOverlay() {
     };
 
     const handleComplete = ({ searchId }) => {
-      if (searchId === searchIdRef.current) {
-        setLoading(false);
-        setSearchComplete(true);
-        searchIdRef.current = null;
-        // Select first item if search completed with results but nothing selected
-        if (results.length > 0 && !selectedItem) {
-          setSelectedIdx(0);
-          setSelectedItem(results[0]);
-        }
+      if (searchId === contentSearchIdRef.current) {
+        setContentLoading(false);
+        setContentComplete(true);
+        contentSearchIdRef.current = null;
       }
     };
 
@@ -286,42 +276,88 @@ export default function SearchOverlay() {
     };
   }, []);
 
+  // Auto-select first result when scanner results change
+  useEffect(() => {
+    if (!contentSearch && scanResults.length > 0 && !selectedItem) {
+      setSelectedIdx(0);
+      setSelectedItem(scanResults[0]);
+    }
+  }, [scanResults, contentSearch, selectedItem]);
+
+  const cancelCurrentSearchRef = useRef(null);
+  cancelCurrentSearchRef.current = () => {
+    abortScan();
+    if (contentSearchIdRef.current) {
+      window.electronAPI.searchCancel?.();
+      contentSearchIdRef.current = null;
+    }
+  };
+
   useEffect(() => {
     clearTimeout(timerRef.current);
-    cancelCurrentSearch();
+    cancelCurrentSearchRef.current();
     setSelectedItem(null);
+    setHasSearched(false);
 
     if (!query.trim()) {
-      setResults([]);
-      setLoading(false);
-      setSearchComplete(false);
+      setScanResults([]);
+      setContentResults([]);
+      setContentLoading(false);
+      setContentComplete(false);
       return;
     }
 
-    setLoading(true);
-    setSearchComplete(false);
     setSelectedIdx(0);
-    timerRef.current = setTimeout(() => doSearch(), 400);
+    timerRef.current = setTimeout(() => doSearch(), 300);
     return () => {
       clearTimeout(timerRef.current);
-      cancelCurrentSearch();
+      cancelCurrentSearchRef.current();
     };
-  }, [query, useRegex, contentSearch, excludedDirs, cancelCurrentSearch]);
+  }, [query, useRegex, contentSearch, excludedDirs]);
 
   const doSearch = async () => {
     if (!pane || !query.trim()) return;
 
-    searchIdRef.current = Date.now();
-    setResults([]);
-    setSelectedIdx(0);
-
     const searchRoot = getActivePath(activePane);
-    await window.electronAPI.search({
-      rootPath: searchRoot,
-      query,
-      options: { useRegex, contentSearch, maxResults: 300, excludeDirs: excludedDirs },
-      searchId: searchIdRef.current,
-    });
+
+    if (contentSearch) {
+      // Content search still uses the electron streaming API
+      contentSearchIdRef.current = Date.now();
+      setContentResults([]);
+      setContentLoading(true);
+      setContentComplete(false);
+      setSelectedIdx(0);
+
+      await window.electronAPI.search({
+        rootPath: searchRoot,
+        query,
+        options: { useRegex, contentSearch: true, maxResults: 300, excludeDirs: excludedDirs },
+        searchId: contentSearchIdRef.current,
+      });
+    } else {
+      // File name search uses the fast concurrent directory walker
+      setHasSearched(true);
+      const q = query.toLowerCase();
+
+      const filterTest = (file) => {
+        if (useRegex) {
+          try {
+            const re = new RegExp(query, 'i');
+            return re.test(file.name);
+          } catch {
+            return false;
+          }
+        }
+        return file.name.toLowerCase().includes(q);
+      };
+
+      await scanWithConcurrentWalking({
+        rootPath: searchRoot,
+        excludedDirectories: excludedDirs,
+        maxConcurrentScans: 5,
+        filterTest,
+      });
+    }
   };
 
   const handlePreviewAction = async (actionKey, file) => {
@@ -332,7 +368,11 @@ export default function SearchOverlay() {
       case 'delete':
         const r = await window.electronAPI.delete(file.path);
         if (r.success) {
-          setResults(prev => prev.filter(item => item.path !== file.path));
+          if (contentSearch) {
+            setContentResults(prev => prev.filter(item => item.path !== file.path));
+          } else {
+            setScanResults(prev => prev.filter(item => item.path !== file.path));
+          }
           setSelectedItem(null);
         }
         break;
@@ -413,7 +453,7 @@ export default function SearchOverlay() {
   };
 
   return (
-    <Overlay>
+    <Overlay onKeyDown={e => e.stopPropagation()} onKeyUp={e => e.stopPropagation()}>
       <SearchBox onClick={e => e.stopPropagation()}>
         <InputWrap>
           <span style={{ fontSize: '1rem', color: '#5a5a6b' }}>🔍</span>
@@ -424,7 +464,18 @@ export default function SearchOverlay() {
             onKeyDown={handleKeyDown}
             placeholder={`Search in ${getActivePath(activePane) || '/'}`}
           />
-          {loading && <span style={{ fontSize: '0.75rem', color: 'orange' }}>Searching...</span>}
+          {loading && (
+            <span style={{ fontSize: '0.75rem', color: 'orange', display: 'flex', alignItems: 'center', gap: 4 }}>
+              Searching...
+              {!contentSearch && isScanning && (
+                <span
+                  onClick={abortScan}
+                  style={{ cursor: 'pointer', color: '#f87171', fontSize: '0.625rem', padding: '1px 4px', background: '#2a2a2f', borderRadius: 3 }}
+                  title="Stop search"
+                >■</span>
+              )}
+            </span>
+          )}
           <span style={{ fontSize: '0.75rem', color: '#5a5a6b', cursor: 'pointer' }} onClick={toggleSearch}>✕</span>
         </InputWrap>
 
@@ -525,7 +576,7 @@ export default function SearchOverlay() {
             <StatusBar>
               <span>
                 {results.length} results
-                {!loading && searchComplete && results.length === 300 ? ' (limit reached)' : ''}
+                {loading && !contentSearch ? ' (scanning...)' : ''}
               </span>
               <span>📁 {getActivePath(activePane) || '/'}</span>
             </StatusBar>

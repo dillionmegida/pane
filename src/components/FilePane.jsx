@@ -504,6 +504,8 @@ export default function FilePane({ paneId }) {
     getBreadcrumbs,
     getColumnPaths,
     getActiveBookmark,
+    activeModal,
+    showSearch,
   } = useStore();
 
   const pane = panes.find(p => p.id === paneId);
@@ -640,6 +642,8 @@ export default function FilePane({ paneId }) {
     if (viewMode !== 'column') return;
 
     const handleKeyDown = (e) => {
+      // Don't handle keyboard nav when a modal or search overlay is open
+      if (useStore.getState().activeModal || useStore.getState().showSearch) return;
       if (focusedColumn < 0 || focusedColumn >= columnPaths.length) return;
 
       const columnKey = columnPaths[focusedColumn];

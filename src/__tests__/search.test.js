@@ -127,50 +127,47 @@ describe('Search Functionality', () => {
   });
 
   test('should set loading state during search', async () => {
-    window.electronAPI.search.mockImplementation(() => 
-      new Promise(resolve => setTimeout(() => resolve({ success: true, files: [] }), 100))
+    let resolveSearch;
+    window.electronAPI.search.mockImplementation(() =>
+      new Promise(resolve => { resolveSearch = resolve; })
     );
 
-    const { result } = renderHook(() => useStore());
-    
-    const searchPromise = act(async () => {
-      await result.current.searchFiles('test');
-    });
+    const store = useStore.getState();
+    const searchPromise = store.searchFiles('test');
 
-    // Check loading state is true immediately
-    expect(result.current.searchLoading).toBe(true);
-    
+    // Check loading state is true before search resolves
+    expect(useStore.getState().searchLoading).toBe(true);
+
+    resolveSearch({ success: true, files: [] });
     await searchPromise;
-    
+
     // Check loading state is false after search completes
-    expect(result.current.searchLoading).toBe(false);
+    expect(useStore.getState().searchLoading).toBe(false);
   });
 
   test('should search with options', async () => {
     const mockResults = [{ name: 'file.txt', path: '/file.txt' }];
     window.electronAPI.search.mockResolvedValue({ success: true, files: mockResults });
 
-    const { result } = renderHook(() => useStore());
-    
     const searchOptions = { caseSensitive: true, matchWholeWord: false };
     await act(async () => {
-      await result.current.searchFiles('test', searchOptions);
+      await useStore.getState().searchFiles('test', searchOptions);
     });
 
-    expect(window.electronAPI.search).toHaveBeenCalledWith({
-      rootPath: '/Users/john',
-      query: 'test',
-      options: searchOptions,
-    });
+    expect(window.electronAPI.search).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rootPath: '/Users/john',
+        query: 'test',
+        options: searchOptions,
+      })
+    );
   });
 
   test('should search from active pane path', async () => {
     window.electronAPI.search.mockResolvedValue({ success: true, files: [] });
 
-    const { result } = renderHook(() => useStore());
-    
     await act(async () => {
-      await result.current.searchFiles('test');
+      await useStore.getState().searchFiles('test');
     });
 
     expect(window.electronAPI.search).toHaveBeenCalledWith(
@@ -213,38 +210,37 @@ describe('Search Results Navigation', () => {
   });
 
   test('should navigate to search result file', async () => {
-    const { result } = renderHook(() => useStore());
-    
     const filePath = '/Users/john/Documents/file1.txt';
+    window.electronAPI.stat.mockResolvedValue({ success: false });
+
     await act(async () => {
-      await result.current.navigateToFile('left', filePath);
+      await useStore.getState().navigateToFile('left', filePath);
     });
 
-    const leftPane = result.current.panes.find(p => p.id === 'left');
+    const leftPane = useStore.getState().panes.find(p => p.id === 'left');
     expect(leftPane.path).toBe('/Users/john/Documents');
   });
 
   test('should reveal search result in tree', async () => {
-    const { result } = renderHook(() => useStore());
-    
     const filePath = '/Users/john/Documents/file1.txt';
+
     await act(async () => {
-      await result.current.revealInTree('left', filePath);
+      await useStore.getState().revealInTree('left', filePath);
     });
 
-    const leftPane = result.current.panes.find(p => p.id === 'left');
+    const leftPane = useStore.getState().panes.find(p => p.id === 'left');
     expect(leftPane.path).toBe('/Users/john/Documents');
   });
 
   test('should handle root path navigation in search result', async () => {
-    const { result } = renderHook(() => useStore());
-    
     const filePath = '/file.txt';
+    window.electronAPI.stat.mockResolvedValue({ success: false });
+
     await act(async () => {
-      await result.current.navigateToFile('left', filePath);
+      await useStore.getState().navigateToFile('left', filePath);
     });
 
-    const leftPane = result.current.panes.find(p => p.id === 'left');
+    const leftPane = useStore.getState().panes.find(p => p.id === 'left');
     expect(leftPane.path).toBe('/');
   });
 });

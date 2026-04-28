@@ -100,9 +100,8 @@ export default function Sidebar() {
     getActivePath,
   } = useStore();
 
-  const [recentPaths, setRecentPaths] = useState([]);
   const [dragOver, setDragOver] = useState(null);
-  const [expandedSections, setExpandedSections] = useState({ bookmarks: true, tags: true, recent: true });
+  const [expandedSections, setExpandedSections] = useState({ bookmarks: true, tags: true });
 
   const activePath = getActivePath(activePane);
 
@@ -113,15 +112,6 @@ export default function Sidebar() {
     loadAllTags();
   }, []);
 
-  // Track recent folders
-  useEffect(() => {
-    if (activePath) {
-      setRecentPaths(prev => {
-        const filtered = prev.filter(p => p !== activePath);
-        return [activePath, ...filtered].slice(0, 8);
-      });
-    }
-  }, [activePath]);
 
   const navigate = (path) => {
     navigateTo(activePane, path);
@@ -248,20 +238,6 @@ export default function Sidebar() {
           </Section>
         )}
 
-        <Divider />
-
-        {/* Recent */}
-        <Section>
-          <SectionHeader onClick={() => toggleSection('recent')} style={{ cursor: 'pointer' }}>
-            Recent
-          </SectionHeader>
-          {expandedSections.recent && recentPaths.slice(0, 6).map(p => (
-            <Item key={p} className={activePath === p ? 'active' : ''} onClick={() => navigate(p)}>
-              <span className="icon">🕐</span>
-              <span className="name">{p === '/' ? 'Root' : p.split('/').pop()}</span>
-            </Item>
-          ))}
-        </Section>
       </ScrollArea>
     </SidebarWrap>
   );

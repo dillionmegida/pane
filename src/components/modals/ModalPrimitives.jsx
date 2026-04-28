@@ -2,7 +2,7 @@ import React from 'react';
 import styled from 'styled-components';
 
 // ─── Shared Modal Primitives ─────────────────────────────────────────────────
-export const Overlay = styled.div`
+const OverlayBase = styled.div`
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.7);
@@ -12,6 +12,17 @@ export const Overlay = styled.div`
   justify-content: center;
   backdrop-filter: blur(2px);
 `;
+
+export const Overlay = React.forwardRef(({ children, ...props }, ref) => (
+  <OverlayBase
+    ref={ref}
+    onKeyDown={e => e.stopPropagation()}
+    onKeyUp={e => e.stopPropagation()}
+    {...props}
+  >
+    {children}
+  </OverlayBase>
+));
 
 export const ModalBox = styled.div`
   background: ${p => p.theme.bg.secondary};

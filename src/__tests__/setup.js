@@ -6,7 +6,7 @@
 // Mock window.electronAPI globally for all tests
 window.electronAPI = {
   readdir: jest.fn(),
-  stat: jest.fn(),
+  stat: jest.fn().mockResolvedValue({ success: false }),
   watcherStart: jest.fn(),
   onWatcherChange: jest.fn(),
   getHomeDir: jest.fn(),
