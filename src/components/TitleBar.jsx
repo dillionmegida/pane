@@ -51,7 +51,6 @@ export default function TitleBar() {
 
   return (
     <Bar>
-      <Title>Pane</Title>
       <Actions>
         <Btn onClick={toggleSearch} className={showSearch ? 'active' : ''} title="Search (⌘F)">
           🔍 Search

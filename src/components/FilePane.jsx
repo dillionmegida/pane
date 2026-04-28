@@ -569,6 +569,13 @@ export default function FilePane({ paneId }) {
   const selectedItems = derivedSelections;
   const focusedColumn = columnState.focusedIndex;
 
+  // Auto-scroll columns container to the right when a new column is added
+  useEffect(() => {
+    if (viewMode !== 'column') return;
+    if (!columnsContainerRef.current) return;
+    columnsContainerRef.current.scrollLeft = columnsContainerRef.current.scrollWidth;
+  }, [columnPaths.length, viewMode]);
+
   // Handle column resize
   useEffect(() => {
     if (resizingColumn === null) return;
@@ -614,89 +621,116 @@ export default function FilePane({ paneId }) {
     return () => document.removeEventListener('click', handler);
   }, [contextMenu]);
 
+  // Scroll a specific item into view within a column
+  const scrollColumnItemIntoView = (colIdx, itemIdx) => {
+    if (!columnsContainerRef.current) return;
+    const columns = columnsContainerRef.current.querySelectorAll('[data-column-index]');
+    const col = columns[colIdx];
+    if (!col) return;
+    const list = col.querySelector('[data-column-list]');
+    if (!list) return;
+    const items = list.children;
+    if (items[itemIdx]) {
+      items[itemIdx].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+  };
+
   // Keyboard navigation for column view
   useEffect(() => {
     if (viewMode !== 'column') return;
 
     const handleKeyDown = (e) => {
-      const columnKey = focusedColumn === 0 ? currentPath : columnPaths[focusedColumn - 1];
+      if (focusedColumn < 0 || focusedColumn >= columnPaths.length) return;
+
+      const columnKey = columnPaths[focusedColumn];
       const columnFilesList = focusedColumn === 0 ? files : (columnFiles[columnKey] || []);
-      const currentSelection = selectedItems[focusedColumn] || '';
-      const currentIndex = columnFilesList.findIndex(f => f.path === currentSelection);
+
+      if (columnFilesList.length === 0 && e.key !== 'ArrowLeft' && e.key !== 'Escape') return;
+
+      const currentIndex = columnFilesList.findIndex(f => selectedFiles.has(f.path));
 
       switch (e.key) {
-        case 'ArrowUp':
+        case 'ArrowUp': {
           e.preventDefault();
-          if (currentIndex > 0) {
-            const newSelection = columnFilesList[currentIndex - 1];
-            setSelection(paneId, [newSelection.path]);
-            
-            if (newSelection.isDirectory) {
-              setCurrentBreadcrumbPath(paneId, newSelection.path);
-              // Directories auto-open on selection
-              handleColumnClick(newSelection, focusedColumn);
-            } else {
-              setPreviewFile(newSelection);
-            }
+          let newIdx;
+          if (currentIndex <= 0) {
+            newIdx = columnFilesList.length - 1;
+          } else {
+            newIdx = currentIndex - 1;
           }
+          const newFile = columnFilesList[newIdx];
+          setSelection(paneId, [newFile.path]);
+          handleColumnClick(newFile, focusedColumn);
+          scrollColumnItemIntoView(focusedColumn, newIdx);
           break;
-        
-        case 'ArrowDown':
+        }
+
+        case 'ArrowDown': {
           e.preventDefault();
-          if (currentIndex < columnFilesList.length - 1) {
-            const newSelection = columnFilesList[currentIndex + 1];
-            setSelection(paneId, [newSelection.path]);
-            
-            if (newSelection.isDirectory) {
-              setCurrentBreadcrumbPath(paneId, newSelection.path);
-              // Directories auto-open on selection
-              handleColumnClick(newSelection, focusedColumn);
-            } else {
-              setPreviewFile(newSelection);
-            }
+          let newIdx;
+          if (currentIndex >= columnFilesList.length - 1 || currentIndex < 0) {
+            newIdx = 0;
+          } else {
+            newIdx = currentIndex + 1;
           }
+          const newFile = columnFilesList[newIdx];
+          setSelection(paneId, [newFile.path]);
+          handleColumnClick(newFile, focusedColumn);
+          scrollColumnItemIntoView(focusedColumn, newIdx);
           break;
-        
-        case 'ArrowRight':
+        }
+
+        case 'ArrowRight': {
           e.preventDefault();
-          if (currentSelection) {
-            const selectedItem = columnFilesList[currentIndex];
-            if (selectedItem.isDirectory) {
-              // For directories, just select first item in the next column (if it exists)
-              const nextColumnKey = selectedItem.path;
-              const nextColumnFiles = columnFiles[nextColumnKey] || [];
-              if (nextColumnFiles.length > 0) {
-                updateColumnState(paneId, { focusedIndex: focusedColumn + 1 });
-                setSelection(paneId, [nextColumnFiles[0].path]);
-                setCurrentBreadcrumbPath(paneId, nextColumnFiles[0].path);
-                if (nextColumnFiles[0].isDirectory) {
-                  handleColumnClick(nextColumnFiles[0], focusedColumn + 1);
-                } else {
-                  setPreviewFile(nextColumnFiles[0]);
-                }
-              }
-            } else {
-              // For files, just preview
-              setPreviewFile(selectedItem);
-            }
-          }
+          if (currentIndex < 0) break;
+          const selectedItem = columnFilesList[currentIndex];
+          if (!selectedItem || !selectedItem.isDirectory) break;
+
+          const nextColumnFiles = columnFiles[selectedItem.path] || [];
+          if (nextColumnFiles.length === 0) break;
+
+          updateColumnState(paneId, { focusedIndex: focusedColumn + 1 });
+          setSelection(paneId, [nextColumnFiles[0].path]);
+          handleColumnClick(nextColumnFiles[0], focusedColumn + 1);
+          // Scroll to top of next column
+          setTimeout(() => scrollColumnItemIntoView(focusedColumn + 1, 0), 0);
           break;
-        
-        case 'ArrowLeft':
+        }
+
+        case 'ArrowLeft': {
           e.preventDefault();
           if (focusedColumn > 0) {
-            // Move focus to previous column
-            updateColumnState(paneId, { focusedIndex: focusedColumn - 1 });
-            // Clear preview when moving left
+            const prevColumn = focusedColumn - 1;
+            // The selected item in prevColumn is the directory whose contents are shown in focusedColumn
+            const selectedDirPath = columnPaths[focusedColumn];
+            // Keep the immediate next column (focusedColumn) visible, but trim anything deeper.
+            // Set breadcrumb to columnPaths[focusedColumn] so columns beyond it are removed.
+            if (columnPaths.length > focusedColumn + 1) {
+              setCurrentBreadcrumbPath(paneId, columnPaths[focusedColumn]);
+            }
+            updateColumnState(paneId, { focusedIndex: prevColumn });
+            if (selectedDirPath) {
+              setSelection(paneId, [selectedDirPath]);
+            }
             setPreviewFile(null);
           }
           break;
+        }
+
+        case 'Escape': {
+          e.preventDefault();
+          // Deselect everything in the focused column and trim columns to the right
+          setCurrentBreadcrumbPath(paneId, columnPaths[focusedColumn]);
+          setSelection(paneId, []);
+          setPreviewFile(null);
+          break;
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [viewMode, columnPaths, currentPath, files, paneId, setSelection, setCurrentBreadcrumbPath, setPreviewFile, selectedItems, focusedColumn]);
+  }, [viewMode, columnPaths, columnFiles, currentPath, files, paneId, setSelection, setCurrentBreadcrumbPath, setPreviewFile, selectedFiles, derivedSelections, focusedColumn]);
 
   // Handle reveal target from search or other sources
   useEffect(() => {
@@ -1283,9 +1317,10 @@ export default function FilePane({ paneId }) {
               const isFirstColumn = idx === 0;
               const colFiles = isFirstColumn ? files : (columnFiles[colPath] || []);
               return (
-                <Column key={colPath} width={columnWidths[idx] ? `${columnWidths[idx]}px` : '200px'} className={focusedColumn === idx ? 'active' : ''}>
+                <Column key={colPath} width={columnWidths[idx] ? `${columnWidths[idx]}px` : '200px'} className={focusedColumn === idx ? 'active' : ''} data-column-index={idx}>
                   <ColViewHeader>{colPath === '/' ? 'Root' : colPath.split('/').pop()}</ColViewHeader>
                   <ColumnList 
+                    data-column-list
                     onClick={() => handleColumnEmptyClick(idx)}
                     onDragOver={e => {
                       e.preventDefault();
@@ -1299,11 +1334,12 @@ export default function FilePane({ paneId }) {
                     {colFiles.map(file => (
                       <ColumnItem
                         key={file.path}
-                        className={`${selectedFiles.has(file.path) ? 'selected' : ''} ${dragOver === file.path ? 'drag-over' : ''}`}
+                        className={`${(selectedFiles.has(file.path) || (idx < focusedColumn && derivedSelections[idx] === file.path)) ? 'selected' : ''} ${dragOver === file.path ? 'drag-over' : ''}`}
                         contextMenuSelected={contextMenuFile?.path === file.path}
                         onClick={e => {
                           e.stopPropagation();
                           setActivePane(paneId);
+                          updateColumnState(paneId, { focusedIndex: idx });
                           if (e.metaKey || e.ctrlKey) {
                             toggleSelection(paneId, file.path, true);
                           } else {
