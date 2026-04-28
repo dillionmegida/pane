@@ -17,6 +17,8 @@ window.electronAPI = {
   copy: jest.fn(),
   move: jest.fn(),
   getLog: jest.fn(),
+  storeGet: jest.fn().mockResolvedValue(null),
+  storeSet: jest.fn().mockResolvedValue(undefined),
 };
 
 // Suppress console errors in tests (optional)

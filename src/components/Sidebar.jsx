@@ -13,6 +13,37 @@ const SidebarWrap = styled.div`
   flex-shrink: 0;
 `;
 
+const TrafficLightSpacer = styled.div`
+  height: 52px;
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+`;
+
+const SidebarFooter = styled.div`
+  flex-shrink: 0;
+  padding: 8px 6px;
+  border-top: 1px solid ${p => p.theme.border.subtle};
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const FooterBtn = styled.button`
+  background: none;
+  border: none;
+  color: ${p => p.theme.text.tertiary};
+  cursor: pointer;
+  padding: 5px 7px;
+  border-radius: ${p => p.theme.radius.sm};
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  -webkit-app-region: no-drag;
+  &:hover { background: ${p => p.theme.bg.hover}; color: ${p => p.theme.text.primary}; }
+`;
+
 const Section = styled.div`
   flex-shrink: 0;
 `;
@@ -98,6 +129,7 @@ export default function Sidebar() {
     allTags, loadAllTags,
     openModal,
     getActivePath,
+    toggleSidebar,
   } = useStore();
 
   const [dragOver, setDragOver] = useState(null);
@@ -158,6 +190,7 @@ export default function Sidebar() {
 
   return (
     <SidebarWrap>
+      <TrafficLightSpacer />
       <ScrollArea>
         {/* Devices */}
         <Section>
@@ -239,6 +272,9 @@ export default function Sidebar() {
         )}
 
       </ScrollArea>
+      <SidebarFooter>
+        <FooterBtn onClick={() => openModal('settings')} title="Settings">⚙️</FooterBtn>
+      </SidebarFooter>
     </SidebarWrap>
   );
 }

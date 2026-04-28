@@ -73,6 +73,8 @@ export const useStore = create((set, get) => ({
 
     // Start watching this directory
     window.electronAPI.watcherStart(dirPath);
+    // Persist session after navigation completes
+    get().saveSession();
   },
 
   navigateToBookmark: async (paneId, dirPath, bookmarkId) => {
@@ -143,9 +145,12 @@ export const useStore = create((set, get) => ({
     }),
   })),
 
-  setCurrentBreadcrumbPath: (paneId, path) => set(s => ({
-    panes: s.panes.map(p => p.id === paneId ? { ...p, currentBreadcrumbPath: path } : p),
-  })),
+  setCurrentBreadcrumbPath: (paneId, path) => {
+    set(s => ({
+      panes: s.panes.map(p => p.id === paneId ? { ...p, currentBreadcrumbPath: path } : p),
+    }));
+    get().saveSession();
+  },
 
   setViewMode: (paneId, viewMode) => set(s => ({
     panes: s.panes.map(p => p.id === paneId ? { ...p, viewMode } : p),
@@ -330,7 +335,11 @@ export const useStore = create((set, get) => ({
   setTerminalHeight: (h) => set({ terminalHeight: h }),
 
   showSidebar: true,
-  toggleSidebar: () => set(s => ({ showSidebar: !s.showSidebar })),
+  toggleSidebar: () => {
+    const next = !get().showSidebar;
+    set({ showSidebar: next });
+    window.electronAPI.storeSet('showSidebar', next);
+  },
 
   showSearch: false,
   searchQuery: '',
@@ -427,18 +436,94 @@ export const useStore = create((set, get) => ({
     return { success: true, files };
   },
 
+  // ── Session persistence ───────────────────────────────────────────────────
+  saveSession: () => {
+    const { panes, activePane } = get();
+    const session = panes.map(p => ({
+      id: p.id,
+      path: p.path,
+      basePath: p.basePath,
+      currentBreadcrumbPath: p.currentBreadcrumbPath,
+      columnState: {
+        paths: [],
+        filesByPath: {},
+        selectedByColumn: {},
+        focusedIndex: p.columnState?.focusedIndex ?? 0,
+      },
+      selectedFiles: [...(p.selectedFiles || [])],
+      viewMode: p.viewMode,
+      sortBy: p.sortBy,
+      sortOrder: p.sortOrder,
+    }));
+    window.electronAPI.storeSet('session', { panes: session, activePane });
+  },
+
   // ── Init ─────────────────────────────────────────────────────────────────
   initialized: false,
   init: async () => {
     const homeDir = await window.electronAPI.getHomeDir();
-    const { panes } = get();
+
+    // Restore persisted UI state
+    const [savedSidebar, savedSession] = await Promise.all([
+      window.electronAPI.storeGet('showSidebar'),
+      window.electronAPI.storeGet('session'),
+    ]);
+
+    if (savedSidebar != null) {
+      set({ showSidebar: savedSidebar });
+    }
+
+    // Determine starting paths from session or fallback to homeDir
+    let leftPath = homeDir;
+    let rightPath = homeDir;
+    let leftBreadcrumb = homeDir;
+    let rightBreadcrumb = homeDir;
+    let leftBasePath = homeDir;
+    let rightBasePath = homeDir;
+    let savedActivePane = 'left';
+
+    if (savedSession?.panes) {
+      const leftSession = savedSession.panes.find(p => p.id === 'left');
+      const rightSession = savedSession.panes.find(p => p.id === 'right');
+      if (leftSession?.path) {
+        leftPath = leftSession.path;
+        leftBreadcrumb = leftSession.currentBreadcrumbPath || leftSession.path;
+        leftBasePath = leftSession.basePath || leftSession.path;
+      }
+      if (rightSession?.path) {
+        rightPath = rightSession.path;
+        rightBreadcrumb = rightSession.currentBreadcrumbPath || rightSession.path;
+        rightBasePath = rightSession.basePath || rightSession.path;
+      }
+      if (savedSession.activePane) savedActivePane = savedSession.activePane;
+    }
 
     await Promise.all([
-      get().navigateTo('left', homeDir),
-      get().navigateTo('right', homeDir),
+      get().navigateTo('left', leftPath),
+      get().navigateTo('right', rightPath),
       get().loadBookmarks(),
       get().loadAllTags(),
     ]);
+
+    // Restore breadcrumb paths after navigation (navigateTo resets them)
+    if (savedSession?.panes) {
+      set(s => ({
+        activePane: savedActivePane,
+        panes: s.panes.map(p => {
+          const ps = savedSession.panes.find(sp => sp.id === p.id);
+          if (!ps) return p;
+          return {
+            ...p,
+            currentBreadcrumbPath: ps.currentBreadcrumbPath || p.path,
+            basePath: ps.basePath || p.path,
+            selectedFiles: new Set(ps.selectedFiles || []),
+            viewMode: ps.viewMode || p.viewMode,
+            sortBy: ps.sortBy || p.sortBy,
+            sortOrder: ps.sortOrder || p.sortOrder,
+          };
+        }),
+      }));
+    }
 
     // Set up watcher listener
     window.electronAPI.onWatcherChange((change) => {

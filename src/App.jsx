@@ -3,7 +3,6 @@ import styled, { createGlobalStyle } from 'styled-components';
 import { useStore } from './store/index';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
-import TitleBar from './components/TitleBar';
 import PreviewPane from './components/PreviewPane';
 import SearchOverlay from './components/SearchOverlay';
 // Modals
@@ -133,8 +132,7 @@ export default function App() {
     <>
       <GlobalStyle />
       <AppShell style={{ transform: `scale(${zoom})`, width: `${100 / zoom}vw`, height: `${100 / zoom}vh` }}>
-        <TitleBar />
-        <ContentRow>
+        <ContentRow style={{ height: '100%' }}>
           {showSidebar && <Sidebar />}
           <MainArea>
             <MainContent />
