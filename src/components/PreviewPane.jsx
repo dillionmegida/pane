@@ -64,6 +64,7 @@ const ImagePreview = styled.img`
   width: 100%;
   object-fit: contain;
   background: ${p => p.theme.bg.primary};
+  max-width: 600px;
 `;
 
 const TextPreviewWrap = styled.div`
@@ -108,6 +109,7 @@ const ActionBtn = styled.button`
 const VideoEl = styled.video`
   width: 100%;
   background: #000;
+  max-width: 600px;
 `;
 
 const AudioEl = styled.audio`

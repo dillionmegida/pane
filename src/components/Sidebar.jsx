@@ -14,7 +14,7 @@ const SidebarWrap = styled.div`
 `;
 
 const TrafficLightSpacer = styled.div`
-  height: 52px;
+  height: 38px;
   flex-shrink: 0;
   -webkit-app-region: drag;
 `;

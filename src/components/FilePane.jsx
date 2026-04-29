@@ -506,6 +506,9 @@ export default function FilePane({ paneId }) {
     getActiveBookmark,
     activeModal,
     showSearch,
+    showSidebar,
+    bookmarks,
+    setBookmarks,
   } = useStore();
 
   const pane = panes.find(p => p.id === paneId);
@@ -1190,7 +1193,7 @@ export default function FilePane({ paneId }) {
   return (
     <PaneContainer ref={paneRef} className={activePane === paneId ? 'active' : ''} onClick={() => setActivePane(paneId)}>
       {/* Tab Bar */}
-      <TabBar>
+      <TabBar style={!showSidebar && paneId === 'left' ? { paddingLeft: 80 } : undefined}>
         {tabs.map((tab, i) => (
           <Tab key={tab.id} className={i === activeTab ? 'active' : ''} onClick={() => switchTab(paneId, i)}>
             <span className="tab-name">{tab.label || '/'}</span>
@@ -1448,6 +1451,16 @@ export default function FilePane({ paneId }) {
             </>
           ) : (
             <>
+              {contextMenu.file?.isDirectory && (
+                <MenuItem onClick={() => {
+                  const file = contextMenu.file;
+                  if (!bookmarks.find(bm => bm.path === file.path)) {
+                    const name = file.name || file.path.split('/').pop() || file.path;
+                    setBookmarks([...bookmarks, { id: `bm-${Date.now()}`, name, path: file.path, icon: 'default' }]);
+                  }
+                  setContextMenu(null); setContextMenuFile(null);
+                }}>🔖 Add to Bookmarks</MenuItem>
+              )}
               <MenuItem onClick={() => { startRename(contextMenu.file); setContextMenu(null); setContextMenuFile(null); }}>✏️ Rename</MenuItem>
               {selectedFiles.size > 1 && (
                 <MenuItem onClick={() => {

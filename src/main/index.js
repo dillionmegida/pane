@@ -79,7 +79,6 @@ function initStore() {
     store = new Store({
       defaults: {
         bookmarks: [
-          { name: 'Home', path: os.homedir(), icon: 'home' },
           { name: 'Desktop', path: path.join(os.homedir(), 'Desktop'), icon: 'desktop' },
           { name: 'Documents', path: path.join(os.homedir(), 'Documents'), icon: 'documents' },
           { name: 'Downloads', path: path.join(os.homedir(), 'Downloads'), icon: 'downloads' },
