@@ -414,9 +414,32 @@ export const useStore = create((set, get) => ({
   },
 
   getBreadcrumbs: (paneId) => {
-    const path = get().getActivePath(paneId);
-    if (path === '/') return [{ name: '/', path: '/' }];
-    const parts = path.split('/').filter(Boolean);
+    const { panes } = get();
+    const pane = panes.find(p => p.id === paneId);
+    const activePath = get().getActivePath(paneId);
+
+    if (pane && pane.viewMode === 'column' && pane.basePath) {
+      const base = pane.basePath;
+      const baseName = base === '/' ? '/' : base.split('/').filter(Boolean).pop();
+
+      if (activePath === base || !activePath.startsWith(base)) {
+        return [{ name: baseName, path: base }];
+      }
+
+      const relative = activePath.slice(base.length).replace(/^\//, '');
+      const relativeParts = relative.split('/').filter(Boolean);
+
+      return [
+        { name: baseName, path: base },
+        ...relativeParts.map((part, i) => ({
+          name: part,
+          path: base.replace(/\/$/, '') + '/' + relativeParts.slice(0, i + 1).join('/'),
+        })),
+      ];
+    }
+
+    if (activePath === '/') return [{ name: '/', path: '/' }];
+    const parts = activePath.split('/').filter(Boolean);
     return [
       { name: '/', path: '/' },
       ...parts.map((part, i) => ({

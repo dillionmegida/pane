@@ -113,6 +113,7 @@ describe('Store - Navigation & Breadcrumbs', () => {
           tabs: [{ id: 'tab-1', path: '/', label: 'Home' }],
           activeTab: 0,
           currentBreadcrumbPath: '/',
+          basePath: '/',
           columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
         },
       ],
@@ -126,7 +127,36 @@ describe('Store - Navigation & Breadcrumbs', () => {
     expect(breadcrumbs).toEqual([{ name: '/', path: '/' }]);
   });
 
-  test('should generate breadcrumbs for nested path', () => {
+  test('should generate breadcrumbs relative to basePath in column view', () => {
+    useStore.setState({
+      panes: [
+        {
+          id: 'left',
+          path: '/Users/john',
+          files: [],
+          loading: false,
+          error: null,
+          selectedFiles: new Set(),
+          sortBy: 'name',
+          sortOrder: 'asc',
+          viewMode: 'column',
+          tabs: [{ id: 'tab-1', path: '/Users/john', label: 'john' }],
+          activeTab: 0,
+          currentBreadcrumbPath: '/Users/john/Documents',
+          basePath: '/Users/john',
+          columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+        },
+      ],
+      activePane: 'left',
+    });
+    const { result } = renderHook(() => useStore());
+    const breadcrumbs = result.current.getBreadcrumbs('left');
+    expect(breadcrumbs).toHaveLength(2); // john, Documents
+    expect(breadcrumbs[0]).toEqual({ name: 'john', path: '/Users/john' });
+    expect(breadcrumbs[1]).toEqual({ name: 'Documents', path: '/Users/john/Documents' });
+  });
+
+  test('should generate breadcrumbs from root basePath showing full path', () => {
     const { result } = renderHook(() => useStore());
     act(() => {
       result.current.setCurrentBreadcrumbPath('left', '/Users/john/Documents');
@@ -137,6 +167,34 @@ describe('Store - Navigation & Breadcrumbs', () => {
     expect(breadcrumbs[1]).toEqual({ name: 'Users', path: '/Users' });
     expect(breadcrumbs[2]).toEqual({ name: 'john', path: '/Users/john' });
     expect(breadcrumbs[3]).toEqual({ name: 'Documents', path: '/Users/john/Documents' });
+  });
+
+  test('should show only basePath crumb when at basePath', () => {
+    useStore.setState({
+      panes: [
+        {
+          id: 'left',
+          path: '/Users/john',
+          files: [],
+          loading: false,
+          error: null,
+          selectedFiles: new Set(),
+          sortBy: 'name',
+          sortOrder: 'asc',
+          viewMode: 'column',
+          tabs: [{ id: 'tab-1', path: '/Users/john', label: 'john' }],
+          activeTab: 0,
+          currentBreadcrumbPath: '/Users/john',
+          basePath: '/Users/john',
+          columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+        },
+      ],
+      activePane: 'left',
+    });
+    const { result } = renderHook(() => useStore());
+    const breadcrumbs = result.current.getBreadcrumbs('left');
+    expect(breadcrumbs).toHaveLength(1);
+    expect(breadcrumbs[0]).toEqual({ name: 'john', path: '/Users/john' });
   });
 
   test('should update breadcrumb path', () => {
