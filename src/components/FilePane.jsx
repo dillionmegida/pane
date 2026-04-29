@@ -29,17 +29,16 @@ const TabBar = styled.div`
   overflow-x: auto;
   flex-shrink: 0;
   &::-webkit-scrollbar { height: 0; }
+  height: 25px;
 `;
 
 const Tab = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 12px 0 14px;
-  min-width: 80px;
-  max-width: 180px;
+  padding-inline: 5px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 10px;
   color: ${p => p.theme.text.secondary};
   background: transparent;
   border-right: 1px solid ${p => p.theme.border.subtle};
@@ -82,7 +81,7 @@ const NewTabBtn = styled.button`
   border: none;
   color: ${p => p.theme.text.tertiary};
   cursor: pointer;
-  font-size: 16px;
+  font-size: 11px;
   flex-shrink: 0;
   &:hover { color: ${p => p.theme.text.primary}; }
 `;
@@ -380,6 +379,11 @@ const ColumnItem = styled.div`
     background: ${p => p.theme.bg.selection};
     color: ${p => p.theme.accent.blue};
   }
+
+  &.selected-dim {
+    background: ${p => p.theme.bg.active};
+    color: ${p => p.theme.text.primary};
+  }
   
   &.drag-over {
     background: ${p => p.theme.accent.blue}15;
@@ -574,12 +578,23 @@ export default function FilePane({ paneId }) {
   const selectedItems = derivedSelections;
   const focusedColumn = columnState.focusedIndex;
 
-  // Auto-scroll columns container to the right when breadcrumb changes (new column or navigating)
+  // Auto-scroll columns container to the right when breadcrumb or preview changes
   useEffect(() => {
     if (viewMode !== 'column') return;
     if (!columnsContainerRef.current) return;
     columnsContainerRef.current.scrollLeft = columnsContainerRef.current.scrollWidth;
-  }, [currentBreadcrumbPath, viewMode]);
+  }, [currentBreadcrumbPath, viewMode, showSidebar]);
+
+  // Also scroll when preview pane opens/closes
+  const showPreview = useStore(s => s.showPreview);
+  useEffect(() => {
+    if (viewMode !== 'column') return;
+    if (!columnsContainerRef.current) return;
+    setTimeout(() => {
+      if (columnsContainerRef.current)
+        columnsContainerRef.current.scrollLeft = columnsContainerRef.current.scrollWidth;
+    }, 50);
+  }, [showPreview, viewMode]);
 
   // Handle column resize
   useEffect(() => {
@@ -1325,7 +1340,6 @@ export default function FilePane({ paneId }) {
               const colFiles = isFirstColumn ? files : (columnFiles[colPath] || []);
               return (
                 <Column key={colPath} width={columnWidths[idx] ? `${columnWidths[idx]}px` : '200px'} className={focusedColumn === idx ? 'active' : ''} data-column-index={idx}>
-                  <ColViewHeader>{colPath === '/' ? 'Root' : colPath.split('/').pop()}</ColViewHeader>
                   <ColumnList 
                     data-column-list
                     onClick={() => handleColumnEmptyClick(idx)}
@@ -1341,7 +1355,7 @@ export default function FilePane({ paneId }) {
                     {colFiles.map(file => (
                       <ColumnItem
                         key={file.path}
-                        className={`${(selectedFiles.has(file.path) || derivedSelections[idx] === file.path) ? 'selected' : ''} ${dragOver === file.path ? 'drag-over' : ''}`}
+                        className={`${selectedFiles.has(file.path) ? 'selected' : derivedSelections[idx] === file.path ? (idx < columnPaths.length - 1 ? 'selected-dim' : 'selected') : ''} ${dragOver === file.path ? 'drag-over' : ''}`}
                         contextMenuSelected={contextMenuFile?.path === file.path}
                         onClick={e => {
                           e.stopPropagation();
