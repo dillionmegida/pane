@@ -92,6 +92,9 @@ export const useStore = create((set, get) => ({
         basePath: dirPath, // Bookmark becomes the starting point
         activeBookmarkId: bookmarkId,
       } : p),
+      // Close preview pane when navigating to bookmark
+      previewFile: null,
+      showPreview: false,
     }));
 
     const result = await window.electronAPI.readdir(dirPath);
@@ -116,6 +119,8 @@ export const useStore = create((set, get) => ({
 
     // Start watching this directory
     window.electronAPI.watcherStart(dirPath);
+    // Persist session after navigation completes
+    get().saveSession();
   },
 
   setSelection: (paneId, files) => set(s => ({
@@ -632,11 +637,14 @@ export const useStore = create((set, get) => ({
         const statResult = await window.electronAPI.stat(savedSession.previewFilePath);
         if (statResult.success && statResult.stat) {
           const fp = savedSession.previewFilePath;
+          const fileName = fp.split('/').pop();
+          const extension = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
           set({
             previewFile: {
               ...statResult.stat,
               path: fp,
-              name: fp.split('/').pop(),
+              name: fileName,
+              extension,
               isDirectory: statResult.stat.isDirectory,
             },
             showPreview: true,

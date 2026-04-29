@@ -225,7 +225,7 @@ export default function PreviewPane() {
         setLoading(false);
       });
     }
-  }, [previewFile?.path]);
+  }, [previewFile?.path, isText, previewFile?.size]);
 
   // Spacebar play/pause for video/audio
   useEffect(() => {
