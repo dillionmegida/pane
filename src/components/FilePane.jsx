@@ -1235,21 +1235,26 @@ export default function FilePane({ paneId }) {
                 className={i === crumbs.length - 1 ? 'last' : ''} 
                 onClick={() => {
                   if (i < crumbs.length - 1) {
-                    // Smart breadcrumb navigation with bookmark scope detection
-                    const activeBookmark = getActiveBookmark(paneId);
-                    
-                    // Check if clicked path is at or under active bookmark
-                    const isUnderBookmark = activeBookmark && 
-                      (crumb.path === activeBookmark.path || crumb.path.startsWith(activeBookmark.path + '/'));
-                    
-                    if (!isUnderBookmark) {
-                      // Reset basePath when navigating outside bookmark scope
-                      useStore.getState().updatePane(paneId, { basePath: '/', activeBookmarkId: null });
+                    if (viewMode === 'column') {
+                      // In column view, just trim the breadcrumb path — keep basePath and columns intact
+                      setCurrentBreadcrumbPath(paneId, crumb.path);
+                    } else {
+                      // Smart breadcrumb navigation with bookmark scope detection
+                      const activeBookmark = getActiveBookmark(paneId);
+                      
+                      // Check if clicked path is at or under active bookmark
+                      const isUnderBookmark = activeBookmark && 
+                        (crumb.path === activeBookmark.path || crumb.path.startsWith(activeBookmark.path + '/'));
+                      
+                      if (!isUnderBookmark) {
+                        // Reset basePath when navigating outside bookmark scope
+                        useStore.getState().updatePane(paneId, { basePath: '/', activeBookmarkId: null });
+                      }
+                      
+                      // Always update current path
+                      setCurrentBreadcrumbPath(paneId, crumb.path);
+                      navigateTo(paneId, crumb.path);
                     }
-                    
-                    // Always update current path
-                    setCurrentBreadcrumbPath(paneId, crumb.path);
-                    navigateTo(paneId, crumb.path);
                   }
                 }}
               >
