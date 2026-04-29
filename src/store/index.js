@@ -277,7 +277,8 @@ export const useStore = create((set, get) => ({
     setTimeout(() => get().saveSession(), 0);
   },
   setPreviewWidth: (w) => {
-    const clamped = Math.max(200, Math.min(800, w));
+    const maxW = Math.floor((window.innerWidth / get().zoom) * 0.5);
+    const clamped = Math.max(200, Math.min(maxW, w));
     set({ previewWidth: clamped });
     window.electronAPI.storeSet('previewWidth', clamped);
   },
@@ -361,6 +362,12 @@ export const useStore = create((set, get) => ({
   setTerminalHeight: (h) => set({ terminalHeight: h }),
 
   showSidebar: true,
+  sidebarWidth: 220,
+  setSidebarWidth: (w) => {
+    const clamped = Math.max(160, Math.min(500, w));
+    set({ sidebarWidth: clamped });
+    window.electronAPI.storeSet('sidebarWidth', clamped);
+  },
   toggleSidebar: () => {
     const next = !get().showSidebar;
     set({ showSidebar: next });
@@ -464,6 +471,7 @@ export const useStore = create((set, get) => ({
 
   // ── Session persistence ───────────────────────────────────────────────────
   saveSession: () => {
+    if (!get().initialized) return; // Don't overwrite storage during init
     const { panes, activePane, previewFile } = get();
     const session = panes.map(p => ({
       id: p.id,
@@ -488,16 +496,18 @@ export const useStore = create((set, get) => ({
     const homeDir = await window.electronAPI.getHomeDir();
 
     // Restore persisted UI state
-    const [savedSidebar, savedSession, savedZoom, savedPreviewWidth] = await Promise.all([
+    const [savedSidebar, savedSession, savedZoom, savedPreviewWidth, savedSidebarWidth] = await Promise.all([
       window.electronAPI.storeGet('showSidebar'),
       window.electronAPI.storeGet('session'),
       window.electronAPI.storeGet('zoom'),
       window.electronAPI.storeGet('previewWidth'),
+      window.electronAPI.storeGet('sidebarWidth'),
     ]);
 
     if (savedSidebar != null) set({ showSidebar: savedSidebar });
     if (savedZoom != null) set({ zoom: savedZoom });
     if (savedPreviewWidth != null) set({ previewWidth: savedPreviewWidth });
+    if (savedSidebarWidth != null) set({ sidebarWidth: savedSidebarWidth });
 
     // Determine starting paths from session or fallback to homeDir
     let leftPath = homeDir;

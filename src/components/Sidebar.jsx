@@ -1,16 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { useStore } from '../store';
 
 const SidebarWrap = styled.div`
-  width: ${p => p.theme.sidebar};
-  min-width: ${p => p.theme.sidebar};
+  width: ${p => p.sidebarWidth}px;
+  min-width: 160px;
+  max-width: 500px;
   background: ${p => p.theme.bg.secondary};
   border-right: 1px solid ${p => p.theme.border.subtle};
   display: flex;
   flex-direction: column;
   overflow: hidden;
   flex-shrink: 0;
+  position: relative;
+`;
+
+const SidebarResizeHandle = styled.div`
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.15s;
+  -webkit-app-region: no-drag;
+  &:hover, &.dragging {
+    background: ${p => p.theme.accent.blue}40;
+  }
 `;
 
 const TrafficLightSpacer = styled.div`
@@ -130,7 +148,27 @@ export default function Sidebar() {
     openModal,
     getActivePath,
     toggleSidebar,
+    sidebarWidth, setSidebarWidth,
+    zoom,
   } = useStore();
+
+  const handleResizeMouseDown = useCallback((e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = useStore.getState().sidebarWidth;
+    const currentZoom = useStore.getState().zoom;
+
+    const onMove = (me) => {
+      const dx = (me.clientX - startX) / currentZoom;
+      setSidebarWidth(startWidth + dx);
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [setSidebarWidth]);
 
   const [dragOver, setDragOver] = useState(null);
   const [expandedSections, setExpandedSections] = useState({ bookmarks: true, tags: true });
@@ -189,7 +227,8 @@ export default function Sidebar() {
   const toggleSection = (key) => setExpandedSections(s => ({ ...s, [key]: !s[key] }));
 
   return (
-    <SidebarWrap>
+    <SidebarWrap sidebarWidth={sidebarWidth}>
+      <SidebarResizeHandle onMouseDown={handleResizeMouseDown} />
       <TrafficLightSpacer />
       <ScrollArea>
         {/* Devices */}
