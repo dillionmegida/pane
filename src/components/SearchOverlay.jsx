@@ -360,22 +360,31 @@ export default function SearchOverlay() {
     }
   };
 
+  const [confirmDelete, setConfirmDelete] = useState(null); // file to confirm delete
+
   const handlePreviewAction = async (actionKey, file) => {
     switch (actionKey) {
       case 'reveal':
         revealInColumns(file.path);
         break;
       case 'delete':
-        const r = await window.electronAPI.delete(file.path);
-        if (r.success) {
-          if (contentSearch) {
-            setContentResults(prev => prev.filter(item => item.path !== file.path));
-          } else {
-            setScanResults(prev => prev.filter(item => item.path !== file.path));
-          }
-          setSelectedItem(null);
-        }
+        setConfirmDelete(file);
         break;
+    }
+  };
+
+  const doDelete = async () => {
+    if (!confirmDelete) return;
+    const file = confirmDelete;
+    setConfirmDelete(null);
+    const r = await window.electronAPI.delete(file.path);
+    if (r.success) {
+      if (contentSearch) {
+        setContentResults(prev => prev.filter(item => item.path !== file.path));
+      } else {
+        setScanResults(prev => prev.filter(item => item.path !== file.path));
+      }
+      setSelectedItem(null);
     }
   };
 
@@ -392,37 +401,28 @@ export default function SearchOverlay() {
   };
 
   const revealInColumns = async (filePath) => {
-    const fileDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '/';
-    
-    // If not in column view, switch to it
+    const parentDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '/';
+
+    // Switch to column view if needed
     if (pane.viewMode !== 'column') {
       setViewMode(activePane, 'column');
     }
 
-    // Calculate column paths from the ROOT path (pane.path) to file's directory
-    // This preserves the full column hierarchy
-    const rootPath = pane.path;
-    let columnPaths = [];
-    
-    if (fileDir.startsWith(rootPath) && fileDir !== rootPath) {
-      // Build intermediate paths from root to fileDir
-      const relativePath = fileDir.slice(rootPath.length).replace(/^\//, '');
-      const segments = relativePath.split('/').filter(Boolean);
-      let buildPath = rootPath;
-      for (const segment of segments) {
-        buildPath = buildPath === '/' ? `/${segment}` : `${buildPath}/${segment}`;
-        columnPaths.push(buildPath);
-      }
-    }
+    // Determine if the target is a directory
+    const targetItem = results.find(r => r.path === filePath) || selectedItem;
+    const isDirectory = targetItem ? targetItem.isDirectory : filePath.endsWith('/');
 
-    // Set the reveal target for FilePane to handle
+    // Set reveal target:
+    //   basePath = parentDir (first column shows parentDir contents)
+    //   currentBreadcrumbPath:
+    //     - if directory: filePath (so second column shows its contents)
+    //     - if file: parentDir (just one column, file previewed)
     useStore.getState().setRevealTarget({
       paneId: activePane,
       filePath,
-      fileDir,
-      columnPaths,
-      basePath: rootPath,
-      triggerPreview: true, // Signal to trigger preview
+      fileDir: parentDir,
+      isDirectory,
+      triggerPreview: !isDirectory,
     });
 
     toggleSearch();
@@ -454,6 +454,36 @@ export default function SearchOverlay() {
 
   return (
     <Overlay onKeyDown={e => e.stopPropagation()} onKeyUp={e => e.stopPropagation()}>
+      {confirmDelete && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 600,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.7)',
+        }} onClick={() => setConfirmDelete(null)}>
+          <div style={{
+            background: '#1e1e24', border: '1px solid #3a3a45', borderRadius: 10,
+            padding: '24px 28px', minWidth: 320, maxWidth: 480,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: '0.875rem', color: '#e8e8ed', marginBottom: 8, fontWeight: 600 }}>
+              Move to Trash?
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#8a8a9a', marginBottom: 20, wordBreak: 'break-all' }}>
+              "{confirmDelete.name}" will be moved to Trash.
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setConfirmDelete(null)} style={{
+                background: '#2a2a35', border: '1px solid #3a3a45', color: '#c8c8d8',
+                borderRadius: 6, padding: '6px 16px', fontSize: '0.75rem', cursor: 'pointer',
+              }}>Cancel</button>
+              <button onClick={doDelete} style={{
+                background: '#dc2626', border: 'none', color: '#fff',
+                borderRadius: 6, padding: '6px 16px', fontSize: '0.75rem', cursor: 'pointer',
+              }}>Move to Trash</button>
+            </div>
+          </div>
+        </div>
+      )}
       <SearchBox onClick={e => e.stopPropagation()}>
         <InputWrap>
           <span style={{ fontSize: '1rem', color: '#5a5a6b' }}>🔍</span>

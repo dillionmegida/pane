@@ -44,3 +44,15 @@
 - after deleting from large files, the item still there
 - reuse large files logic for other smart folders
 - make some files in the list undeletable..for example files that appear under certain directories like System or something
+
+
+-- done
+- convert all scroll lines to have less width....i want it as subtle as possible
+- in the breadcrumbs bar, remove all the buttons and the reload button as well..just keep the breadcrumbs
+- when i Cmd + F, and i click on a folder or file, reveal is not working...reveal should basically open the directory of that directory/file as the first column, with the directory/file selected. in the case that a directory is selected, then the content of the directory should be shown in the second column and in the case that a file is selected, then the file should be shown in the preview area (this works now, but i'm thinking that reveal can show its own tab)
+- also in the search modal, ensure that delete asks for confirmation modal
+
+- new tabs are not working as expected as well...ensure that all tabs have their own settings and state...and very important, when i close the app and open the app, each tab and their own state should persist
+- another one is that, when i do Cmd + F, at the bottom, I can see 0 results and the file directory path...now i'd like to be able to change the directory path to something else...so basically that directory path should be a button i can use to select another directory for Cmd + F to search
+- same thing applies to Smart Folders...where the path is currently [path]:, i'd like the path to be a button i can click to select another path...changing this should not affect the current file tree columns by the way, that should stay the same
+- i think we should be using react window or something

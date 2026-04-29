@@ -26,6 +26,25 @@ const GlobalStyle = createGlobalStyle`
     font-family: inherit;
     font-size: inherit;
   }
+
+  /* Subtle scrollbars */
+  ::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: ${p => p.theme.text.tertiary}40;
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: ${p => p.theme.text.tertiary}80;
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 `;
 
 const AppShell = styled.div`
@@ -107,6 +126,27 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
         useStore.getState().toggleSearch();
+      }
+      // Cmd+Shift+R = reveal selected file in column view
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'r') {
+        e.preventDefault();
+        const state = useStore.getState();
+        const { activePane, panes } = state;
+        const pane = panes.find(p => p.id === activePane);
+        if (!pane) return;
+        const selectedPaths = [...(pane.selectedFiles || [])];
+        const filePath = selectedPaths[0];
+        if (!filePath) return;
+        const parentDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '/';
+        const isDirectory = pane.files?.find(f => f.path === filePath)?.isDirectory ?? false;
+        if (pane.viewMode !== 'column') state.setViewMode(activePane, 'column');
+        state.setRevealTarget({
+          paneId: activePane,
+          filePath,
+          fileDir: parentDir,
+          isDirectory,
+          triggerPreview: !isDirectory,
+        });
       }
       // Escape = close search / modal
       if (e.key === 'Escape') {

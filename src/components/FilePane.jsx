@@ -490,6 +490,7 @@ export default function FilePane({ paneId }) {
     activePane,
     setActivePane,
     navigateTo,
+    navigateToReveal,
     refreshPane,
     setSelection,
     toggleSelection,
@@ -754,30 +755,72 @@ export default function FilePane({ paneId }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [viewMode, columnPaths, columnFiles, currentPath, files, paneId, setSelection, setCurrentBreadcrumbPath, setPreviewFile, selectedFiles, derivedSelections, focusedColumn]);
 
+  // Stores the pending reveal data so we can apply selection/preview once files load
+  const pendingRevealRef = useRef(null);
+
+  // Subscribe to revealTarget from store so we can react when it's set
+  const revealTarget = useStore(s => s.revealTarget);
+
   // Handle reveal target from search or other sources
   useEffect(() => {
-    const { revealTarget, clearRevealTarget } = useStore.getState();
     if (!revealTarget || revealTarget.paneId !== paneId) return;
 
-    const { filePath, fileDir, triggerPreview } = revealTarget;
+    const { filePath, fileDir, isDirectory } = revealTarget;
 
-    // For search reveal, set basePath to the revealed file's directory
-    // and navigate to that directory
-    useStore.getState().updatePane(paneId, { basePath: fileDir, activeBookmarkId: null });
-    setCurrentBreadcrumbPath(paneId, fileDir);
-    navigateTo(paneId, fileDir);
+    // Capture the reveal data before clearing so the files-load effect can use it
+    pendingRevealRef.current = { filePath, fileDir, isDirectory };
 
-    // Set the file as preview if requested
-    if (triggerPreview && !filePath.endsWith('/')) {
-      // Find the file object
+    const state = useStore.getState();
+
+    // Determine the breadcrumb we want after navigation
+    const revealBreadcrumb = isDirectory ? filePath : fileDir;
+
+    // Navigate to parentDir using navigateToReveal which preserves basePath + breadcrumb
+    navigateToReveal(paneId, fileDir, fileDir, revealBreadcrumb);
+
+    // Clear the reveal target so it doesn't re-trigger
+    state.clearRevealTarget();
+  }, [paneId, revealTarget]);
+
+  // After files load for the parent dir, select the revealed item and set preview/second column
+  useEffect(() => {
+    if (!pendingRevealRef.current) return;
+    const { filePath, isDirectory, fileDir } = pendingRevealRef.current;
+    if (currentPath !== fileDir) return; // wait until the right directory is loaded
+
+    // Select the revealed item in the first column
+    setSelection(paneId, [filePath]);
+
+    if (isDirectory) {
+      // Load contents for the second column
+      const colFiles = columnFiles[filePath];
+      if (!colFiles) {
+        window.electronAPI.readdir(filePath).then(result => {
+          if (result.success) {
+            updateColumnState(paneId, { filesByPath: { ...columnFiles, [filePath]: result.files }, focusedIndex: 1 });
+          }
+        });
+      } else {
+        updateColumnState(paneId, { focusedIndex: 1 });
+      }
+      setPreviewFile(null);
+    } else {
+      // Find the file object in the loaded files list and preview it
       const file = files.find(f => f.path === filePath);
-      if (file && !file.isDirectory) {
+      if (file) {
         setPreviewFile(file);
+      } else {
+        window.electronAPI.stat(filePath).then(r => {
+          if (r.success) {
+            const name = filePath.split('/').pop();
+            const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+            setPreviewFile({ ...r.stat, path: filePath, name, extension: ext, isDirectory: false });
+          }
+        });
       }
     }
 
-    // Clear the reveal target
-    clearRevealTarget();
+    pendingRevealRef.current = null;
   }, [paneId, currentPath, files]);
 
   const navigate = (p) => {
@@ -1222,11 +1265,6 @@ export default function FilePane({ paneId }) {
 
       {/* Toolbar */}
       <Toolbar>
-        <NavBtn onClick={goBack} disabled={historyIdx === 0} title="Back">←</NavBtn>
-        <NavBtn onClick={goForward} disabled={historyIdx >= history.length - 1} title="Forward">→</NavBtn>
-        <NavBtn onClick={goUp} disabled={currentPath === '/'} title="Up">↑</NavBtn>
-        <NavBtn onClick={() => refreshPane(paneId)} title="Refresh">↺</NavBtn>
-
         <Breadcrumb>
           {crumbs.map((crumb, i) => (
             <React.Fragment key={crumb.path}>
@@ -1263,20 +1301,6 @@ export default function FilePane({ paneId }) {
             </React.Fragment>
           ))}
         </Breadcrumb>
-
-        <SortBtn onClick={() => {
-          const sorts = ['name', 'size', 'modified', 'extension'];
-          const nextSort = sorts[(sorts.indexOf(sortBy) + 1) % sorts.length];
-          setSortBy(paneId, nextSort, sortOrder);
-        }}>
-          ↕ {sortBy}
-        </SortBtn>
-
-        <ViewBtns>
-          <ViewBtn className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode(paneId, 'list')} title="List view">☰</ViewBtn>
-          <ViewBtn className={viewMode === 'grid' ? 'active' : ''} onClick={() => setViewMode(paneId, 'grid')} title="Grid view">⊞</ViewBtn>
-          <ViewBtn className={viewMode === 'column' ? 'active' : ''} onClick={() => setViewMode(paneId, 'column')} title="Column view">▤</ViewBtn>
-        </ViewBtns>
       </Toolbar>
 
       {/* File List */}

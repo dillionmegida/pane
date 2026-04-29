@@ -77,6 +77,48 @@ export const useStore = create((set, get) => ({
     get().saveSession();
   },
 
+  // Like navigateTo but does NOT reset basePath or currentBreadcrumbPath.
+  // Used by reveal so we can set those separately before calling this.
+  navigateToReveal: async (paneId, dirPath, revealBasePath, revealBreadcrumb) => {
+    const { panes } = get();
+    const pane = panes.find(p => p.id === paneId);
+    if (!pane) return;
+
+    set(s => ({
+      panes: s.panes.map(p => p.id === paneId ? {
+        ...p,
+        loading: true,
+        error: null,
+        currentBreadcrumbPath: revealBreadcrumb,
+        basePath: revealBasePath,
+        activeBookmarkId: null,
+      } : p),
+    }));
+
+    const result = await window.electronAPI.readdir(dirPath);
+    if (!result.success) {
+      set(s => ({
+        panes: s.panes.map(p => p.id === paneId ? { ...p, loading: false, error: result.error } : p),
+      }));
+      return;
+    }
+
+    const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
+    const newTabs = pane.tabs.map((t, i) =>
+      i === pane.activeTab ? { ...t, path: dirPath, label: dirPath === '/' ? '/' : dirPath.split('/').pop() } : t
+    );
+
+    set(s => ({
+      panes: s.panes.map(p => p.id === paneId
+        ? { ...p, path: dirPath, files, loading: false, selectedFiles: new Set(), tabs: newTabs }
+        : p
+      ),
+    }));
+
+    window.electronAPI.watcherStart(dirPath);
+    get().saveSession();
+  },
+
   navigateToBookmark: async (paneId, dirPath, bookmarkId) => {
     const { panes } = get();
     const pane = panes.find(p => p.id === paneId);
