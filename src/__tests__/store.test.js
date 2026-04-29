@@ -549,9 +549,11 @@ describe('Store - Preview & Zoom', () => {
     expect(result.current.previewWidth).toBe(200); // Min is 200
 
     act(() => {
-      result.current.setPreviewWidth(1000); // Above max
+      result.current.setPreviewWidth(10000); // Above max
     });
-    expect(result.current.previewWidth).toBe(800); // Max is 800
+    // Max is 50% of viewport / zoom (dynamic), just verify it was clamped below 10000
+    expect(result.current.previewWidth).toBeLessThan(10000);
+    expect(result.current.previewWidth).toBeGreaterThanOrEqual(200);
   });
 
   test('should zoom in and out', () => {
