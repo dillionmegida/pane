@@ -173,17 +173,19 @@ const Permissions = styled.div`
 `;
 
 export default function PreviewPane() {
-  const { previewFile, closePreview, previewWidth, setPreviewWidth } = useStore();
+  const { previewFile, closePreview, previewWidth, setPreviewWidth, zoom } = useStore();
   const handleRef = useRef(null);
+  const mediaRef = useRef(null);
 
   const onResizeMouseDown = useCallback((e) => {
     e.preventDefault();
     const startX = e.clientX;
     const startWidth = previewWidth;
+    const currentZoom = useStore.getState().zoom;
 
     const onMove = (me) => {
-      // dragging left = increase width (handle is on left edge)
-      const dx = startX - me.clientX;
+      // Divide by zoom because the app is scaled — mouse coordinates are in screen space
+      const dx = (startX - me.clientX) / currentZoom;
       setPreviewWidth(startWidth + dx);
     };
     const onUp = () => {
@@ -205,6 +207,11 @@ export default function PreviewPane() {
   const isPdf = previewFile?.extension === 'pdf';
 
   useEffect(() => {
+    // Stop any playing media when file changes
+    if (mediaRef.current) {
+      mediaRef.current.pause();
+      mediaRef.current.currentTime = 0;
+    }
     setTextContent('');
     setEditMode(false);
     setEditContent('');
@@ -219,6 +226,22 @@ export default function PreviewPane() {
       });
     }
   }, [previewFile?.path]);
+
+  // Spacebar play/pause for video/audio
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.code !== 'Space') return;
+      if (!mediaRef.current) return;
+      // Don't intercept spacebar if user is typing
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      if (mediaRef.current.paused) mediaRef.current.play();
+      else mediaRef.current.pause();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const saveEdits = async () => {
     if (!previewFile) return;
@@ -277,13 +300,13 @@ export default function PreviewPane() {
           <ImagePreview src={`file://${previewFile.path}`} alt={previewFile.name} />
         )}
         {isVideo && (
-          <VideoEl controls key={previewFile.path}>
+          <VideoEl controls key={previewFile.path} ref={mediaRef}>
             <source src={`file://${previewFile.path}`} />
           </VideoEl>
         )}
         {isAudio && (
           <div style={{ padding: '20px 12px', width: '100%' }}>
-            <AudioEl controls key={previewFile.path}>
+            <AudioEl controls key={previewFile.path} ref={mediaRef}>
               <source src={`file://${previewFile.path}`} />
             </AudioEl>
           </div>

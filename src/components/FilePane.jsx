@@ -574,12 +574,12 @@ export default function FilePane({ paneId }) {
   const selectedItems = derivedSelections;
   const focusedColumn = columnState.focusedIndex;
 
-  // Auto-scroll columns container to the right when a new column is added
+  // Auto-scroll columns container to the right when breadcrumb changes (new column or navigating)
   useEffect(() => {
     if (viewMode !== 'column') return;
     if (!columnsContainerRef.current) return;
     columnsContainerRef.current.scrollLeft = columnsContainerRef.current.scrollWidth;
-  }, [columnPaths.length, viewMode]);
+  }, [currentBreadcrumbPath, viewMode]);
 
   // Handle column resize
   useEffect(() => {
@@ -1341,7 +1341,7 @@ export default function FilePane({ paneId }) {
                     {colFiles.map(file => (
                       <ColumnItem
                         key={file.path}
-                        className={`${(selectedFiles.has(file.path) || (idx < focusedColumn && derivedSelections[idx] === file.path)) ? 'selected' : ''} ${dragOver === file.path ? 'drag-over' : ''}`}
+                        className={`${(selectedFiles.has(file.path) || derivedSelections[idx] === file.path) ? 'selected' : ''} ${dragOver === file.path ? 'drag-over' : ''}`}
                         contextMenuSelected={contextMenuFile?.path === file.path}
                         onClick={e => {
                           e.stopPropagation();

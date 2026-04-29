@@ -267,16 +267,42 @@ export const useStore = create((set, get) => ({
   previewFile: null,
   showPreview: false,
   previewWidth: 300,
-  setPreviewFile: (file) => set({ previewFile: file, showPreview: !!file }),
-  closePreview: () => set({ previewFile: null, showPreview: false }),
-  setPreviewWidth: (w) => set({ previewWidth: Math.max(200, Math.min(800, w)) }),
+  setPreviewFile: (file) => {
+    set({ previewFile: file, showPreview: !!file });
+    // Persist after state is updated
+    setTimeout(() => get().saveSession(), 0);
+  },
+  closePreview: () => {
+    set({ previewFile: null, showPreview: false });
+    setTimeout(() => get().saveSession(), 0);
+  },
+  setPreviewWidth: (w) => {
+    const clamped = Math.max(200, Math.min(800, w));
+    set({ previewWidth: clamped });
+    window.electronAPI.storeSet('previewWidth', clamped);
+  },
 
   // ── Zoom ─────────────────────────────────────────────────────────────────
   zoom: 1.6,
-  setZoom: (z) => set({ zoom: Math.max(0.7, Math.min(1.6, Math.round(z * 10) / 10)) }),
-  zoomIn: () => set(s => ({ zoom: Math.min(1.6, Math.round((s.zoom + 0.1) * 10) / 10) })),
-  zoomOut: () => set(s => ({ zoom: Math.max(0.7, Math.round((s.zoom - 0.1) * 10) / 10) })),
-  zoomReset: () => set({ zoom: 1.0 }),
+  setZoom: (z) => {
+    const next = Math.max(0.7, Math.min(1.6, Math.round(z * 10) / 10));
+    set({ zoom: next });
+    window.electronAPI.storeSet('zoom', next);
+  },
+  zoomIn: () => {
+    const next = Math.min(1.6, Math.round((get().zoom + 0.1) * 10) / 10);
+    set({ zoom: next });
+    window.electronAPI.storeSet('zoom', next);
+  },
+  zoomOut: () => {
+    const next = Math.max(0.7, Math.round((get().zoom - 0.1) * 10) / 10);
+    set({ zoom: next });
+    window.electronAPI.storeSet('zoom', next);
+  },
+  zoomReset: () => {
+    set({ zoom: 1.0 });
+    window.electronAPI.storeSet('zoom', 1.0);
+  },
 
   // ── Sidebar ───────────────────────────────────────────────────────────────
   bookmarks: [],
@@ -438,24 +464,22 @@ export const useStore = create((set, get) => ({
 
   // ── Session persistence ───────────────────────────────────────────────────
   saveSession: () => {
-    const { panes, activePane } = get();
+    const { panes, activePane, previewFile } = get();
     const session = panes.map(p => ({
       id: p.id,
       path: p.path,
       basePath: p.basePath,
       currentBreadcrumbPath: p.currentBreadcrumbPath,
-      columnState: {
-        paths: [],
-        filesByPath: {},
-        selectedByColumn: {},
-        focusedIndex: p.columnState?.focusedIndex ?? 0,
-      },
       selectedFiles: [...(p.selectedFiles || [])],
       viewMode: p.viewMode,
       sortBy: p.sortBy,
       sortOrder: p.sortOrder,
     }));
-    window.electronAPI.storeSet('session', { panes: session, activePane });
+    window.electronAPI.storeSet('session', {
+      panes: session,
+      activePane,
+      previewFilePath: previewFile?.path || null,
+    });
   },
 
   // ── Init ─────────────────────────────────────────────────────────────────
@@ -464,37 +488,29 @@ export const useStore = create((set, get) => ({
     const homeDir = await window.electronAPI.getHomeDir();
 
     // Restore persisted UI state
-    const [savedSidebar, savedSession] = await Promise.all([
+    const [savedSidebar, savedSession, savedZoom, savedPreviewWidth] = await Promise.all([
       window.electronAPI.storeGet('showSidebar'),
       window.electronAPI.storeGet('session'),
+      window.electronAPI.storeGet('zoom'),
+      window.electronAPI.storeGet('previewWidth'),
     ]);
 
-    if (savedSidebar != null) {
-      set({ showSidebar: savedSidebar });
-    }
+    if (savedSidebar != null) set({ showSidebar: savedSidebar });
+    if (savedZoom != null) set({ zoom: savedZoom });
+    if (savedPreviewWidth != null) set({ previewWidth: savedPreviewWidth });
 
     // Determine starting paths from session or fallback to homeDir
     let leftPath = homeDir;
     let rightPath = homeDir;
-    let leftBreadcrumb = homeDir;
-    let rightBreadcrumb = homeDir;
-    let leftBasePath = homeDir;
-    let rightBasePath = homeDir;
     let savedActivePane = 'left';
+    let leftSession = null;
+    let rightSession = null;
 
     if (savedSession?.panes) {
-      const leftSession = savedSession.panes.find(p => p.id === 'left');
-      const rightSession = savedSession.panes.find(p => p.id === 'right');
-      if (leftSession?.path) {
-        leftPath = leftSession.path;
-        leftBreadcrumb = leftSession.currentBreadcrumbPath || leftSession.path;
-        leftBasePath = leftSession.basePath || leftSession.path;
-      }
-      if (rightSession?.path) {
-        rightPath = rightSession.path;
-        rightBreadcrumb = rightSession.currentBreadcrumbPath || rightSession.path;
-        rightBasePath = rightSession.basePath || rightSession.path;
-      }
+      leftSession = savedSession.panes.find(p => p.id === 'left') || null;
+      rightSession = savedSession.panes.find(p => p.id === 'right') || null;
+      if (leftSession?.path) leftPath = leftSession.basePath || leftSession.path;
+      if (rightSession?.path) rightPath = rightSession.basePath || rightSession.path;
       if (savedSession.activePane) savedActivePane = savedSession.activePane;
     }
 
@@ -505,24 +521,95 @@ export const useStore = create((set, get) => ({
       get().loadAllTags(),
     ]);
 
-    // Restore breadcrumb paths after navigation (navigateTo resets them)
+    // Restore breadcrumb/column state and re-hydrate filesByPath for all column paths
     if (savedSession?.panes) {
+      // Compute which paths need to be fetched for each pane
+      const hydratePane = async (ps) => {
+        if (!ps) return {};
+        const breadcrumb = ps.currentBreadcrumbPath || ps.path;
+        const base = ps.basePath || ps.path;
+        // Compute column paths from base + breadcrumb
+        const colPaths = [];
+        if (breadcrumb.startsWith(base)) {
+          const fullParts = breadcrumb.split('/');
+          let current = '';
+          for (let i = 0; i < fullParts.length; i++) {
+            current += (i === 0 ? '' : '/') + fullParts[i];
+            if (current.startsWith(base) && current.length >= base.length) {
+              colPaths.push(current);
+            }
+          }
+        } else {
+          colPaths.push(base);
+        }
+        // Fetch files for each column path
+        const entries = await Promise.all(
+          colPaths.map(cp => window.electronAPI.readdir(cp).then(r => [cp, r.success ? r.files : []]))
+        );
+        return Object.fromEntries(entries);
+      };
+
+      const [leftFiles, rightFiles] = await Promise.all([
+        hydratePane(leftSession),
+        hydratePane(rightSession),
+      ]);
+
+      // Helper: compute focusedIndex from basePath + currentBreadcrumbPath
+      const computeFocusedIndex = (base, breadcrumb) => {
+        if (!breadcrumb.startsWith(base)) return 0;
+        const fullParts = breadcrumb.split('/');
+        const baseParts = base.split('/');
+        let count = 0;
+        let current = '';
+        for (let i = 0; i < fullParts.length; i++) {
+          current += (i === 0 ? '' : '/') + fullParts[i];
+          if (current.startsWith(base) && current.length >= base.length) count++;
+        }
+        return Math.max(0, count - 1);
+      };
+
       set(s => ({
         activePane: savedActivePane,
         panes: s.panes.map(p => {
           const ps = savedSession.panes.find(sp => sp.id === p.id);
           if (!ps) return p;
+          const filesByPath = p.id === 'left' ? leftFiles : rightFiles;
+          const base = ps.basePath || p.path;
+          const breadcrumb = ps.currentBreadcrumbPath || p.path;
+          const focusedIndex = computeFocusedIndex(base, breadcrumb);
           return {
             ...p,
-            currentBreadcrumbPath: ps.currentBreadcrumbPath || p.path,
-            basePath: ps.basePath || p.path,
+            currentBreadcrumbPath: breadcrumb,
+            basePath: base,
             selectedFiles: new Set(ps.selectedFiles || []),
             viewMode: ps.viewMode || p.viewMode,
             sortBy: ps.sortBy || p.sortBy,
             sortOrder: ps.sortOrder || p.sortOrder,
+            columnState: {
+              ...p.columnState,
+              filesByPath,
+              focusedIndex,
+            },
           };
         }),
       }));
+
+      // Restore preview file if one was open
+      if (savedSession.previewFilePath) {
+        const statResult = await window.electronAPI.stat(savedSession.previewFilePath);
+        if (statResult.success && statResult.stat) {
+          const fp = savedSession.previewFilePath;
+          set({
+            previewFile: {
+              ...statResult.stat,
+              path: fp,
+              name: fp.split('/').pop(),
+              isDirectory: statResult.stat.isDirectory,
+            },
+            showPreview: true,
+          });
+        }
+      }
     }
 
     // Set up watcher listener
