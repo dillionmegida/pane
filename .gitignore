@@ -8,3 +8,4 @@ latest-*.yml
 builder-*.yml
 mac-*/
 icon.iconset/
+.DS_Store
