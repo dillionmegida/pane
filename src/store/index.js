@@ -352,6 +352,13 @@ export const useStore = create((set, get) => ({
     window.electronAPI.storeSet('zoom', 1.0);
   },
 
+  // ── Theme ────────────────────────────────────────────────────────────────
+  currentTheme: 'classicLight',
+  setTheme: (themeName) => {
+    set({ currentTheme: themeName });
+    window.electronAPI.storeSet('theme', themeName);
+  },
+
   // ── Sidebar ───────────────────────────────────────────────────────────────
   bookmarks: [],
   setBookmarks: (bookmarks) => {
@@ -566,18 +573,20 @@ export const useStore = create((set, get) => ({
     const homeDir = await window.electronAPI.getHomeDir();
 
     // Restore persisted UI state
-    const [savedSidebar, savedSession, savedZoom, savedPreviewWidth, savedSidebarWidth] = await Promise.all([
+    const [savedSidebar, savedSession, savedZoom, savedPreviewWidth, savedSidebarWidth, savedTheme] = await Promise.all([
       window.electronAPI.storeGet('showSidebar'),
       window.electronAPI.storeGet('session'),
       window.electronAPI.storeGet('zoom'),
       window.electronAPI.storeGet('previewWidth'),
       window.electronAPI.storeGet('sidebarWidth'),
+      window.electronAPI.storeGet('theme'),
     ]);
 
     if (savedSidebar != null) set({ showSidebar: savedSidebar });
     if (savedZoom != null) set({ zoom: savedZoom });
     if (savedPreviewWidth != null) set({ previewWidth: savedPreviewWidth });
     if (savedSidebarWidth != null) set({ sidebarWidth: savedSidebarWidth });
+    if (savedTheme != null) set({ currentTheme: savedTheme });
 
     // Determine starting paths from session or fallback to homeDir
     let leftPath = homeDir;
