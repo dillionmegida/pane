@@ -64,7 +64,7 @@
       "dist/*.renderer.js",
       "dist/assets/**/*",
       "src/main/**/*",
-      "icon.png"
+      "logo.png"
     ],
     "extraResources": [
       {
@@ -78,7 +78,7 @@
         "dmg",
         "zip"
       ],
-      "icon": "icon.icns",
+      "icon": "logo.png",
       "darkModeSupport": true,
       "gatekeeperAssess": false
     },
