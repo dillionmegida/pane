@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import { useStore, formatSize, formatDate, getFileIcon, PREVIEW_TYPES, getPreviewType } from '../store';
 import ModalPreviewPane from './ModalPreviewPane';
 import { useConcurrentDirectoryScanner } from '../hooks/useDirectoryScanner';
@@ -178,6 +178,7 @@ const StatusBar = styled.div`
 `;
 
 export default function SearchOverlay() {
+  const theme = useTheme();
   const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode, setSelection, getActivePath, getBreadcrumbs } = useStore();
   const pane = panes.find(p => p.id === activePane);
 
@@ -461,23 +462,23 @@ export default function SearchOverlay() {
           background: 'rgba(0,0,0,0.7)',
         }} onClick={() => setConfirmDelete(null)}>
           <div style={{
-            background: '#1e1e24', border: '1px solid #3a3a45', borderRadius: 10,
+            background: theme.bg.elevated, border: `1px solid ${theme.border.strong}`, borderRadius: 10,
             padding: '24px 28px', minWidth: 320, maxWidth: 480,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            boxShadow: theme.shadow.lg,
           }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: '0.875rem', color: '#e8e8ed', marginBottom: 8, fontWeight: 600 }}>
+            <div style={{ fontSize: '0.875rem', color: theme.text.primary, marginBottom: 8, fontWeight: 600 }}>
               Move to Trash?
             </div>
-            <div style={{ fontSize: '0.75rem', color: '#8a8a9a', marginBottom: 20, wordBreak: 'break-all' }}>
+            <div style={{ fontSize: '0.75rem', color: theme.text.secondary, marginBottom: 20, wordBreak: 'break-all' }}>
               "{confirmDelete.name}" will be moved to Trash.
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setConfirmDelete(null)} style={{
-                background: '#2a2a35', border: '1px solid #3a3a45', color: '#c8c8d8',
+                background: theme.bg.hover, border: `1px solid ${theme.border.strong}`, color: theme.text.primary,
                 borderRadius: 6, padding: '6px 16px', fontSize: '0.75rem', cursor: 'pointer',
               }}>Cancel</button>
               <button onClick={doDelete} style={{
-                background: '#dc2626', border: 'none', color: '#fff',
+                background: theme.text.error, border: 'none', color: '#fff',
                 borderRadius: 6, padding: '6px 16px', fontSize: '0.75rem', cursor: 'pointer',
               }}>Move to Trash</button>
             </div>
@@ -486,7 +487,7 @@ export default function SearchOverlay() {
       )}
       <SearchBox onClick={e => e.stopPropagation()}>
         <InputWrap>
-          <span style={{ fontSize: '1rem', color: '#5a5a6b' }}>🔍</span>
+          <span style={{ fontSize: '1rem', color: theme.text.tertiary }}>🔍</span>
           <SearchInput
             ref={inputRef}
             value={query}
@@ -500,13 +501,13 @@ export default function SearchOverlay() {
               {!contentSearch && isScanning && (
                 <span
                   onClick={abortScan}
-                  style={{ cursor: 'pointer', color: '#f87171', fontSize: '0.625rem', padding: '1px 4px', background: '#2a2a2f', borderRadius: 3 }}
+                  style={{ cursor: 'pointer', color: theme.accent.red, fontSize: '0.625rem', padding: '1px 4px', background: theme.bg.tertiary, borderRadius: theme.radius.sm }}
                   title="Stop search"
                 >■</span>
               )}
             </span>
           )}
-          <span style={{ fontSize: '0.75rem', color: '#5a5a6b', cursor: 'pointer' }} onClick={toggleSearch}>✕</span>
+          <span style={{ fontSize: '0.75rem', color: theme.text.tertiary, cursor: 'pointer' }} onClick={toggleSearch}>✕</span>
         </InputWrap>
 
         <Options>
@@ -518,17 +519,17 @@ export default function SearchOverlay() {
         </Options>
 
         {showExcludeInput && (
-          <div style={{ padding: '8px 14px', borderBottom: '1px solid #2e2e35', background: '#1a1a1e' }}>
+          <div style={{ padding: '8px 14px', borderBottom: `1px solid ${theme.border.normal}`, background: theme.bg.secondary }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
               {excludedDirs.map(dir => (
                 <span key={dir} style={{
                   display: 'flex', alignItems: 'center', gap: 4,
-                  background: '#2a2a2f', border: '1px solid #3a3a45',
+                  background: theme.bg.hover, border: `1px solid ${theme.border.strong}`,
                   borderRadius: 4, padding: '2px 6px', fontSize: '0.6875rem',
-                  color: '#9898a8'
+                  color: theme.text.secondary
                 }}>
                   {dir}
-                  <span style={{ cursor: 'pointer', color: '#5a5a6b' }} onClick={() => setExcludedDirs(d => d.filter(x => x !== dir))}>✕</span>
+                  <span style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() => setExcludedDirs(d => d.filter(x => x !== dir))}>✕</span>
                 </span>
               ))}
             </div>
@@ -544,9 +545,9 @@ export default function SearchOverlay() {
                 }}
                 placeholder="Add directory to exclude..."
                 style={{
-                  flex: 1, background: '#2a2a2f', border: '1px solid #3a3a45',
+                  flex: 1, background: theme.bg.hover, border: `1px solid ${theme.border.strong}`,
                   borderRadius: 4, padding: '4px 8px', fontSize: '0.6875rem',
-                  color: '#e8e8ed', outline: 'none'
+                  color: theme.text.primary, outline: 'none'
                 }}
               />
               <button
@@ -557,8 +558,8 @@ export default function SearchOverlay() {
                   }
                 }}
                 style={{
-                  background: '#3a3a45', border: 'none', borderRadius: 4,
-                  padding: '4px 10px', fontSize: '0.6875rem', color: '#e8e8ed',
+                  background: theme.border.strong, border: 'none', borderRadius: 4,
+                  padding: '4px 10px', fontSize: '0.6875rem', color: theme.text.primary,
                   cursor: 'pointer'
                 }}
               >
@@ -592,12 +593,12 @@ export default function SearchOverlay() {
                 </ResultItem>
               ))}
               {!loading && !searchComplete && query && results.length === 0 && (
-                <div style={{ padding: '40px 16px', textAlign: 'center', color: '#5a5a6b', fontSize: '0.75rem' }}>
+                <div style={{ padding: '40px 16px', textAlign: 'center', color: theme.text.tertiary, fontSize: '0.75rem' }}>
                   Type to search...
                 </div>
               )}
               {!loading && searchComplete && query && results.length === 0 && (
-                <div style={{ padding: '40px 16px', textAlign: 'center', color: '#5a5a6b', fontSize: '0.75rem' }}>
+                <div style={{ padding: '40px 16px', textAlign: 'center', color: theme.text.tertiary, fontSize: '0.75rem' }}>
                   No results for "{query}"
                 </div>
               )}

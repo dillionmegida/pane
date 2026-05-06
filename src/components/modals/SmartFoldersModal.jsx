@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import { useStore, formatSize, formatDate } from '../../store';
 import ModalPreviewPane from '../ModalPreviewPane';
 import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
@@ -13,7 +13,7 @@ const ModalContent = styled.div`
 
 const LeftPane = styled.div`
   width: ${({ width }) => `${width}px`};
-  border-right: 1px solid #2e2e35;
+  border-right: 1px solid ${p => p.theme.border.normal};
   padding: 8px 0;
   overflow: auto;
 `;
@@ -22,14 +22,14 @@ const FilterItem = styled.div`
   padding: 8px 14px;
   cursor: pointer;
   font-size: 12px;
-  color: ${({ active }) => (active ? '#4A9EFF' : '#9898a8')};
-  background: ${({ active }) => (active ? '#1a3a5c20' : 'transparent')};
-  border-left: ${({ active }) => (active ? '2px solid #4A9EFF' : '2px solid transparent')};
+  color: ${({ active, theme }) => (active ? theme.text.accent : theme.text.secondary)};
+  background: ${({ active, theme }) => (active ? theme.bg.selection : 'transparent')};
+  border-left: ${({ active, theme }) => (active ? `2px solid ${theme.text.accent}` : '2px solid transparent')};
 `;
 
 const Divider = styled.div`
   width: 4px;
-  background: #2e2e35;
+  background: ${p => p.theme.border.normal};
   cursor: col-resize;
   user-select: none;
 `;
@@ -38,12 +38,12 @@ const ContentArea = styled.div`
   flex: 1;
   overflow: auto;
   padding: 12px;
-  border-right: 1px solid #2e2e35;
+  border-right: 1px solid ${p => p.theme.border.normal};
 `;
 
 const FilterInfo = styled.div`
   font-size: 11px;
-  color: #5a5a6b;
+  color: ${p => p.theme.text.tertiary};
   margin-left: 12px;
   flex: 1;
 `;
@@ -57,11 +57,11 @@ const Options = styled.div`
 
 const OptBtnWrapper = styled.div`
   padding: 6px 10px;
-  background: ${({ active }) => (active ? '#2a2a2f' : '#1a1a1e')};
-  border: 1px solid ${({ active }) => (active ? '#3a3a45' : '#2e2e35')};
+  background: ${({ active, theme }) => (active ? theme.bg.hover : theme.bg.secondary)};
+  border: 1px solid ${({ active, theme }) => (active ? theme.border.strong : theme.border.normal)};
   border-radius: 6px;
   font-size: 11px;
-  color: ${({ active }) => (active ? '#e8e8ed' : '#9898a8')};
+  color: ${({ active, theme }) => (active ? theme.text.primary : theme.text.secondary)};
   cursor: pointer;
   user-select: none;
 `;
@@ -70,43 +70,43 @@ const ExcludePill = styled.span`
   display: flex;
   align-items: center;
   gap: 4px;
-  background: #2a2a2f;
-  border: 1px solid #3a3a45;
+  background: ${p => p.theme.bg.hover};
+  border: 1px solid ${p => p.theme.border.strong};
   border-radius: 4px;
   padding: 2px 6px;
   font-size: 11px;
-  color: #9898a8;
+  color: ${p => p.theme.text.secondary};
 `;
 
 const ExcludeInput = styled.input`
   flex: 1;
-  background: #2a2a2f;
-  border: 1px solid #3a3a45;
+  background: ${p => p.theme.bg.hover};
+  border: 1px solid ${p => p.theme.border.strong};
   border-radius: 4px;
   padding: 4px 8px;
   font-size: 11px;
-  color: #e8e8ed;
+  color: ${p => p.theme.text.primary};
   outline: none;
 `;
 
 const ExcludeAddBtn = styled.button`
-  background: #3a3a45;
+  background: ${p => p.theme.border.strong};
   border: none;
   border-radius: 4px;
   padding: 4px 10px;
   font-size: 11px;
-  color: #e8e8ed;
+  color: ${p => p.theme.text.primary};
   cursor: pointer;
 `;
 
 const PathText = styled.span`
-  color: #9898a8;
+  color: ${p => p.theme.text.secondary};
 `;
 
 const LargeFilterBox = styled.div`
   margin-bottom: 12px;
   padding: 8px;
-  background: #1a1a1e;
+  background: ${p => p.theme.bg.secondary};
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -115,28 +115,28 @@ const LargeFilterBox = styled.div`
 
 const FilterLabel = styled.label`
   font-size: 11px;
-  color: #9898a8;
+  color: ${p => p.theme.text.secondary};
   white-space: nowrap;
 `;
 
 const SizeInput = styled.input`
   flex: 1;
   padding: 4px 6px;
-  background: #2a2a2f;
-  border: 1px solid #3a3a3f;
+  background: ${p => p.theme.bg.hover};
+  border: 1px solid ${p => p.theme.border.strong};
   border-radius: 3px;
-  color: #e8e8ed;
+  color: ${p => p.theme.text.primary};
   font-size: 11px;
 `;
 
 const Unit = styled.span`
   font-size: 11px;
-  color: #9898a8;
+  color: ${p => p.theme.text.secondary};
   white-space: nowrap;
 `;
 
 const ScanningText = styled.div`
-  color: #4A9EFF;
+  color: ${p => p.theme.text.accent};
   font-size: 12px;
   display: flex;
   align-items: center;
@@ -144,7 +144,7 @@ const ScanningText = styled.div`
 `;
 
 const StopBtn = styled.button`
-  background: #d9534f;
+  background: ${p => p.theme.text.error};
   border: none;
   border-radius: 4px;
   padding: 2px;
@@ -156,7 +156,7 @@ const StopBtn = styled.button`
   cursor: pointer;
   transition: all 0.2s ease;
   &:hover {
-    background: #c9302c;
+    opacity: 0.8;
     transform: scale(1.1);
   }
   svg {
@@ -166,14 +166,14 @@ const StopBtn = styled.button`
 `;
 
 const InfoMessage = styled.div`
-  color: #9898a8;
+  color: ${p => p.theme.text.secondary};
   font-size: 11px;
   padding: 8px 0;
   font-style: italic;
 `;
 
 const EmptyState = styled.div`
-  color: #5a5a6b;
+  color: ${p => p.theme.text.tertiary};
   font-size: 12px;
   padding: 20px 0;
 `;
@@ -186,11 +186,11 @@ const ResultRow = styled.div`
   font-size: 11px;
   cursor: pointer;
   border-radius: 4px;
-  background: ${({ selected }) => (selected ? '#1a3a5c20' : 'transparent')};
-  border-left: ${({ selected }) => (selected ? '2px solid #4A9EFF' : '2px solid transparent')};
+  background: ${({ selected, theme }) => (selected ? theme.bg.selection : 'transparent')};
+  border-left: ${({ selected, theme }) => (selected ? `2px solid ${theme.text.accent}` : '2px solid transparent')};
 
   &:hover {
-    background: #2a2a2f;
+    background: ${p => p.theme.bg.hover};
   }
 `;
 
@@ -203,22 +203,22 @@ const FileName = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #e8e8ed;
+  color: ${p => p.theme.text.primary};
 `;
 
 const SizeText = styled.span`
-  color: #5a5a6b;
+  color: ${p => p.theme.text.tertiary};
   font-family: monospace;
 `;
 
 const ModifiedText = styled.span`
-  color: #5a5a6b;
+  color: ${p => p.theme.text.tertiary};
   font-size: 10px;
 `;
 
 const FooterInfo = styled.span`
   font-size: 11px;
-  color: #5a5a6b;
+  color: ${p => p.theme.text.tertiary};
   margin-right: auto;
   display: flex;
   gap: 8px;
@@ -229,10 +229,11 @@ const HeaderInfo = styled.div`
   align-items: center;
   gap: 12px;
   font-size: 11px;
-  color: #5a5a6b;
+  color: ${p => p.theme.text.tertiary};
 `;
 
 export function SmartFoldersModal({ data, onClose }) {
+  const theme = useTheme();
   const { panes, activePane, navigateTo } = useStore();
   const currentPane = panes.find(p => p.id === activePane);
   
@@ -498,13 +499,13 @@ export function SmartFoldersModal({ data, onClose }) {
                 </div>
               </Options>
               {showExclusionInput && (
-                <div style={{ padding: '8px 10px', border: '1px solid #2e2e35', borderRadius: 6, background: '#1a1a1e', marginBottom: 10 }}>
+                <div style={{ padding: '8px 10px', border: `1px solid ${theme.border.normal}`, borderRadius: 6, background: theme.bg.secondary, marginBottom: 10 }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
                     {excludedDirectories.map(directoryName => (
                       <ExcludePill key={directoryName}>
                         {directoryName}
                         <span 
-                          style={{ cursor: 'pointer', color: '#5a5a6b' }} 
+                          style={{ cursor: 'pointer', opacity: 0.6 }} 
                           onClick={() => setExcludedDirectories(prev => prev.filter(name => name !== directoryName))}
                         >
                           ✕
@@ -512,7 +513,7 @@ export function SmartFoldersModal({ data, onClose }) {
                       </ExcludePill>
                     ))}
                     {excludedDirectories.length === 0 && (
-                      <span style={{ fontSize: '11px', color: '#5a5a6b' }}>No exclusions</span>
+                      <span style={{ fontSize: '11px', opacity: 0.6 }}>No exclusions</span>
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>

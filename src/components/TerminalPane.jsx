@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { useStore } from '../store';
 
 const Wrap = styled.div`
-  background: #0d0d0d;
+  background: ${p => p.theme.bg.secondary};
   border-top: 1px solid ${p => p.theme.border.subtle};
   display: flex;
   flex-direction: column;
@@ -27,8 +27,8 @@ const Header = styled.div`
   display: flex;
   align-items: center;
   padding: 4px 12px;
-  background: #141414;
-  border-bottom: 1px solid #222;
+  background: ${p => p.theme.bg.tertiary};
+  border-bottom: 1px solid ${p => p.theme.border.subtle};
   height: 28px;
   flex-shrink: 0;
   gap: 8px;
@@ -37,18 +37,18 @@ const Header = styled.div`
 const Title = styled.span`
   font-family: ${p => p.theme.font.mono};
   font-size: 11px;
-  color: #666;
+  color: ${p => p.theme.text.tertiary};
 `;
 
 const TermBtn = styled.button`
   background: none;
   border: none;
-  color: #555;
+  color: ${p => p.theme.text.tertiary};
   cursor: pointer;
   font-size: 11px;
   padding: 2px 6px;
   border-radius: 3px;
-  &:hover { background: #222; color: #999; }
+  &:hover { background: ${p => p.theme.bg.hover}; color: ${p => p.theme.text.secondary}; }
 `;
 
 const XtermContainer = styled.div`
@@ -203,9 +203,9 @@ export default function TerminalPane() {
         </div>
       </Header>
       {error ? (
-        <div style={{ padding: 16, color: '#f87171', fontFamily: 'monospace', fontSize: 12 }}>
+        <div style={{ padding: 16, color: 'inherit', fontFamily: 'monospace', fontSize: 12 }}>
           {error}
-          <div style={{ marginTop: 8, color: '#666', fontSize: 11 }}>
+          <div style={{ marginTop: 8, opacity: 0.6, fontSize: 11 }}>
             Make sure node-pty is installed: npm install node-pty
           </div>
         </div>

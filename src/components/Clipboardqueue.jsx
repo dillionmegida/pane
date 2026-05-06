@@ -1,5 +1,5 @@
 import React from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import { useStore } from '../store';
 
 const Bar = styled.div`
@@ -14,9 +14,9 @@ const Bar = styled.div`
 `;
 
 const FileChip = styled.span`
-  background: ${p => p.cut ? '#fb923c20' : '#4A9EFF20'};
-  border: 1px solid ${p => p.cut ? '#fb923c60' : '#4A9EFF60'};
-  color: ${p => p.cut ? '#fb923c' : '#4A9EFF'};
+  background: ${p => p.cut ? p.theme.accent.orange + '20' : p.theme.accent.blue + '20'};
+  border: 1px solid ${p => p.cut ? p.theme.accent.orange + '60' : p.theme.accent.blue + '60'};
+  color: ${p => p.cut ? p.theme.accent.orange : p.theme.accent.blue};
   padding: 1px 8px;
   border-radius: 10px;
   font-size: 10px;
@@ -40,6 +40,7 @@ const Btn = styled.button`
 `;
 
 export default function ClipboardQueue() {
+  const theme = useTheme();
   const { clipboardQueue, clipboardMode, removeFromClipboard, clearClipboard, pasteClipboard, panes, activePane } = useStore();
 
   if (clipboardQueue.length === 0) return null;
@@ -48,7 +49,7 @@ export default function ClipboardQueue() {
 
   return (
     <Bar>
-      <span style={{ color: '#5a5a6b', flexShrink: 0 }}>
+      <span style={{ color: theme.text.tertiary, flexShrink: 0 }}>
         {clipboardMode === 'cut' ? '✂️' : '📋'} Queue ({clipboardQueue.length}):
       </span>
       <div style={{ display: 'flex', gap: 4, flex: 1, overflow: 'hidden' }}>
@@ -58,7 +59,7 @@ export default function ClipboardQueue() {
           </FileChip>
         ))}
         {clipboardQueue.length > 6 && (
-          <span style={{ color: '#5a5a6b', fontSize: 10, padding: '1px 4px' }}>+{clipboardQueue.length - 6} more</span>
+          <span style={{ opacity: 0.6, fontSize: 10, padding: '1px 4px' }}>+{clipboardQueue.length - 6} more</span>
         )}
       </div>
       {activePanePath && (

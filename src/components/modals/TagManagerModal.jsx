@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store';
-import { TAG_COLORS } from '../../theme';
+import { getTagColors } from '../../theme';
 import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Label, Row } from './ModalPrimitives';
 
 export function TagManagerModal({ data, onClose }) {
-  const { loadAllTags } = useStore();
+  const { loadAllTags, currentTheme } = useStore();
+  const TAG_COLORS = getTagColors(currentTheme);
   const file = data?.file;
   const [existingTags, setExistingTags] = useState([]);
   const [fileTags, setFileTags] = useState([]);

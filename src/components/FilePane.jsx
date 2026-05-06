@@ -36,7 +36,7 @@ const Tab = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  padding-inline: 5px;
+  padding-inline: 10px;
   cursor: pointer;
   font-size: 10px;
   color: ${p => p.theme.text.secondary};
