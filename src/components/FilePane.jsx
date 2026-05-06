@@ -909,14 +909,16 @@ export default function FilePane({ paneId }) {
     if (e.metaKey || e.ctrlKey) {
       toggleSelection(paneId, file.path, true);
     } else if (e.shiftKey) {
-      // Range select
+      // Range select - add range to existing selection
       const fileIndex = files.findIndex(f => f.path === file.path);
       const selArray = [...selectedFiles];
       if (selArray.length > 0) {
         const lastIdx = files.findIndex(f => f.path === selArray[selArray.length - 1]);
         const [start, end] = [Math.min(fileIndex, lastIdx), Math.max(fileIndex, lastIdx)];
         const range = files.slice(start, end + 1).map(f => f.path);
-        setSelection(paneId, range);
+        // Merge range with existing selection
+        const mergedSelection = new Set([...selectedFiles, ...range]);
+        setSelection(paneId, [...mergedSelection]);
       } else {
         toggleSelection(paneId, file.path, false);
       }
@@ -1392,6 +1394,20 @@ export default function FilePane({ paneId }) {
                           updateColumnState(paneId, { focusedIndex: idx });
                           if (e.metaKey || e.ctrlKey) {
                             toggleSelection(paneId, file.path, true);
+                          } else if (e.shiftKey) {
+                            // Range select - add range to existing selection
+                            const fileIndex = colFiles.findIndex(f => f.path === file.path);
+                            const selArray = [...selectedFiles];
+                            if (selArray.length > 0) {
+                              const lastIdx = colFiles.findIndex(f => f.path === selArray[selArray.length - 1]);
+                              const [start, end] = [Math.min(fileIndex, lastIdx), Math.max(fileIndex, lastIdx)];
+                              const range = colFiles.slice(start, end + 1).map(f => f.path);
+                              // Merge range with existing selection
+                              const mergedSelection = new Set([...selectedFiles, ...range]);
+                              setSelection(paneId, [...mergedSelection]);
+                            } else {
+                              setSelection(paneId, [file.path]);
+                            }
                           } else {
                             setSelection(paneId, [file.path]);
                           }
