@@ -6,7 +6,7 @@ A comprehensive **logic-based test suite** for Pane's core functionalities, focu
 
 ## Files Created
 
-### Test Files (80+ tests total)
+### Test Files (90+ tests total)
 
 1. **`src/__tests__/store.test.js`** (50+ tests)
    - Pane management (switching, toggling)
@@ -30,27 +30,34 @@ A comprehensive **logic-based test suite** for Pane's core functionalities, focu
    - Search result navigation
    - Error handling
 
+4. **`src/__tests__/multiSelect.test.js`** (11 tests)
+   - Cmd/Ctrl multi-select behavior
+   - Shift range selection
+   - Combined Cmd and Shift selection
+   - Preservation of existing selections during shift-select
+   - Column view multi-select support
+
 ### Configuration Files
 
-4. **`jest.config.js`** - Jest configuration
+1. **`jest.config.js`** - Jest configuration
    - Node test environment
    - Setup file for global mocks
    - Coverage collection
    - Transform ignore patterns for zustand
 
-5. **`src/__tests__/setup.js`** - Test environment setup
+2. **`src/__tests__/setup.js`** - Test environment setup
    - Global `window.electronAPI` mock
    - Prevents need for Electron in tests
 
 ### Documentation
 
-6. **`src/__tests__/README.md`** - Detailed test documentation
+1. **`src/__tests__/README.md`** - Detailed test documentation
    - Test structure and philosophy
    - Running tests
    - Key test scenarios
    - Adding new tests
 
-7. **`TESTING.md`** - Quick reference guide
+2. **`TESTING.md`** - Quick reference guide
    - Quick start
    - Test coverage overview
    - Key features tested
@@ -98,6 +105,8 @@ npm test -- --testNamePattern="breadcrumb"
 - Single click selects one file
 - Click same file again deselects
 - Cmd/Ctrl + click multi-selects
+- Shift + click range selection
+- Combined Cmd and Shift selection preserves existing selections
 - Selection persists during navigation
 
 ✅ **File Sorting** - All sort modes
@@ -214,9 +223,9 @@ Added test scripts:
 
 ## Test Statistics
 
-- **Total Tests**: 80+
-- **Test Files**: 3
-- **Test Suites**: 20+
+- **Total Tests**: 90+
+- **Test Files**: 4
+- **Test Suites**: 24+
 - **Coverage Target**: 100% for store logic, utilities, and navigation
 
 ## Notes
