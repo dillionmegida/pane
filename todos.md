@@ -56,3 +56,5 @@
 - another one is that, when i do Cmd + F, at the bottom, I can see 0 results and the file directory path...now i'd like to be able to change the directory path to something else...so basically that directory path should be a button i can use to select another directory for Cmd + F to search
 - same thing applies to Smart Folders...where the path is currently [path]:, i'd like the path to be a button i can click to select another path...changing this should not affect the current file tree columns by the way, that should stay the same
 - i think we should be using react window or something
+
+- when i'm on Cmd + F or smart folders, i'd like the same functionality where if i select a media file, spacebar should play/pause it
