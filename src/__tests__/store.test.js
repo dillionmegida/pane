@@ -716,6 +716,165 @@ describe('Store - Clipboard Operations', () => {
   });
 });
 
+describe('Store - pasteClipboard', () => {
+  const paneState = {
+    panes: [
+      {
+        id: 'left',
+        path: '/home/user',
+        basePath: '/home/user',
+        currentBreadcrumbPath: '/home/user/Documents',
+        files: [],
+        loading: false,
+        error: null,
+        selectedFiles: new Set(),
+        sortBy: 'name',
+        sortOrder: 'asc',
+        viewMode: 'column',
+        tabs: [{ id: 'tab-1', path: '/home/user', label: 'user' }],
+        activeTab: 0,
+      },
+    ],
+    activePane: 'left',
+    showRightPane: false,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    window.electronAPI.copy.mockResolvedValue({ success: true });
+    window.electronAPI.move.mockResolvedValue({ success: true });
+    window.electronAPI.readdir.mockResolvedValue({ success: true, files: [] });
+    useStore.setState({
+      ...paneState,
+      clipboardQueue: [],
+      clipboardMode: 'copy',
+    });
+  });
+
+  test('copy mode: calls electronAPI.copy for each file and keeps queue intact', async () => {
+    const { result } = renderHook(() => useStore());
+    act(() => {
+      result.current.addToClipboard(['/src/file1.txt', '/src/file2.js'], 'copy');
+    });
+    await act(async () => {
+      await result.current.pasteClipboard('/dest/dir');
+    });
+    expect(window.electronAPI.copy).toHaveBeenCalledWith('/src/file1.txt', '/dest/dir/file1.txt');
+    expect(window.electronAPI.copy).toHaveBeenCalledWith('/src/file2.js', '/dest/dir/file2.js');
+    expect(window.electronAPI.move).not.toHaveBeenCalled();
+    expect(result.current.clipboardQueue).toHaveLength(2);
+    expect(result.current.clipboardMode).toBe('copy');
+  });
+
+  test('cut mode: calls electronAPI.move for each file and clears queue + resets mode', async () => {
+    const { result } = renderHook(() => useStore());
+    act(() => {
+      result.current.addToClipboard(['/src/file1.txt', '/src/file2.js'], 'cut');
+    });
+    await act(async () => {
+      await result.current.pasteClipboard('/dest/dir');
+    });
+    expect(window.electronAPI.move).toHaveBeenCalledWith('/src/file1.txt', '/dest/dir/file1.txt');
+    expect(window.electronAPI.move).toHaveBeenCalledWith('/src/file2.js', '/dest/dir/file2.js');
+    expect(window.electronAPI.copy).not.toHaveBeenCalled();
+    expect(result.current.clipboardQueue).toHaveLength(0);
+    expect(result.current.clipboardMode).toBe('copy');
+  });
+
+  test('copy mode: returns failed files when electronAPI.copy fails', async () => {
+    window.electronAPI.copy
+      .mockResolvedValueOnce({ success: true })
+      .mockResolvedValueOnce({ success: false, error: 'Permission denied' });
+    const { result } = renderHook(() => useStore());
+    act(() => {
+      result.current.addToClipboard(['/src/ok.txt', '/src/fail.txt'], 'copy');
+    });
+    let errors;
+    await act(async () => {
+      errors = await result.current.pasteClipboard('/dest/dir');
+    });
+    expect(errors).toEqual(['/src/fail.txt']);
+    expect(result.current.clipboardQueue).toHaveLength(2);
+  });
+
+  test('cut mode: returns failed files and does NOT clear queue on partial failure', async () => {
+    window.electronAPI.move
+      .mockResolvedValueOnce({ success: true })
+      .mockResolvedValueOnce({ success: false, error: 'Locked' });
+    const { result } = renderHook(() => useStore());
+    act(() => {
+      result.current.addToClipboard(['/src/ok.txt', '/src/fail.txt'], 'cut');
+    });
+    let errors;
+    await act(async () => {
+      errors = await result.current.pasteClipboard('/dest/dir');
+    });
+    expect(errors).toEqual(['/src/fail.txt']);
+  });
+
+  test('getActivePath returns currentBreadcrumbPath in column view', () => {
+    const { result } = renderHook(() => useStore());
+    const activePath = result.current.getActivePath('left');
+    expect(activePath).toBe('/home/user/Documents');
+  });
+
+  test('getActivePath returns pane.path in list view', () => {
+    useStore.setState({
+      panes: [{
+        id: 'left',
+        path: '/home/user',
+        basePath: '/home/user',
+        currentBreadcrumbPath: '/home/user/Documents',
+        files: [],
+        loading: false,
+        error: null,
+        selectedFiles: new Set(),
+        sortBy: 'name',
+        sortOrder: 'asc',
+        viewMode: 'list',
+        tabs: [{ id: 'tab-1', path: '/home/user', label: 'user' }],
+        activeTab: 0,
+      }],
+      activePane: 'left',
+    });
+    const { result } = renderHook(() => useStore());
+    const activePath = result.current.getActivePath('left');
+    expect(activePath).toBe('/home/user');
+  });
+
+  test('paste constructs correct dest path using filename from src', async () => {
+    const { result } = renderHook(() => useStore());
+    act(() => {
+      result.current.addToClipboard(['/deep/nested/path/photo.png'], 'copy');
+    });
+    await act(async () => {
+      await result.current.pasteClipboard('/dest/folder');
+    });
+    expect(window.electronAPI.copy).toHaveBeenCalledWith(
+      '/deep/nested/path/photo.png',
+      '/dest/folder/photo.png'
+    );
+  });
+
+  test('refreshPane is called for all panes after paste', async () => {
+    useStore.setState({
+      panes: [
+        { id: 'left', path: '/home/user', basePath: '/home/user', currentBreadcrumbPath: '/home/user', files: [], loading: false, error: null, selectedFiles: new Set(), sortBy: 'name', sortOrder: 'asc', viewMode: 'column', tabs: [{ id: 'tab-1', path: '/home/user', label: 'user' }], activeTab: 0 },
+        { id: 'right', path: '/home/user/dest', basePath: '/home/user/dest', currentBreadcrumbPath: '/home/user/dest', files: [], loading: false, error: null, selectedFiles: new Set(), sortBy: 'name', sortOrder: 'asc', viewMode: 'column', tabs: [{ id: 'tab-2', path: '/home/user/dest', label: 'dest' }], activeTab: 0 },
+      ],
+      activePane: 'left',
+      showRightPane: true,
+      clipboardQueue: ['/src/file.txt'],
+      clipboardMode: 'copy',
+    });
+    await act(async () => {
+      await useStore.getState().pasteClipboard('/home/user/dest');
+    });
+    expect(window.electronAPI.readdir).toHaveBeenCalledWith('/home/user');
+    expect(window.electronAPI.readdir).toHaveBeenCalledWith('/home/user/dest');
+  });
+});
+
 describe('Utility Functions - Sorting', () => {
   test('should sort files with directories first', () => {
     const files = [

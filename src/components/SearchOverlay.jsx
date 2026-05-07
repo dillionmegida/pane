@@ -85,7 +85,7 @@ const OptBtn = styled.button`
 `;
 
 const OptBtnWrapper = ({ active, children, ...props }) => (
-  <OptBtn {...props} className={active ? 'active' : ''}>{children}</OptBtn>
+  <OptBtn active={active} {...props}>{children}</OptBtn>
 );
 
 const MainContent = styled.div`
@@ -179,12 +179,13 @@ const StatusBar = styled.div`
 
 export default function SearchOverlay() {
   const theme = useTheme();
-  const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode, setSelection, getActivePath, getBreadcrumbs } = useStore();
+  const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode, setSelection, getActivePath, getBreadcrumbs, homeDir } = useStore();
   const pane = panes.find(p => p.id === activePane);
 
   const [query, setQuery] = useState('');
   const [useRegex, setUseRegex] = useState(false);
   const [contentSearch, setContentSearch] = useState(false);
+  const [rootSearch, setRootSearch] = useState(false);
   const [excludedDirs, setExcludedDirs] = useState(['node_modules', '.git', 'venv', '.venv', '__pycache__', '.pytest_cache']);
   const [showExcludeInput, setShowExcludeInput] = useState(false);
   const [excludeInput, setExcludeInput] = useState('');
@@ -314,12 +315,12 @@ export default function SearchOverlay() {
       clearTimeout(timerRef.current);
       cancelCurrentSearchRef.current();
     };
-  }, [query, useRegex, contentSearch, excludedDirs]);
+  }, [query, useRegex, contentSearch, excludedDirs, rootSearch]);
 
   const doSearch = async () => {
     if (!pane || !query.trim()) return;
 
-    const searchRoot = getActivePath(activePane);
+    const searchRoot = rootSearch ? (homeDir || '/') : getActivePath(activePane);
 
     if (contentSearch) {
       // Content search still uses the electron streaming API
@@ -493,7 +494,7 @@ export default function SearchOverlay() {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Search in ${getActivePath(activePane) || '/'}`}
+            placeholder={`Search in ${rootSearch ? (homeDir || '/') : (getActivePath(activePane) || '/')}`}
           />
           {loading && (
             <span style={{ fontSize: '0.75rem', color: 'orange', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -516,6 +517,7 @@ export default function SearchOverlay() {
           <OptBtnWrapper active={excludedDirs.length > 0} onClick={() => setShowExcludeInput(v => !v)}>
             Excluded ({excludedDirs.length})
           </OptBtnWrapper>
+          <OptBtnWrapper active={rootSearch} onClick={() => setRootSearch(v => !v)}>Root</OptBtnWrapper>
         </Options>
 
         {showExcludeInput && (
@@ -609,7 +611,7 @@ export default function SearchOverlay() {
                 {results.length} results
                 {loading && !contentSearch ? ' (scanning...)' : ''}
               </span>
-              <span>📁 {getActivePath(activePane) || '/'}</span>
+              <span>📁 {rootSearch ? (homeDir || '/') : (getActivePath(activePane) || '/')}</span>
             </StatusBar>
           </ResultsPane>
 

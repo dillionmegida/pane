@@ -41,11 +41,11 @@ const Btn = styled.button`
 
 export default function ClipboardQueue() {
   const theme = useTheme();
-  const { clipboardQueue, clipboardMode, removeFromClipboard, clearClipboard, pasteClipboard, panes, activePane } = useStore();
+  const { clipboardQueue, clipboardMode, removeFromClipboard, clearClipboard, pasteClipboard, activePane, getActivePath } = useStore();
 
   if (clipboardQueue.length === 0) return null;
 
-  const activePanePath = panes.find(p => p.id === activePane)?.path;
+  const activePanePath = activePane ? getActivePath(activePane) : null;
 
   return (
     <Bar>

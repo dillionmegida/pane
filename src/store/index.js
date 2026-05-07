@@ -2,29 +2,85 @@ import { create } from 'zustand';
 import path from 'path-browserify';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
-const createPane = (id, initialPath = '/') => ({
-  id,
-  path: initialPath,
+const DEFAULT_COLUMN_STATE = {
+  paths: [],
+  filesByPath: {},
+  selectedByColumn: {},
+  focusedIndex: 0,
+};
+
+const createTabState = (tabPath) => ({
+  id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  path: tabPath,
+  basePath: tabPath,
+  currentBreadcrumbPath: tabPath,
+  label: tabPath === '/' ? '/' : tabPath.split('/').pop(),
   files: [],
-  loading: false,
-  error: null,
   selectedFiles: new Set(),
+  activeBookmarkId: null,
+  viewMode: 'column',
   sortBy: 'name',
   sortOrder: 'asc',
-  viewMode: 'column', // Column view as default
-  tabs: [{ id: `tab-${Date.now()}`, path: initialPath, label: 'Home' }],
-  activeTab: 0,
-  currentBreadcrumbPath: initialPath,
-  basePath: initialPath, // New: starting point for column navigation
-  activeBookmarkId: null, // New: ID of active bookmark for visual indication
-  // Column view state
-  columnState: {
-    paths: [],
-    filesByPath: {},
-    selectedByColumn: {},
-    focusedIndex: 0,
-  },
+  columnState: { ...DEFAULT_COLUMN_STATE },
+  previewFile: null,
 });
+
+// Snapshot the current pane-level state into a tab object
+const snapshotTab = (pane, globalPreviewFile) => {
+  const base = pane.basePath || pane.path || '/';
+  return {
+    id: pane.tabs[pane.activeTab]?.id || `tab-${Date.now()}`,
+    path: pane.path || '/',
+    basePath: base,
+    currentBreadcrumbPath: pane.currentBreadcrumbPath || base,
+    label: base === '/' ? '/' : base.split('/').pop(),
+    files: pane.files || [],
+    selectedFiles: new Set(pane.selectedFiles || []),
+    activeBookmarkId: pane.activeBookmarkId || null,
+    viewMode: pane.viewMode || 'column',
+    sortBy: pane.sortBy || 'name',
+    sortOrder: pane.sortOrder || 'asc',
+    columnState: pane.columnState ? { ...pane.columnState } : { ...DEFAULT_COLUMN_STATE },
+    previewFile: globalPreviewFile || null,
+  };
+};
+
+// Restore pane-level state from a tab object
+const restoreFromTab = (tab) => ({
+  path: tab.path,
+  basePath: tab.basePath,
+  currentBreadcrumbPath: tab.currentBreadcrumbPath,
+  files: tab.files || [],
+  selectedFiles: new Set(tab.selectedFiles || []),
+  activeBookmarkId: tab.activeBookmarkId || null,
+  viewMode: tab.viewMode || 'column',
+  sortBy: tab.sortBy || 'name',
+  sortOrder: tab.sortOrder || 'asc',
+  columnState: tab.columnState || { ...DEFAULT_COLUMN_STATE },
+  // Note: previewFile is restored separately in global state
+});
+
+const createPane = (id, initialPath = '/') => {
+  const firstTab = createTabState(initialPath);
+  return {
+    id,
+    path: initialPath,
+    files: [],
+    loading: false,
+    error: null,
+    selectedFiles: new Set(),
+    sortBy: 'name',
+    sortOrder: 'asc',
+    viewMode: 'column', // Column view as default
+    tabs: [firstTab],
+    activeTab: 0,
+    currentBreadcrumbPath: initialPath,
+    basePath: initialPath, // New: starting point for column navigation
+    activeBookmarkId: null, // New: ID of active bookmark for visual indication
+    // Column view state
+    columnState: { ...DEFAULT_COLUMN_STATE },
+  };
+};
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useStore = create((set, get) => ({
@@ -33,6 +89,7 @@ export const useStore = create((set, get) => ({
   activePane: 'left',
   splitRatio: 0.5,
   showRightPane: false,
+  homeDir: '/', // Will be set during init
 
   setActivePane: (paneId) => set({ activePane: paneId }),
   setSplitRatio: (ratio) => set({ splitRatio: ratio }),
@@ -60,16 +117,18 @@ export const useStore = create((set, get) => ({
     }
 
     const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
-    const newTabs = pane.tabs.map((t, i) =>
-      i === pane.activeTab ? { ...t, path: dirPath, label: dirPath === '/' ? '/' : dirPath.split('/').pop() } : t
-    );
 
-    set(s => ({
-      panes: s.panes.map(p => p.id === paneId
-        ? { ...p, path: dirPath, files, loading: false, selectedFiles: new Set(), tabs: newTabs }
-        : p
-      ),
-    }));
+    set(s => {
+      const currentPane = s.panes.find(p => p.id === paneId);
+      const updatedPane = { ...currentPane, path: dirPath, files, loading: false, selectedFiles: new Set() };
+      // Snapshot into active tab
+      const newTabs = currentPane.tabs.map((t, i) =>
+        i === currentPane.activeTab ? snapshotTab(updatedPane, s.previewFile) : t
+      );
+      return {
+        panes: s.panes.map(p => p.id === paneId ? { ...updatedPane, tabs: newTabs } : p),
+      };
+    });
 
     // Start watching this directory
     window.electronAPI.watcherStart(dirPath);
@@ -104,16 +163,17 @@ export const useStore = create((set, get) => ({
     }
 
     const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
-    const newTabs = pane.tabs.map((t, i) =>
-      i === pane.activeTab ? { ...t, path: dirPath, label: dirPath === '/' ? '/' : dirPath.split('/').pop() } : t
-    );
 
-    set(s => ({
-      panes: s.panes.map(p => p.id === paneId
-        ? { ...p, path: dirPath, files, loading: false, selectedFiles: new Set(), tabs: newTabs }
-        : p
-      ),
-    }));
+    set(s => {
+      const currentPane = s.panes.find(p => p.id === paneId);
+      const updatedPane = { ...currentPane, path: dirPath, files, loading: false, selectedFiles: new Set() };
+      const newTabs = currentPane.tabs.map((t, i) =>
+        i === currentPane.activeTab ? snapshotTab(updatedPane, s.previewFile) : t
+      );
+      return {
+        panes: s.panes.map(p => p.id === paneId ? { ...updatedPane, tabs: newTabs } : p),
+      };
+    });
 
     window.electronAPI.watcherStart(dirPath);
     get().saveSession();
@@ -148,16 +208,17 @@ export const useStore = create((set, get) => ({
     }
 
     const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
-    const newTabs = pane.tabs.map((t, i) =>
-      i === pane.activeTab ? { ...t, path: dirPath, label: dirPath === '/' ? '/' : dirPath.split('/').pop() } : t
-    );
 
-    set(s => ({
-      panes: s.panes.map(p => p.id === paneId
-        ? { ...p, path: dirPath, files, loading: false, selectedFiles: new Set(), tabs: newTabs }
-        : p
-      ),
-    }));
+    set(s => {
+      const currentPane = s.panes.find(p => p.id === paneId);
+      const updatedPane = { ...currentPane, path: dirPath, files, loading: false, selectedFiles: new Set() };
+      const newTabs = currentPane.tabs.map((t, i) =>
+        i === currentPane.activeTab ? snapshotTab(updatedPane, null) : t
+      );
+      return {
+        panes: s.panes.map(p => p.id === paneId ? { ...updatedPane, tabs: newTabs } : p),
+      };
+    });
 
     // Start watching this directory
     window.electronAPI.watcherStart(dirPath);
@@ -194,26 +255,61 @@ export const useStore = create((set, get) => ({
 
   setCurrentBreadcrumbPath: (paneId, path) => {
     set(s => ({
-      panes: s.panes.map(p => p.id === paneId ? { ...p, currentBreadcrumbPath: path } : p),
+      panes: s.panes.map(p => {
+        if (p.id !== paneId) return p;
+        const updated = { ...p, currentBreadcrumbPath: path };
+        const newTabs = p.tabs.map((t, i) =>
+          i === p.activeTab ? snapshotTab(updated, s.previewFile) : t
+        );
+        return { ...updated, tabs: newTabs };
+      }),
     }));
     get().saveSession();
   },
 
   setViewMode: (paneId, viewMode) => set(s => ({
-    panes: s.panes.map(p => p.id === paneId ? { ...p, viewMode } : p),
+    panes: s.panes.map(p => {
+      if (p.id !== paneId) return p;
+      const updated = { ...p, viewMode };
+      const newTabs = p.tabs.map((t, i) =>
+        i === p.activeTab ? snapshotTab(updated, s.previewFile) : t
+      );
+      return { ...updated, tabs: newTabs };
+    }),
   })),
 
   // ── Column View State ─────────────────────────────────────────────────────
   setColumnState: (paneId, columnState) => set(s => ({
-    panes: s.panes.map(p => p.id === paneId ? { ...p, columnState } : p),
+    panes: s.panes.map(p => {
+      if (p.id !== paneId) return p;
+      const updated = { ...p, columnState };
+      const newTabs = p.tabs.map((t, i) =>
+        i === p.activeTab ? snapshotTab(updated, s.previewFile) : t
+      );
+      return { ...updated, tabs: newTabs };
+    }),
   })),
 
   updateColumnState: (paneId, updates) => set(s => ({
-    panes: s.panes.map(p => p.id === paneId ? { ...p, columnState: { ...p.columnState, ...updates } } : p),
+    panes: s.panes.map(p => {
+      if (p.id !== paneId) return p;
+      const updated = { ...p, columnState: { ...p.columnState, ...updates } };
+      const newTabs = p.tabs.map((t, i) =>
+        i === p.activeTab ? snapshotTab(updated, s.previewFile) : t
+      );
+      return { ...updated, tabs: newTabs };
+    }),
   })),
 
   clearColumnState: (paneId) => set(s => ({
-    panes: s.panes.map(p => p.id === paneId ? { ...p, columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 } } : p),
+    panes: s.panes.map(p => {
+      if (p.id !== paneId) return p;
+      const updated = { ...p, columnState: { ...DEFAULT_COLUMN_STATE } };
+      const newTabs = p.tabs.map((t, i) =>
+        i === p.activeTab ? snapshotTab(updated, s.previewFile) : t
+      );
+      return { ...updated, tabs: newTabs };
+    }),
   })),
 
   // ── Pane Refresh ──────────────────────────────────────────────────────────
@@ -241,36 +337,88 @@ export const useStore = create((set, get) => ({
   },
 
   // ── Tabs ─────────────────────────────────────────────────────────────────
-  addTab: (paneId, tabPath) => set(s => {
-    const pane = s.panes.find(p => p.id === paneId);
-    if (!pane) return s;
-    const newTab = { id: `tab-${Date.now()}`, path: tabPath || pane.path, label: tabPath ? tabPath.split('/').pop() || '/' : pane.path.split('/').pop() || '/' };
-    return {
+  addTab: (paneId, tabPath) => {
+    const { homeDir } = get();
+    const desktopPath = tabPath || (homeDir + '/Desktop');
+
+    // Snapshot current tab state before switching, and apply new tab defaults to pane
+    set(s => {
+      const pane = s.panes.find(p => p.id === paneId);
+      if (!pane) return s;
+      // Save current pane state into the current active tab
+      const savedTabs = pane.tabs.map((t, i) =>
+        i === pane.activeTab ? snapshotTab(pane, s.previewFile) : t
+      );
+      const newTab = createTabState(desktopPath);
+      return {
+        panes: s.panes.map(p => p.id === paneId
+          ? { ...p, ...restoreFromTab(newTab), tabs: [...savedTabs, newTab], activeTab: savedTabs.length }
+          : p
+        ),
+        // New tab has no preview
+        previewFile: null,
+        showPreview: false,
+      };
+    });
+
+    // Navigate the new tab to Desktop to load files
+    get().navigateTo(paneId, desktopPath);
+  },
+
+  closeTab: (paneId, tabIndex) => {
+    const pane = get().panes.find(p => p.id === paneId);
+    if (!pane || pane.tabs.length <= 1) return;
+
+    const { previewFile } = get();
+    // Save current state into active tab first
+    const savedTabs = pane.tabs.map((t, i) =>
+      i === pane.activeTab ? snapshotTab(pane, previewFile) : t
+    );
+    const newTabs = savedTabs.filter((_, i) => i !== tabIndex);
+    let newActive = pane.activeTab;
+    if (tabIndex < newActive) {
+      newActive = newActive - 1;
+    } else if (tabIndex === newActive) {
+      newActive = Math.min(newActive, newTabs.length - 1);
+    }
+    const tabToRestore = newTabs[newActive];
+
+    set(s => ({
       panes: s.panes.map(p => p.id === paneId
-        ? { ...p, tabs: [...p.tabs, newTab], activeTab: p.tabs.length }
+        ? { ...p, tabs: newTabs, activeTab: newActive, ...restoreFromTab(tabToRestore) }
         : p
       ),
-    };
-  }),
-
-  closeTab: (paneId, tabIndex) => set(s => {
-    const pane = s.panes.find(p => p.id === paneId);
-    if (!pane || pane.tabs.length <= 1) return s;
-    const newTabs = pane.tabs.filter((_, i) => i !== tabIndex);
-    const newActive = Math.min(pane.activeTab, newTabs.length - 1);
-    return {
-      panes: s.panes.map(p => p.id === paneId ? { ...p, tabs: newTabs, activeTab: newActive } : p),
-    };
-  }),
+      // Restore preview from the new active tab
+      previewFile: tabToRestore.previewFile || null,
+      showPreview: !!tabToRestore.previewFile,
+    }));
+    get().saveSession();
+  },
 
   switchTab: (paneId, tabIndex) => {
-    const { panes, navigateTo } = get();
+    const { panes } = get();
     const pane = panes.find(p => p.id === paneId);
-    if (!pane) return;
-    set(s => ({
-      panes: s.panes.map(p => p.id === paneId ? { ...p, activeTab: tabIndex } : p),
-    }));
-    navigateTo(paneId, pane.tabs[tabIndex].path);
+    if (!pane || tabIndex === pane.activeTab) return;
+
+    // Snapshot current tab, then restore target tab
+    set(s => {
+      const currentPane = s.panes.find(p => p.id === paneId);
+      // Save current pane state into the currently active tab
+      const savedTabs = currentPane.tabs.map((t, i) =>
+        i === currentPane.activeTab ? snapshotTab(currentPane, s.previewFile) : t
+      );
+      const targetTab = savedTabs[tabIndex];
+      return {
+        panes: s.panes.map(p => p.id === paneId
+          ? { ...p, tabs: savedTabs, activeTab: tabIndex, ...restoreFromTab(targetTab) }
+          : p
+        ),
+        // Restore preview from target tab
+        previewFile: targetTab.previewFile || null,
+        showPreview: !!targetTab.previewFile,
+      };
+    });
+    get().saveSession();
   },
 
   // ── File Navigation ───────────────────────────────────────────────────────
@@ -315,12 +463,44 @@ export const useStore = create((set, get) => ({
   showPreview: false,
   previewWidth: 300,
   setPreviewFile: (file) => {
-    set({ previewFile: file, showPreview: !!file });
+    set(s => {
+      // Update global preview and snapshot into active tab of active pane
+      const { activePane, panes } = s;
+      const pane = panes.find(p => p.id === activePane);
+      if (!pane) return { previewFile: file, showPreview: !!file };
+      
+      const updatedPane = { ...pane };
+      const newTabs = pane.tabs.map((t, i) =>
+        i === pane.activeTab ? snapshotTab(updatedPane, file) : t
+      );
+      
+      return {
+        previewFile: file,
+        showPreview: !!file,
+        panes: panes.map(p => p.id === activePane ? { ...p, tabs: newTabs } : p),
+      };
+    });
     // Persist after state is updated
     setTimeout(() => get().saveSession(), 0);
   },
   closePreview: () => {
-    set({ previewFile: null, showPreview: false });
+    set(s => {
+      // Clear global preview and snapshot into active tab of active pane
+      const { activePane, panes } = s;
+      const pane = panes.find(p => p.id === activePane);
+      if (!pane) return { previewFile: null, showPreview: false };
+      
+      const updatedPane = { ...pane };
+      const newTabs = pane.tabs.map((t, i) =>
+        i === pane.activeTab ? snapshotTab(updatedPane, null) : t
+      );
+      
+      return {
+        previewFile: null,
+        showPreview: false,
+        panes: panes.map(p => p.id === activePane ? { ...p, tabs: newTabs } : p),
+      };
+    });
     setTimeout(() => get().saveSession(), 0);
   },
   setPreviewWidth: (w) => {
@@ -383,14 +563,18 @@ export const useStore = create((set, get) => ({
   })),
 
   pasteClipboard: async (destDir) => {
-    const { clipboardQueue, clipboardMode, activePane, refreshPane } = get();
+    const { clipboardQueue, clipboardMode } = get();
+    const errors = [];
     for (const src of clipboardQueue) {
       const dest = `${destDir}/${src.split('/').pop()}`;
-      if (clipboardMode === 'copy') await window.electronAPI.copy(src, dest);
-      else await window.electronAPI.move(src, dest);
+      const result = clipboardMode === 'copy'
+        ? await window.electronAPI.copy(src, dest)
+        : await window.electronAPI.move(src, dest);
+      if (result && !result.success) errors.push(src);
     }
-    if (clipboardMode === 'cut') set({ clipboardQueue: [] });
+    if (clipboardMode === 'cut') set({ clipboardQueue: [], clipboardMode: 'copy' });
     get().panes.forEach(p => get().refreshPane(p.id));
+    return errors;
   },
 
   // ── Tags ─────────────────────────────────────────────────────────────────
@@ -550,16 +734,37 @@ export const useStore = create((set, get) => ({
   saveSession: () => {
     if (!get().initialized) return; // Don't overwrite storage during init
     const { panes, activePane, previewFile } = get();
-    const session = panes.map(p => ({
-      id: p.id,
-      path: p.path,
-      basePath: p.basePath,
-      currentBreadcrumbPath: p.currentBreadcrumbPath,
-      selectedFiles: [...(p.selectedFiles || [])],
-      viewMode: p.viewMode,
-      sortBy: p.sortBy,
-      sortOrder: p.sortOrder,
-    }));
+    const session = panes.map(p => {
+      // Snapshot current pane state into active tab before saving
+      const savedTabs = p.tabs.map((t, i) =>
+        i === p.activeTab ? snapshotTab(p, p.id === activePane ? previewFile : t.previewFile) : t
+      );
+      return {
+        id: p.id,
+        path: p.path,
+        basePath: p.basePath,
+        currentBreadcrumbPath: p.currentBreadcrumbPath,
+        selectedFiles: [...(p.selectedFiles || [])],
+        viewMode: p.viewMode,
+        sortBy: p.sortBy,
+        sortOrder: p.sortOrder,
+        activeTab: p.activeTab,
+        tabs: savedTabs.map(t => ({
+          id: t.id,
+          path: t.path,
+          basePath: t.basePath,
+          currentBreadcrumbPath: t.currentBreadcrumbPath,
+          label: t.label,
+          activeBookmarkId: t.activeBookmarkId || null,
+          viewMode: t.viewMode || 'column',
+          sortBy: t.sortBy || 'name',
+          sortOrder: t.sortOrder || 'asc',
+          selectedFiles: [...(t.selectedFiles || [])],
+          columnState: t.columnState || { ...DEFAULT_COLUMN_STATE },
+          previewFilePath: t.previewFile?.path || null,
+        })),
+      };
+    });
     window.electronAPI.storeSet('session', {
       panes: session,
       activePane,
@@ -571,6 +776,7 @@ export const useStore = create((set, get) => ({
   initialized: false,
   init: async () => {
     const homeDir = await window.electronAPI.getHomeDir();
+    set({ homeDir });
 
     // Restore persisted UI state
     const [savedSidebar, savedSession, savedZoom, savedPreviewWidth, savedSidebarWidth, savedTheme] = await Promise.all([
@@ -589,8 +795,6 @@ export const useStore = create((set, get) => ({
     if (savedTheme != null) set({ currentTheme: savedTheme });
 
     // Determine starting paths from session or fallback to homeDir
-    let leftPath = homeDir;
-    let rightPath = homeDir;
     let savedActivePane = 'left';
     let leftSession = null;
     let rightSession = null;
@@ -598,109 +802,200 @@ export const useStore = create((set, get) => ({
     if (savedSession?.panes) {
       leftSession = savedSession.panes.find(p => p.id === 'left') || null;
       rightSession = savedSession.panes.find(p => p.id === 'right') || null;
-      if (leftSession?.path) leftPath = leftSession.basePath || leftSession.path;
-      if (rightSession?.path) rightPath = rightSession.basePath || rightSession.path;
       if (savedSession.activePane) savedActivePane = savedSession.activePane;
     }
 
-    await Promise.all([
-      get().navigateTo('left', leftPath),
-      get().navigateTo('right', rightPath),
-      get().loadBookmarks(),
-      get().loadAllTags(),
-    ]);
-
-    // Restore breadcrumb/column state and re-hydrate filesByPath for all column paths
-    if (savedSession?.panes) {
-      // Compute which paths need to be fetched for each pane
-      const hydratePane = async (ps) => {
-        if (!ps) return {};
-        const breadcrumb = ps.currentBreadcrumbPath || ps.path;
-        const base = ps.basePath || ps.path;
-        // Compute column paths from base + breadcrumb
-        const colPaths = [];
-        if (breadcrumb.startsWith(base)) {
-          const fullParts = breadcrumb.split('/');
-          let current = '';
-          for (let i = 0; i < fullParts.length; i++) {
-            current += (i === 0 ? '' : '/') + fullParts[i];
-            if (current.startsWith(base) && current.length >= base.length) {
-              colPaths.push(current);
-            }
-          }
-        } else {
-          colPaths.push(base);
-        }
-        // Fetch files for each column path
-        const entries = await Promise.all(
-          colPaths.map(cp => window.electronAPI.readdir(cp).then(r => [cp, r.success ? r.files : []]))
-        );
-        return Object.fromEntries(entries);
-      };
-
-      const [leftFiles, rightFiles] = await Promise.all([
-        hydratePane(leftSession),
-        hydratePane(rightSession),
-      ]);
-
-      // Helper: compute focusedIndex from basePath + currentBreadcrumbPath
-      const computeFocusedIndex = (base, breadcrumb) => {
-        if (!breadcrumb.startsWith(base)) return 0;
+    // Helper: hydrate a single tab's column filesByPath from disk
+    const hydrateTab = async (tab) => {
+      if (!tab) return {};
+      const breadcrumb = tab.currentBreadcrumbPath || tab.path;
+      const base = tab.basePath || tab.path;
+      const colPaths = [];
+      if (breadcrumb.startsWith(base)) {
         const fullParts = breadcrumb.split('/');
-        const baseParts = base.split('/');
-        let count = 0;
         let current = '';
         for (let i = 0; i < fullParts.length; i++) {
           current += (i === 0 ? '' : '/') + fullParts[i];
-          if (current.startsWith(base) && current.length >= base.length) count++;
+          if (current.startsWith(base) && current.length >= base.length) {
+            colPaths.push(current);
+          }
         }
-        return Math.max(0, count - 1);
+      } else {
+        colPaths.push(base);
+      }
+      const entries = await Promise.all(
+        colPaths.map(cp => window.electronAPI.readdir(cp).then(r => [cp, r.success ? r.files : []]))
+      );
+      return Object.fromEntries(entries);
+    };
+
+    const computeFocusedIndex = (base, breadcrumb) => {
+      if (!breadcrumb.startsWith(base)) return 0;
+      const fullParts = breadcrumb.split('/');
+      let count = 0;
+      let current = '';
+      for (let i = 0; i < fullParts.length; i++) {
+        current += (i === 0 ? '' : '/') + fullParts[i];
+        if (current.startsWith(base) && current.length >= base.length) count++;
+      }
+      return Math.max(0, count - 1);
+    };
+
+    // Helper: fully hydrate all tabs for a pane session
+    const hydratePaneSession = async (ps) => {
+      if (!ps || !ps.tabs || ps.tabs.length === 0) return null;
+
+      const hydratedTabs = await Promise.all(ps.tabs.map(async (tab) => {
+        const filesByPath = await hydrateTab(tab);
+        const base = tab.basePath || tab.path;
+        const breadcrumb = tab.currentBreadcrumbPath || tab.path;
+        const focusedIndex = computeFocusedIndex(base, breadcrumb);
+        // Also load the base directory files for the tab
+        const baseDirResult = await window.electronAPI.readdir(base);
+        const files = baseDirResult.success ? baseDirResult.files : [];
+        // Restore preview file if saved
+        let previewFile = null;
+        if (tab.previewFilePath) {
+          const statResult = await window.electronAPI.stat(tab.previewFilePath);
+          if (statResult.success && statResult.stat) {
+            const fileName = tab.previewFilePath.split('/').pop();
+            const extension = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+            previewFile = {
+              ...statResult.stat,
+              path: tab.previewFilePath,
+              name: fileName,
+              extension,
+              isDirectory: statResult.stat.isDirectory,
+            };
+          }
+        }
+        return {
+          ...tab,
+          files,
+          selectedFiles: new Set(tab.selectedFiles || []),
+          columnState: {
+            ...(tab.columnState || { ...DEFAULT_COLUMN_STATE }),
+            filesByPath,
+            focusedIndex,
+          },
+          previewFile,
+        };
+      }));
+
+      const activeTabIdx = ps.activeTab || 0;
+      const activeTab = hydratedTabs[activeTabIdx];
+
+      return {
+        tabs: hydratedTabs,
+        activeTab: activeTabIdx,
+        ...restoreFromTab(activeTab),
+        // Also return the preview file from active tab to set globally
+        activeTabPreviewFile: activeTab.previewFile || null,
       };
+    };
+
+    // If we have saved session with tabs, restore them fully
+    if (leftSession?.tabs?.length || rightSession?.tabs?.length) {
+      const [leftHydrated, rightHydrated] = await Promise.all([
+        hydratePaneSession(leftSession),
+        hydratePaneSession(rightSession),
+      ]);
+
+      await Promise.all([
+        get().loadBookmarks(),
+        get().loadAllTags(),
+      ]);
+
+      // For panes without saved tabs, navigate to homeDir
+      if (!leftHydrated) await get().navigateTo('left', homeDir);
+      if (!rightHydrated) await get().navigateTo('right', homeDir);
+
+      // Determine which preview to show (from active pane's active tab)
+      const activePaneHydrated = savedActivePane === 'left' ? leftHydrated : rightHydrated;
+      const globalPreview = activePaneHydrated?.activeTabPreviewFile || null;
 
       set(s => ({
         activePane: savedActivePane,
         panes: s.panes.map(p => {
-          const ps = savedSession.panes.find(sp => sp.id === p.id);
-          if (!ps) return p;
-          const filesByPath = p.id === 'left' ? leftFiles : rightFiles;
-          const base = ps.basePath || p.path;
-          const breadcrumb = ps.currentBreadcrumbPath || p.path;
-          const focusedIndex = computeFocusedIndex(base, breadcrumb);
-          return {
-            ...p,
-            currentBreadcrumbPath: breadcrumb,
-            basePath: base,
-            selectedFiles: new Set(ps.selectedFiles || []),
-            viewMode: ps.viewMode || p.viewMode,
-            sortBy: ps.sortBy || p.sortBy,
-            sortOrder: ps.sortOrder || p.sortOrder,
-            columnState: {
-              ...p.columnState,
-              filesByPath,
-              focusedIndex,
-            },
-          };
+          const hydrated = p.id === 'left' ? leftHydrated : rightHydrated;
+          if (!hydrated) return p;
+          return { ...p, ...hydrated, loading: false, error: null };
         }),
+        previewFile: globalPreview,
+        showPreview: !!globalPreview,
       }));
+    } else {
+      // Legacy session or fresh start
+      let leftPath = homeDir;
+      let rightPath = homeDir;
 
-      // Restore preview file if one was open
-      if (savedSession.previewFilePath) {
-        const statResult = await window.electronAPI.stat(savedSession.previewFilePath);
-        if (statResult.success && statResult.stat) {
-          const fp = savedSession.previewFilePath;
-          const fileName = fp.split('/').pop();
-          const extension = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
-          set({
-            previewFile: {
-              ...statResult.stat,
-              path: fp,
-              name: fileName,
-              extension,
-              isDirectory: statResult.stat.isDirectory,
-            },
-            showPreview: true,
-          });
-        }
+      if (leftSession?.path) leftPath = leftSession.basePath || leftSession.path;
+      if (rightSession?.path) rightPath = rightSession.basePath || rightSession.path;
+
+      await Promise.all([
+        get().navigateTo('left', leftPath),
+        get().navigateTo('right', rightPath),
+        get().loadBookmarks(),
+        get().loadAllTags(),
+      ]);
+
+      // Restore breadcrumb/column state for legacy sessions
+      if (savedSession?.panes) {
+        const hydratePane = async (ps) => {
+          if (!ps) return {};
+          return await hydrateTab(ps);
+        };
+
+        const [leftFiles, rightFiles] = await Promise.all([
+          hydratePane(leftSession),
+          hydratePane(rightSession),
+        ]);
+
+        set(s => ({
+          activePane: savedActivePane,
+          panes: s.panes.map(p => {
+            const ps = savedSession.panes.find(sp => sp.id === p.id);
+            if (!ps) return p;
+            const filesByPath = p.id === 'left' ? leftFiles : rightFiles;
+            const base = ps.basePath || p.path;
+            const breadcrumb = ps.currentBreadcrumbPath || p.path;
+            const focusedIndex = computeFocusedIndex(base, breadcrumb);
+            return {
+              ...p,
+              currentBreadcrumbPath: breadcrumb,
+              basePath: base,
+              selectedFiles: new Set(ps.selectedFiles || []),
+              viewMode: ps.viewMode || p.viewMode,
+              sortBy: ps.sortBy || p.sortBy,
+              sortOrder: ps.sortOrder || p.sortOrder,
+              columnState: {
+                ...p.columnState,
+                filesByPath,
+                focusedIndex,
+              },
+            };
+          }),
+        }));
+      }
+    }
+
+    // Legacy: Restore preview file if one was open (for old sessions without per-tab preview)
+    if (savedSession?.previewFilePath && !leftSession?.tabs?.length && !rightSession?.tabs?.length) {
+      const statResult = await window.electronAPI.stat(savedSession.previewFilePath);
+      if (statResult.success && statResult.stat) {
+        const fp = savedSession.previewFilePath;
+        const fileName = fp.split('/').pop();
+        const extension = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+        set({
+          previewFile: {
+            ...statResult.stat,
+            path: fp,
+            name: fileName,
+            extension,
+            isDirectory: statResult.stat.isDirectory,
+          },
+          showPreview: true,
+        });
       }
     }
 

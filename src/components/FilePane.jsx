@@ -36,7 +36,7 @@ const Tab = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  padding-inline: 10px;
+  padding-inline: 10px 2px;
   cursor: pointer;
   font-size: 10px;
   color: ${p => p.theme.text.secondary};
@@ -296,6 +296,41 @@ const StatusBar = styled.div`
   flex-shrink: 0;
 `;
 
+const InlineCreateRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: ${p => p.theme.bg.secondary};
+  border-top: 1px solid ${p => p.theme.border.subtle};
+  flex-shrink: 0;
+  input {
+    flex: 1;
+    background: ${p => p.theme.bg.elevated};
+    border: 1px solid ${p => p.theme.accent.blue};
+    border-radius: ${p => p.theme.radius.sm};
+    color: ${p => p.theme.text.primary};
+    font-size: 12px;
+    padding: 4px 8px;
+    outline: none;
+  }
+  button {
+    background: none;
+    border: 1px solid ${p => p.theme.border.normal};
+    color: ${p => p.theme.text.secondary};
+    border-radius: ${p => p.theme.radius.sm};
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    &:hover { background: ${p => p.theme.bg.hover}; }
+  }
+  span {
+    font-size: 11px;
+    color: ${p => p.theme.text.tertiary};
+    flex-shrink: 0;
+  }
+`;
+
 const ColumnsContainer = styled.div`
   display: flex;
   flex: 1;
@@ -510,6 +545,7 @@ export default function FilePane({ paneId }) {
     getColumnPaths,
     getActiveBookmark,
     activeModal,
+    openModal,
     showSearch,
     showSidebar,
     bookmarks,
@@ -528,6 +564,9 @@ export default function FilePane({ paneId }) {
   const [contextMenuFile, setContextMenuFile] = useState(null);
   const [renameFile, setRenameFile] = useState(null);
   const [renameValue, setRenameValue] = useState('');
+  const [creatingName, setCreatingName] = useState(null); // 'folder' | 'file'
+  const [creatingNameValue, setCreatingNameValue] = useState('');
+  const creatingInputRef = useRef(null);
   const [dragOver, setDragOver] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [draggedFiles, setDraggedFiles] = useState([]);
@@ -775,8 +814,14 @@ export default function FilePane({ paneId }) {
     // Determine the breadcrumb we want after navigation
     const revealBreadcrumb = isDirectory ? filePath : fileDir;
 
+    // Preserve the existing basePath so we don't reset the tab's root.
+    // Only fall back to fileDir if basePath isn't set or fileDir isn't under it.
+    const currentPane = state.panes.find(p => p.id === paneId);
+    const existingBase = currentPane?.basePath || fileDir;
+    const revealBase = fileDir.startsWith(existingBase) ? existingBase : fileDir;
+
     // Navigate to parentDir using navigateToReveal which preserves basePath + breadcrumb
-    navigateToReveal(paneId, fileDir, fileDir, revealBreadcrumb);
+    navigateToReveal(paneId, fileDir, revealBase, revealBreadcrumb);
 
     // Clear the reveal target so it doesn't re-trigger
     state.clearRevealTarget();
@@ -1070,12 +1115,30 @@ export default function FilePane({ paneId }) {
     refreshPane(paneId);
   };
 
-  const createFolder = async () => {
-    const name = prompt('New folder name:');
+  const createFolder = () => {
+    setCreatingName('folder');
+    setCreatingNameValue('');
+    setTimeout(() => creatingInputRef.current?.focus(), 50);
+  };
+
+  const createFile = () => {
+    setCreatingName('file');
+    setCreatingNameValue('');
+    setTimeout(() => creatingInputRef.current?.focus(), 50);
+  };
+
+  const commitCreating = async () => {
+    const name = creatingNameValue.trim();
     if (name) {
-      await window.electronAPI.mkdir(`${currentPath}/${name}`);
+      if (creatingName === 'folder') {
+        await window.electronAPI.mkdir(`${currentBreadcrumbPath}/${name}`);
+      } else {
+        await window.electronAPI.writeFile(`${currentBreadcrumbPath}/${name}`, '');
+      }
       refreshPane(paneId);
     }
+    setCreatingName(null);
+    setCreatingNameValue('');
   };
 
   const selectedFileObjects = files.filter(f => selectedFiles.has(f.path));
@@ -1485,6 +1548,26 @@ export default function FilePane({ paneId }) {
         )}
       </FileListArea>
 
+      {/* Inline create input */}
+      {creatingName && (
+        <InlineCreateRow onClick={e => e.stopPropagation()}>
+          <span>{creatingName === 'folder' ? '📁' : '📄'} New {creatingName} name:</span>
+          <input
+            ref={creatingInputRef}
+            value={creatingNameValue}
+            onChange={e => setCreatingNameValue(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') commitCreating();
+              if (e.key === 'Escape') { setCreatingName(null); setCreatingNameValue(''); }
+            }}
+            placeholder={`Enter ${creatingName} name...`}
+            autoFocus
+          />
+          <button onClick={commitCreating}>Create</button>
+          <button onClick={() => { setCreatingName(null); setCreatingNameValue(''); }}>Cancel</button>
+        </InlineCreateRow>
+      )}
+
       {/* Status Bar */}
       <StatusBar>
         <span>{files.length} items · {formatSize(totalSize)}</span>
@@ -1497,6 +1580,7 @@ export default function FilePane({ paneId }) {
           {contextMenu.background ? (
             <>
               <MenuItem onClick={() => { createFolder(); setContextMenu(null); setContextMenuFile(null); }}>📁 New Folder</MenuItem>
+              <MenuItem onClick={() => { createFile(); setContextMenu(null); setContextMenuFile(null); }}>📄 New File</MenuItem>
               <MenuItem onClick={() => { refreshPane(paneId); setContextMenu(null); setContextMenuFile(null); }}>↺ Refresh</MenuItem>
               {clipboardQueue.length > 0 && (
                 <MenuItem onClick={() => { pasteClipboard(currentPath); setContextMenu(null); setContextMenuFile(null); }}>
@@ -1504,21 +1588,27 @@ export default function FilePane({ paneId }) {
                 </MenuItem>
               )}
               <MenuDivider />
-              <MenuItem onClick={() => { openModal('sizeViz', { path: currentPath }); setContextMenu(null); setContextMenuFile(null); }}>
+              <MenuItem onClick={() => { openModal('sizeViz', { path: currentBreadcrumbPath, paneId }); setContextMenu(null); setContextMenuFile(null); }}>
                 📊 Disk Usage Map
               </MenuItem>
             </>
           ) : (
             <>
               {contextMenu.file?.isDirectory && (
-                <MenuItem onClick={() => {
-                  const file = contextMenu.file;
-                  if (!bookmarks.find(bm => bm.path === file.path)) {
-                    const name = file.name || file.path.split('/').pop() || file.path;
-                    setBookmarks([...bookmarks, { id: `bm-${Date.now()}`, name, path: file.path, icon: 'default' }]);
-                  }
-                  setContextMenu(null); setContextMenuFile(null);
-                }}>🔖 Add to Bookmarks</MenuItem>
+                <>
+                  <MenuItem onClick={() => {
+                    const file = contextMenu.file;
+                    if (!bookmarks.find(bm => bm.path === file.path)) {
+                      const name = file.name || file.path.split('/').pop() || file.path;
+                      setBookmarks([...bookmarks, { id: `bm-${Date.now()}`, name, path: file.path, icon: 'default' }]);
+                    }
+                    setContextMenu(null); setContextMenuFile(null);
+                  }}>🔖 Add to Bookmarks</MenuItem>
+                  <MenuItem onClick={() => {
+                    openModal('sizeViz', { path: contextMenu.file.path, paneId });
+                    setContextMenu(null); setContextMenuFile(null);
+                  }}>📊 Disk Usage Map</MenuItem>
+                </>
               )}
               <MenuItem onClick={() => { startRename(contextMenu.file); setContextMenu(null); setContextMenuFile(null); }}>✏️ Rename</MenuItem>
               {selectedFiles.size > 1 && (
