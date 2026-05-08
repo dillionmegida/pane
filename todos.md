@@ -58,3 +58,5 @@
 - i think we should be using react window or something
 
 - when i'm on Cmd + F or smart folders, i'd like the same functionality where if i select a media file, spacebar should play/pause it
+
+* when i delete item, i notice the file tree refreshes and changes the sort...i don't want that

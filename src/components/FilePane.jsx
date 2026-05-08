@@ -1104,15 +1104,43 @@ export default function FilePane({ paneId }) {
     const newPath = `${currentPath}/${renameValue}`;
     await window.electronAPI.rename(renameFile.path, newPath);
     setRenameFile(null);
-    refreshPane(paneId);
+    await refreshPane(paneId);
+
+    // In column view, also refresh the current directory in cached columns
+    if (viewMode === 'column' && columnFiles[currentPath]) {
+      const res = await window.electronAPI.readdir(currentPath);
+      if (res.success) {
+        updateColumnState(paneId, { 
+          filesByPath: { ...columnFiles, [currentPath]: sortFiles(res.files, sortBy, sortOrder) } 
+        });
+      }
+    }
   };
 
   const deleteSelected = async () => {
+    // Track which directories are affected by deletions
+    const affectedDirs = new Set();
     for (const fp of selectedFiles) {
+      const parentDir = fp.split('/').slice(0, -1).join('/') || '/';
+      affectedDirs.add(parentDir);
       await window.electronAPI.delete(fp);
     }
     setSelection(paneId, []);
-    refreshPane(paneId);
+    await refreshPane(paneId);
+
+    // In column view, also refresh all affected directories in cached columns
+    if (viewMode === 'column' && affectedDirs.size > 0) {
+      const updatedFilesByPath = { ...columnFiles };
+      for (const dir of affectedDirs) {
+        if (columnFiles[dir]) {
+          const res = await window.electronAPI.readdir(dir);
+          if (res.success) {
+            updatedFilesByPath[dir] = sortFiles(res.files, sortBy, sortOrder);
+          }
+        }
+      }
+      updateColumnState(paneId, { filesByPath: updatedFilesByPath });
+    }
   };
 
   const createFolder = () => {
@@ -1135,7 +1163,17 @@ export default function FilePane({ paneId }) {
       } else {
         await window.electronAPI.writeFile(`${currentBreadcrumbPath}/${name}`, '');
       }
-      refreshPane(paneId);
+      await refreshPane(paneId);
+
+      // In column view, also refresh the current directory in cached columns
+      if (viewMode === 'column' && columnFiles[currentBreadcrumbPath]) {
+        const res = await window.electronAPI.readdir(currentBreadcrumbPath);
+        if (res.success) {
+          updateColumnState(paneId, { 
+            filesByPath: { ...columnFiles, [currentBreadcrumbPath]: sortFiles(res.files, sortBy, sortOrder) } 
+          });
+        }
+      }
     }
     setCreatingName(null);
     setCreatingNameValue('');
@@ -1581,7 +1619,21 @@ export default function FilePane({ paneId }) {
             <>
               <MenuItem onClick={() => { createFolder(); setContextMenu(null); setContextMenuFile(null); }}>📁 New Folder</MenuItem>
               <MenuItem onClick={() => { createFile(); setContextMenu(null); setContextMenuFile(null); }}>📄 New File</MenuItem>
-              <MenuItem onClick={() => { refreshPane(paneId); setContextMenu(null); setContextMenuFile(null); }}>↺ Refresh</MenuItem>
+              <MenuItem onClick={async () => { 
+                await refreshPane(paneId); 
+                // In column view, also refresh all cached column directories
+                if (viewMode === 'column') {
+                  const updatedFilesByPath = { ...columnFiles };
+                  for (const colPath of Object.keys(columnFiles)) {
+                    const res = await window.electronAPI.readdir(colPath);
+                    if (res.success) {
+                      updatedFilesByPath[colPath] = sortFiles(res.files, sortBy, sortOrder);
+                    }
+                  }
+                  updateColumnState(paneId, { filesByPath: updatedFilesByPath });
+                }
+                setContextMenu(null); setContextMenuFile(null); 
+              }}>↺ Refresh</MenuItem>
               {clipboardQueue.length > 0 && (
                 <MenuItem onClick={() => { pasteClipboard(currentPath); setContextMenu(null); setContextMenuFile(null); }}>
                   📋 Paste {clipboardQueue.length} item{clipboardQueue.length > 1 ? 's' : ''}
@@ -1647,7 +1699,17 @@ export default function FilePane({ paneId }) {
                     const sel = [...selectedFiles];
                     const dest = `${currentPath}/${sel.map(p => p.split('/').pop()).join('_')}.zip`;
                     await window.electronAPI.zip({ files: sel, destPath: dest });
-                    refreshPane(paneId);
+                    await refreshPane(paneId);
+
+                    // In column view, also refresh the current directory in cached columns
+                    if (viewMode === 'column' && columnFiles[currentPath]) {
+                      const res = await window.electronAPI.readdir(currentPath);
+                      if (res.success) {
+                        updateColumnState(paneId, { 
+                          filesByPath: { ...columnFiles, [currentPath]: sortFiles(res.files, sortBy, sortOrder) } 
+                        });
+                      }
+                    }
                     setContextMenu(null); setContextMenuFile(null);
                   }}>📦 Zip</MenuItem>
                   {contextMenu.file?.extension === 'zip' && (
@@ -1655,7 +1717,17 @@ export default function FilePane({ paneId }) {
                       const zipFile = contextMenu.file;
                       const destDir = zipFile.path.replace('.zip', '');
                       await window.electronAPI.unzip({ filePath: zipFile.path, destDir });
-                      refreshPane(paneId);
+                      await refreshPane(paneId);
+
+                      // In column view, also refresh the current directory in cached columns
+                      if (viewMode === 'column' && columnFiles[currentPath]) {
+                        const res = await window.electronAPI.readdir(currentPath);
+                        if (res.success) {
+                          updateColumnState(paneId, { 
+                            filesByPath: { ...columnFiles, [currentPath]: sortFiles(res.files, sortBy, sortOrder) } 
+                          });
+                        }
+                      }
                       setContextMenu(null); setContextMenuFile(null);
                     }}>📂 Unzip Here</MenuItem>
                   )}
