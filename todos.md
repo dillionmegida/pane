@@ -52,7 +52,7 @@
 - when i Cmd + F, and i click on a folder or file, reveal is not working...reveal should basically open the directory of that directory/file as the first column, with the directory/file selected. in the case that a directory is selected, then the content of the directory should be shown in the second column and in the case that a file is selected, then the file should be shown in the preview area (this works now, but i'm thinking that reveal can show its own tab)
 - also in the search modal, ensure that delete asks for confirmation modal
 
-- new tabs are not working as expected as well...ensure that all tabs have their own settings and state...and very important, when i close the app and open the app, each tab and their own state should persist
+
 - another one is that, when i do Cmd + F, at the bottom, I can see 0 results and the file directory path...now i'd like to be able to change the directory path to something else...so basically that directory path should be a button i can use to select another directory for Cmd + F to search
 - same thing applies to Smart Folders...where the path is currently [path]:, i'd like the path to be a button i can click to select another path...changing this should not affect the current file tree columns by the way, that should stay the same
 - i think we should be using react window or something
@@ -62,3 +62,5 @@
 * when i delete item, i notice the file tree refreshes and changes the sort...i don't want that
 
 * clicking breadcrumbs does not hide preview pane
+
+* history tracking should work per tab and should not conflict with each other...have test for this

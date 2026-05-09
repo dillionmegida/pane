@@ -550,6 +550,10 @@ export default function FilePane({ paneId }) {
     showSidebar,
     bookmarks,
     setBookmarks,
+    goBackInHistory,
+    goForwardInHistory,
+    pushNavHistory,
+    closePreview,
   } = useStore();
 
   const pane = panes.find(p => p.id === paneId);
@@ -695,6 +699,24 @@ export default function FilePane({ paneId }) {
     }
   };
 
+  // After history navigation restores, scroll the active selection into view
+  useEffect(() => {
+    if (!pane._isRestoringHistory) return;
+    if (viewMode !== 'column') return;
+    // After the DOM updates, scroll to the selected file/dir in the last column
+    setTimeout(() => {
+      if (!columnsContainerRef.current) return;
+      const columns = columnsContainerRef.current.querySelectorAll('[data-column-index]');
+      if (!columns.length) return;
+      const lastColIdx = columns.length - 1;
+      const lastCol = columns[lastColIdx];
+      const selected = lastCol?.querySelector('.selected');
+      if (selected) {
+        selected.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+    }, 50);
+  }, [pane._isRestoringHistory, pane.navigationIndex]);
+
   // Keyboard navigation for column view
   useEffect(() => {
     if (viewMode !== 'column') return;
@@ -827,53 +849,63 @@ export default function FilePane({ paneId }) {
     // For deep nested paths, we need to build the column structure properly
     // Build the path segments from base to target
     const buildColumnPaths = async () => {
-      // Navigate to base first
-      await navigateTo(paneId, revealBase);
-      
+      // Navigate to base first — skip history here, we push one combined entry at the end
+      await navigateTo(paneId, revealBase, { skipHistory: true });
+
       // If fileDir is deeper than base, build column structure
       if (fileDir !== revealBase) {
         const relativePath = fileDir.replace(revealBase, '').replace(/^\//, '');
         const segments = relativePath.split('/').filter(Boolean);
-        
+
         // Build cumulative paths
         let currentPath = revealBase;
         const columnPaths = [revealBase];
         const filesByPath = {};
-        
+
         // Load each directory in the path
         for (const segment of segments) {
           currentPath = `${currentPath}/${segment}`;
           columnPaths.push(currentPath);
-          
+
           const result = await window.electronAPI.readdir(currentPath);
           if (result.success) {
             filesByPath[currentPath] = result.files;
           }
         }
-        
+
         // Update column state with all the paths
         updateColumnState(paneId, {
           paths: columnPaths,
           filesByPath,
           focusedIndex: columnPaths.length - 1
         });
-        
+
         // Set breadcrumb to the target directory
         setCurrentBreadcrumbPath(paneId, fileDir);
       }
-      
+
       // Select the target file/directory
       setSelection(paneId, [filePath]);
-      
+
       // Preview file if it's not a directory
+      let previewFilePath = null;
       if (!isDirectory) {
         const file = await window.electronAPI.stat(filePath);
         if (file.success) {
           const name = filePath.split('/').pop();
           const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
           setPreviewFile({ ...file.stat, path: filePath, name, extension: ext, isDirectory: false });
+          previewFilePath = filePath;
         }
       }
+
+      // Push a single history entry for the full reveal navigation
+      pushNavHistory(paneId, {
+        basePath: revealBase,
+        currentBreadcrumbPath: fileDir,
+        selectedFiles: [filePath],
+        previewFilePath,
+      });
     };
     
     buildColumnPaths();
@@ -948,11 +980,20 @@ export default function FilePane({ paneId }) {
     // Clear context menu when clicking another file
     setContextMenu(null);
     setContextMenuFile(null);
-    
+
     if (file.isDirectory) {
       // For directories, update breadcrumb path and load files if needed
+      const currentPane = useStore.getState().panes.find(p => p.id === paneId);
       setCurrentBreadcrumbPath(paneId, file.path);
-      
+
+      // Push to history for directory navigation
+      pushNavHistory(paneId, {
+        basePath: currentPane.basePath,
+        currentBreadcrumbPath: file.path,
+        selectedFiles: [file.path],
+        previewFilePath: null,
+      });
+
       // Load files for this directory if not already cached
       if (!columnFiles[file.path]) {
         window.electronAPI.readdir(file.path).then(result => {
@@ -961,14 +1002,24 @@ export default function FilePane({ paneId }) {
           }
         });
       }
-      
+
       // Clear preview when directory is selected
       setPreviewFile(null);
     } else {
-      // For files, just preview and update breadcrumb to parent directory
-      setPreviewFile(file);
+      // For files, preview and update breadcrumb to parent directory
+      const currentPane = useStore.getState().panes.find(p => p.id === paneId);
       const parentPath = file.path.split('/').slice(0, -1).join('/') || '/';
       setCurrentBreadcrumbPath(paneId, parentPath);
+
+      // Push to history for file selection (includes preview)
+      pushNavHistory(paneId, {
+        basePath: currentPane.basePath,
+        currentBreadcrumbPath: parentPath,
+        selectedFiles: [file.path],
+        previewFilePath: file.path,
+      });
+
+      setPreviewFile(file);
     }
   };
 
@@ -1423,6 +1474,20 @@ export default function FilePane({ paneId }) {
 
       {/* Toolbar */}
       <Toolbar>
+        <NavBtn 
+          onClick={() => goBackInHistory(paneId)} 
+          disabled={pane.navigationIndex <= 0}
+          title="Go back"
+        >
+          ←
+        </NavBtn>
+        <NavBtn 
+          onClick={() => goForwardInHistory(paneId)} 
+          disabled={pane.navigationIndex >= pane.navigationHistory.length - 1}
+          title="Go forward"
+        >
+          →
+        </NavBtn>
         <Breadcrumb>
           {crumbs.map((crumb, i) => (
             <React.Fragment key={crumb.path}>
@@ -1431,23 +1496,33 @@ export default function FilePane({ paneId }) {
                 className={i === crumbs.length - 1 ? 'last' : ''} 
                 onClick={() => {
                   if (i < crumbs.length - 1) {
+                    // Hide preview pane when clicking breadcrumb
+                    closePreview();
+
                     if (viewMode === 'column') {
-                      // In column view, just trim the breadcrumb path — keep basePath and columns intact
+                      // In column view, trim the breadcrumb path — keep basePath and columns intact
+                      const currentPane = useStore.getState().panes.find(p => p.id === paneId);
                       setCurrentBreadcrumbPath(paneId, crumb.path);
+                      pushNavHistory(paneId, {
+                        basePath: currentPane.basePath,
+                        currentBreadcrumbPath: crumb.path,
+                        selectedFiles: [],
+                        previewFilePath: null,
+                      });
                     } else {
                       // Smart breadcrumb navigation with bookmark scope detection
                       const activeBookmark = getActiveBookmark(paneId);
-                      
+
                       // Check if clicked path is at or under active bookmark
-                      const isUnderBookmark = activeBookmark && 
+                      const isUnderBookmark = activeBookmark &&
                         (crumb.path === activeBookmark.path || crumb.path.startsWith(activeBookmark.path + '/'));
-                      
+
                       if (!isUnderBookmark) {
                         // Reset basePath when navigating outside bookmark scope
                         useStore.getState().updatePane(paneId, { basePath: '/', activeBookmarkId: null });
                       }
-                      
-                      // Always update current path
+
+                      // navigateTo pushes history itself
                       setCurrentBreadcrumbPath(paneId, crumb.path);
                       navigateTo(paneId, crumb.path);
                     }

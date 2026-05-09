@@ -79,6 +79,10 @@ const createPane = (id, initialPath = '/') => {
     activeBookmarkId: null, // New: ID of active bookmark for visual indication
     // Column view state
     columnState: { ...DEFAULT_COLUMN_STATE },
+    // Navigation history
+    navigationHistory: [],
+    navigationIndex: -1,
+    _isRestoringHistory: false,
   };
 };
 
@@ -99,7 +103,7 @@ export const useStore = create((set, get) => ({
     panes: s.panes.map(p => p.id === paneId ? { ...p, ...updates } : p),
   })),
 
-  navigateTo: async (paneId, dirPath) => {
+  navigateTo: async (paneId, dirPath, { skipHistory = false } = {}) => {
     const { panes } = get();
     const pane = panes.find(p => p.id === paneId);
     if (!pane) return;
@@ -129,6 +133,16 @@ export const useStore = create((set, get) => ({
         panes: s.panes.map(p => p.id === paneId ? { ...updatedPane, tabs: newTabs } : p),
       };
     });
+
+    // Push to history unless explicitly skipping (e.g. during history restoration)
+    if (!skipHistory) {
+      get().pushToHistory(paneId, {
+        basePath: dirPath,
+        currentBreadcrumbPath: dirPath,
+        selectedFiles: [],
+        previewFilePath: null,
+      });
+    }
 
     // Start watching this directory
     window.electronAPI.watcherStart(dirPath);
@@ -179,7 +193,7 @@ export const useStore = create((set, get) => ({
     get().saveSession();
   },
 
-  navigateToBookmark: async (paneId, dirPath, bookmarkId) => {
+  navigateToBookmark: async (paneId, dirPath, bookmarkId, { skipHistory = false } = {}) => {
     const { panes } = get();
     const pane = panes.find(p => p.id === paneId);
     if (!pane) return;
@@ -219,6 +233,16 @@ export const useStore = create((set, get) => ({
         panes: s.panes.map(p => p.id === paneId ? { ...updatedPane, tabs: newTabs } : p),
       };
     });
+
+    // Push to history unless explicitly skipping
+    if (!skipHistory) {
+      get().pushToHistory(paneId, {
+        basePath: dirPath,
+        currentBreadcrumbPath: dirPath,
+        selectedFiles: [],
+        previewFilePath: null,
+      });
+    }
 
     // Start watching this directory
     window.electronAPI.watcherStart(dirPath);
@@ -267,6 +291,15 @@ export const useStore = create((set, get) => ({
     get().saveSession();
   },
 
+  // Call this explicitly whenever a user-initiated navigation happens
+  // (column click on dir, breadcrumb click, bookmark, reveal, etc.)
+  // Pass the full state at the time of navigation.
+  pushNavHistory: (paneId, entry) => {
+    const pane = get().panes.find(p => p.id === paneId);
+    if (!pane || pane._isRestoringHistory) return;
+    get().pushToHistory(paneId, entry);
+  },
+
   setViewMode: (paneId, viewMode) => set(s => ({
     panes: s.panes.map(p => {
       if (p.id !== paneId) return p;
@@ -311,6 +344,186 @@ export const useStore = create((set, get) => ({
       return { ...updated, tabs: newTabs };
     }),
   })),
+
+  // ── Navigation History ────────────────────────────────────────────────────
+  pushToHistory: (paneId, entry) => set(s => ({
+    panes: s.panes.map(p => {
+      if (p.id !== paneId) return p;
+
+      // Initialize history if it doesn't exist (for legacy panes)
+      const currentHistory = p.navigationHistory || [];
+      const currentIndex = p.navigationIndex ?? -1;
+
+      // If we're not at the end of history, truncate forward history
+      // (user navigated away from a back position → clear forward path)
+      const newHistory = currentIndex < currentHistory.length - 1
+        ? currentHistory.slice(0, currentIndex + 1)
+        : [...currentHistory];
+
+      newHistory.push(entry);
+
+      // Keep max 50 items
+      if (newHistory.length > 50) {
+        newHistory.shift();
+      }
+
+      return {
+        ...p,
+        navigationHistory: newHistory,
+        navigationIndex: newHistory.length - 1,
+      };
+    }),
+  })),
+
+  goBackInHistory: async (paneId) => {
+    const pane = get().panes.find(p => p.id === paneId);
+    if (!pane || (pane.navigationHistory || []).length === 0) return;
+    const currentIndex = pane.navigationIndex ?? -1;
+    if (currentIndex <= 0) return;
+
+    const targetIndex = currentIndex - 1;
+    const historyEntry = pane.navigationHistory[targetIndex];
+
+    // Mark restoring + update index atomically
+    set(s => ({
+      panes: s.panes.map(p => p.id === paneId
+        ? { ...p, navigationIndex: targetIndex, _isRestoringHistory: true }
+        : p),
+    }));
+
+    await get()._applyHistoryEntry(paneId, historyEntry);
+
+    set(s => ({
+      panes: s.panes.map(p => p.id === paneId ? { ...p, _isRestoringHistory: false } : p),
+    }));
+  },
+
+  goForwardInHistory: async (paneId) => {
+    const pane = get().panes.find(p => p.id === paneId);
+    if (!pane) return;
+    const history = pane.navigationHistory || [];
+    const currentIndex = pane.navigationIndex ?? -1;
+    if (currentIndex >= history.length - 1) return;
+
+    const targetIndex = currentIndex + 1;
+    const historyEntry = history[targetIndex];
+
+    // Mark restoring + update index atomically
+    set(s => ({
+      panes: s.panes.map(p => p.id === paneId
+        ? { ...p, navigationIndex: targetIndex, _isRestoringHistory: true }
+        : p),
+    }));
+
+    await get()._applyHistoryEntry(paneId, historyEntry);
+
+    set(s => ({
+      panes: s.panes.map(p => p.id === paneId ? { ...p, _isRestoringHistory: false } : p),
+    }));
+  },
+
+  _applyHistoryEntry: async (paneId, historyEntry) => {
+    const { basePath, currentBreadcrumbPath, selectedFiles, previewFilePath } = historyEntry;
+
+    // Set loading state
+    set(s => ({
+      panes: s.panes.map(p => p.id === paneId ? {
+        ...p,
+        loading: true,
+        error: null,
+        basePath,
+        currentBreadcrumbPath,
+      } : p),
+    }));
+
+    // Load the base directory
+    const result = await window.electronAPI.readdir(basePath);
+    if (!result.success) {
+      set(s => ({
+        panes: s.panes.map(p => p.id === paneId ? { ...p, loading: false, error: result.error } : p),
+      }));
+      return;
+    }
+
+    const pane = get().panes.find(p => p.id === paneId);
+    const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
+
+    // Build column structure from basePath → currentBreadcrumbPath
+    const columnPaths = [];
+    const filesByPath = {};
+
+    if (currentBreadcrumbPath && currentBreadcrumbPath.startsWith(basePath)) {
+      const fullParts = currentBreadcrumbPath.split('/');
+      let current = '';
+      for (let i = 0; i < fullParts.length; i++) {
+        current += (i === 0 ? '' : '/') + fullParts[i];
+        if (current.length >= basePath.length && current.startsWith(basePath)) {
+          columnPaths.push(current);
+        }
+      }
+
+      // Load files for each intermediate column path
+      for (const colPath of columnPaths) {
+        if (colPath !== basePath) {
+          const colResult = await window.electronAPI.readdir(colPath);
+          if (colResult.success) {
+            filesByPath[colPath] = sortFiles(colResult.files, pane.sortBy, pane.sortOrder);
+          }
+        }
+      }
+    } else {
+      columnPaths.push(basePath);
+    }
+
+    const focusedIndex = Math.max(0, columnPaths.length - 1);
+
+    // Restore preview file if saved
+    let previewFile = null;
+    if (previewFilePath) {
+      const statResult = await window.electronAPI.stat(previewFilePath);
+      if (statResult.success && statResult.stat) {
+        const fileName = previewFilePath.split('/').pop();
+        const extension = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
+        previewFile = {
+          ...statResult.stat,
+          path: previewFilePath,
+          name: fileName,
+          extension,
+          isDirectory: statResult.stat.isDirectory,
+        };
+      }
+    }
+
+    set(s => {
+      const currentPane = s.panes.find(p => p.id === paneId);
+      const updatedPane = {
+        ...currentPane,
+        path: basePath,
+        files,
+        loading: false,
+        selectedFiles: new Set(selectedFiles || []),
+        basePath,
+        currentBreadcrumbPath,
+        columnState: {
+          ...currentPane.columnState,
+          paths: columnPaths,
+          filesByPath,
+          focusedIndex,
+        },
+      };
+      const newTabs = currentPane.tabs.map((t, i) =>
+        i === currentPane.activeTab ? snapshotTab(updatedPane, previewFile) : t
+      );
+      return {
+        panes: s.panes.map(p => p.id === paneId ? { ...updatedPane, tabs: newTabs } : p),
+        previewFile,
+        showPreview: !!previewFile,
+      };
+    });
+
+    window.electronAPI.watcherStart(basePath);
+    get().saveSession();
+  },
 
   // ── Pane Refresh ──────────────────────────────────────────────────────────
   refreshPane: async (paneId) => {
@@ -1008,6 +1221,19 @@ export const useStore = create((set, get) => ({
     });
 
     set({ initialized: true });
+
+    // Push initial state to history for each pane so back arrow works after first navigation
+    const state = get();
+    state.panes.forEach(pane => {
+      if (!pane.navigationHistory || pane.navigationHistory.length === 0) {
+        state.pushToHistory(pane.id, {
+          basePath: pane.basePath,
+          currentBreadcrumbPath: pane.currentBreadcrumbPath,
+          selectedFiles: [...pane.selectedFiles],
+          previewFilePath: state.previewFile?.path || null,
+        });
+      }
+    });
   },
 }));
 

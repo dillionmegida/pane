@@ -148,6 +148,18 @@ export default function App() {
           triggerPreview: !isDirectory,
         });
       }
+      // Cmd+Shift+[ = go back in history
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === '[') {
+        e.preventDefault();
+        const state = useStore.getState();
+        state.goBackInHistory(state.activePane);
+      }
+      // Cmd+Shift+] = go forward in history
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === ']') {
+        e.preventDefault();
+        const state = useStore.getState();
+        state.goForwardInHistory(state.activePane);
+      }
       // Escape = close search / modal
       if (e.key === 'Escape') {
         if (activeModal) closeModal();
