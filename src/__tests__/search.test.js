@@ -243,4 +243,207 @@ describe('Search Results Navigation', () => {
     const leftPane = useStore.getState().panes.find(p => p.id === 'left');
     expect(leftPane.path).toBe('/');
   });
+
+  test('should preserve basePath when revealing file under base directory', async () => {
+    // Setup: pane with Desktop as basePath
+    useStore.setState({
+      panes: [
+        {
+          id: 'left',
+          path: '/Users/dillion/Desktop',
+          basePath: '/Users/dillion/Desktop',
+          files: [],
+          loading: false,
+          error: null,
+          selectedFiles: new Set(),
+          sortBy: 'name',
+          sortOrder: 'asc',
+          viewMode: 'column',
+          tabs: [{ id: 'tab-1', path: '/Users/dillion/Desktop', basePath: '/Users/dillion/Desktop', label: 'Desktop' }],
+          activeTab: 0,
+          currentBreadcrumbPath: '/Users/dillion/Desktop',
+          columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+        },
+      ],
+      activePane: 'left',
+    });
+
+    // Mock readdir for navigateTo and column building
+    window.electronAPI.readdir.mockResolvedValue({ 
+      success: true, 
+      files: [
+        { name: 'directory', path: '/Users/dillion/Desktop/directory', isDirectory: true },
+        { name: 'file.png', path: '/Users/dillion/Desktop/directory/file.png', isDirectory: false }
+      ] 
+    });
+    
+    window.electronAPI.stat.mockResolvedValue({
+      success: true,
+      stat: { size: 1024, modified: Date.now(), isDirectory: false }
+    });
+
+    // Set reveal target for a file under Desktop/directory/file.png
+    const filePath = '/Users/dillion/Desktop/directory/file.png';
+    const fileDir = '/Users/dillion/Desktop/directory';
+
+    await act(async () => {
+      useStore.getState().setRevealTarget({
+        paneId: 'left',
+        filePath,
+        fileDir,
+        isDirectory: false,
+      });
+    });
+
+    // Wait for async operations to complete
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
+
+    const leftPane = useStore.getState().panes.find(p => p.id === 'left');
+    
+    // basePath should remain Desktop, not be overwritten to directory
+    expect(leftPane.basePath).toBe('/Users/dillion/Desktop');
+    // Column state should have both Desktop and directory paths
+    expect(leftPane.columnState.paths).toContain('/Users/dillion/Desktop');
+    expect(leftPane.columnState.paths).toContain('/Users/dillion/Desktop/directory');
+  });
+
+  test('should build proper column structure for deeply nested reveal', async () => {
+    // Setup: pane with Desktop as basePath
+    useStore.setState({
+      panes: [
+        {
+          id: 'left',
+          path: '/Users/dillion/Desktop',
+          basePath: '/Users/dillion/Desktop',
+          files: [],
+          loading: false,
+          error: null,
+          selectedFiles: new Set(),
+          sortBy: 'name',
+          sortOrder: 'asc',
+          viewMode: 'column',
+          tabs: [{ id: 'tab-1', path: '/Users/dillion/Desktop', basePath: '/Users/dillion/Desktop', label: 'Desktop' }],
+          activeTab: 0,
+          currentBreadcrumbPath: '/Users/dillion/Desktop',
+          columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+        },
+      ],
+      activePane: 'left',
+    });
+
+    // Mock readdir to return success for all directory reads
+    window.electronAPI.readdir.mockResolvedValue({ 
+      success: true, 
+      files: [
+        { name: 'test', path: '/test', isDirectory: true }
+      ] 
+    });
+    
+    window.electronAPI.stat.mockResolvedValue({
+      success: true,
+      stat: { size: 2048, modified: Date.now(), isDirectory: false }
+    });
+
+    // Reveal a deeply nested file: Desktop/a/b/c/d/e/f/file.png
+    const filePath = '/Users/dillion/Desktop/a/b/c/d/e/f/file.png';
+    const fileDir = '/Users/dillion/Desktop/a/b/c/d/e/f';
+
+    await act(async () => {
+      useStore.getState().setRevealTarget({
+        paneId: 'left',
+        filePath,
+        fileDir,
+        isDirectory: false,
+      });
+    });
+
+    // Wait for async operations
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
+
+    const leftPane = useStore.getState().panes.find(p => p.id === 'left');
+    
+    // basePath should remain Desktop
+    expect(leftPane.basePath).toBe('/Users/dillion/Desktop');
+    
+    // Column paths should include all intermediate directories
+    const expectedPaths = [
+      '/Users/dillion/Desktop',
+      '/Users/dillion/Desktop/a',
+      '/Users/dillion/Desktop/a/b',
+      '/Users/dillion/Desktop/a/b/c',
+      '/Users/dillion/Desktop/a/b/c/d',
+      '/Users/dillion/Desktop/a/b/c/d/e',
+      '/Users/dillion/Desktop/a/b/c/d/e/f'
+    ];
+    
+    expect(leftPane.columnState.paths).toEqual(expectedPaths);
+    expect(leftPane.columnState.focusedIndex).toBe(6); // Last column (f)
+    expect(leftPane.currentBreadcrumbPath).toBe(fileDir);
+  });
+
+  test('should update basePath when revealing file outside base directory', async () => {
+    // Setup: pane with Desktop as basePath
+    useStore.setState({
+      panes: [
+        {
+          id: 'left',
+          path: '/Users/dillion/Desktop',
+          basePath: '/Users/dillion/Desktop',
+          files: [],
+          loading: false,
+          error: null,
+          selectedFiles: new Set(),
+          sortBy: 'name',
+          sortOrder: 'asc',
+          viewMode: 'column',
+          tabs: [{ id: 'tab-1', path: '/Users/dillion/Desktop', basePath: '/Users/dillion/Desktop', label: 'Desktop' }],
+          activeTab: 0,
+          currentBreadcrumbPath: '/Users/dillion/Desktop',
+          columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+        },
+      ],
+      activePane: 'left',
+    });
+
+    // Mock readdir
+    window.electronAPI.readdir.mockResolvedValue({ 
+      success: true, 
+      files: [
+        { name: 'file.txt', path: '/Users/dillion/Documents/file.txt', isDirectory: false }
+      ] 
+    });
+    
+    window.electronAPI.stat.mockResolvedValue({
+      success: true,
+      stat: { size: 512, modified: Date.now(), isDirectory: false }
+    });
+
+    // Set reveal target for a file outside Desktop (in Documents)
+    const filePath = '/Users/dillion/Documents/file.txt';
+    const fileDir = '/Users/dillion/Documents';
+
+    await act(async () => {
+      useStore.getState().setRevealTarget({
+        paneId: 'left',
+        filePath,
+        fileDir,
+        isDirectory: false,
+      });
+    });
+
+    // Wait for async operations
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
+
+    const leftPane = useStore.getState().panes.find(p => p.id === 'left');
+    
+    // basePath should be updated to Documents since it's outside Desktop
+    expect(leftPane.basePath).toBe('/Users/dillion/Documents');
+    expect(leftPane.path).toBe('/Users/dillion/Documents');
+  });
 });

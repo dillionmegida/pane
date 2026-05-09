@@ -580,7 +580,7 @@ export default function SearchOverlay() {
                   key={file.path}
                   className={i === selectedIdx ? 'selected' : ''}
                   onClick={() => { setSelectedIdx(i); setSelectedItem(file); }}
-                  onDoubleClick={() => openResult(file)}
+                  onDoubleClick={() => revealInColumns(file.path)}
                 >
                   <ResultIcon>{getFileIcon(file)}</ResultIcon>
                   <ResultInfo>
