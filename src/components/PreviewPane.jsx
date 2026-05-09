@@ -36,7 +36,6 @@ const Header = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border-bottom: 1px solid ${p => p.theme.border.subtle};
   font-size: 11px;
   font-weight: 600;
   color: ${p => p.theme.text.secondary};
@@ -159,16 +158,7 @@ const FileName = styled.div`
   font-size: 12px;
   font-weight: 600;
   color: ${p => p.theme.text.primary};
-  padding: 8px 12px 4px;
   word-break: break-all;
-  text-align: center;
-`;
-
-const Permissions = styled.div`
-  font-family: ${p => p.theme.font.mono};
-  font-size: 11px;
-  color: ${p => p.theme.accent.green};
-  padding: 4px 12px;
   text-align: center;
 `;
 
@@ -265,7 +255,6 @@ export default function PreviewPane() {
       <Pane width={previewWidth}>
         <ResizeHandle onMouseDown={onResizeMouseDown} />
         <Header>
-          <span>Preview</span>
           <CloseBtn onClick={closePreview}>✕</CloseBtn>
         </Header>
         <div style={{ 
@@ -288,13 +277,11 @@ export default function PreviewPane() {
     <Pane width={previewWidth}>
       <ResizeHandle onMouseDown={onResizeMouseDown} />
       <Header>
-        <span>Preview</span>
+        <FileName>{previewFile.name}</FileName>
         <CloseBtn onClick={closePreview}>✕</CloseBtn>
       </Header>
 
-      <FileName>{previewFile.name}</FileName>
-      {permStr && <Permissions>{permStr}</Permissions>}
-
+      
       <PreviewArea>
         {isImage && (
           <ImagePreview src={`file://${previewFile.path}`} alt={previewFile.name} />

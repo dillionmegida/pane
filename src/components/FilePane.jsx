@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import styled from 'styled-components';
 import { useStore, formatSize, formatDate, getFileIcon, sortFiles } from '../store';
 import path from 'path-browserify';
+import PreviewPane from './PreviewPane';
 
 // ─── Styled Components ───────────────────────────────────────────────────────
 const PaneContainer = styled.div`
@@ -20,15 +21,19 @@ const PaneContainer = styled.div`
   }
 `;
 
+const ContentArea = styled.div`
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+`;
+
 const TabBar = styled.div`
   display: flex;
   align-items: stretch;
   background: ${p => p.theme.bg.secondary};
   border-bottom: 1px solid ${p => p.theme.border.subtle};
   height: ${p => p.theme.tabBar};
-  overflow-x: auto;
   flex-shrink: 0;
-  &::-webkit-scrollbar { height: 0; }
   height: 25px;
 `;
 
@@ -45,7 +50,7 @@ const Tab = styled.div`
   border-bottom: 2px solid transparent;
   position: relative;
   transition: all 0.1s;
-  flex-shrink: 0;
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
 
@@ -54,7 +59,7 @@ const Tab = styled.div`
   &.active {
     color: ${p => p.theme.text.primary};
     background: ${p => p.theme.bg.primary};
-    border-bottom: 2px solid ${p => p.theme.accent.blue};
+    border-bottom: 1px solid ${p => p.theme.accent.blue};
   }
 
   .tab-name { overflow: hidden; text-overflow: ellipsis; flex: 1; }
@@ -630,7 +635,7 @@ export default function FilePane({ paneId }) {
   }, [currentBreadcrumbPath, viewMode, showSidebar]);
 
   // Also scroll when preview pane opens/closes
-  const showPreview = useStore(s => s.showPreview);
+  const isPreviewOpen = useStore(s => s.showPreview);
   useEffect(() => {
     if (viewMode !== 'column') return;
     if (!columnsContainerRef.current) return;
@@ -638,7 +643,7 @@ export default function FilePane({ paneId }) {
       if (columnsContainerRef.current)
         columnsContainerRef.current.scrollLeft = columnsContainerRef.current.scrollWidth;
     }, 50);
-  }, [showPreview, viewMode]);
+  }, [isPreviewOpen, viewMode]);
 
   // Handle column resize
   useEffect(() => {
@@ -1456,6 +1461,9 @@ export default function FilePane({ paneId }) {
 
   const crumbs = getBreadcrumbs(paneId);
   const totalSize = files.reduce((s, f) => s + (f.size || 0), 0);
+  const previewFile = useStore(s => s.previewFile);
+  const showPreview = useStore(s => s.showPreview);
+  const previewWidth = useStore(s => s.previewWidth);
 
   return (
     <PaneContainer ref={paneRef} className={activePane === paneId ? 'active' : ''} onClick={() => setActivePane(paneId)}>
@@ -1536,7 +1544,8 @@ export default function FilePane({ paneId }) {
         </Breadcrumb>
       </Toolbar>
 
-      {/* File List */}
+      {/* Content Area with File List and Preview */}
+      <ContentArea>
       <FileListArea
         onDragOver={e => {
           e.preventDefault();
@@ -1715,6 +1724,12 @@ export default function FilePane({ paneId }) {
           </ColumnsContainer>
         )}
       </FileListArea>
+
+      {/* Preview Pane */}
+      {showPreview && activePane === paneId && previewFile && (
+        <PreviewPane file={previewFile} width={`${previewWidth}px`} />
+      )}
+      </ContentArea>
 
       {/* Inline create input */}
       {creatingName && (

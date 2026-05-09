@@ -3,7 +3,6 @@ import styled, { createGlobalStyle } from 'styled-components';
 import { useStore } from './store/index';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
-import PreviewPane from './components/PreviewPane';
 import SearchOverlay from './components/SearchOverlay';
 // Modals
 import { PermissionsModal } from './components/modals/PermissionsModal';
@@ -81,11 +80,9 @@ export default function App() {
   const {
     init, initialized,
     activeModal, closeModal, modalData,
-    showPreview,
     showSearch,
     showSidebar,
     zoom, zoomIn, zoomOut, zoomReset,
-    previewWidth, setPreviewWidth,
   } = useStore();
 
   useEffect(() => {
@@ -126,6 +123,21 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
         useStore.getState().toggleSearch();
+      }
+      // Cmd+T = new tab
+      if ((e.metaKey || e.ctrlKey) && e.key === 't') {
+        e.preventDefault();
+        const state = useStore.getState();
+        state.addTab(state.activePane);
+      }
+      // Cmd+W = close tab
+      if ((e.metaKey || e.ctrlKey) && e.key === 'w') {
+        e.preventDefault();
+        const state = useStore.getState();
+        const pane = state.panes.find(p => p.id === state.activePane);
+        if (pane && pane.tabs.length > 1) {
+          state.closeTab(state.activePane, pane.activeTab);
+        }
       }
       // Cmd+Shift+R = reveal selected file in column view
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'r') {
@@ -192,7 +204,6 @@ export default function App() {
               <ClipboardQueue />
             </BottomArea>
           </MainArea>
-          {showPreview && <PreviewPane />}
         </ContentRow>
 
         {showSearch && <SearchOverlay />}

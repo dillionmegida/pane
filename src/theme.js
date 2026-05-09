@@ -2,7 +2,7 @@ const baseTheme = {
   sidebar: '220px',
   titleBar: '36px',
   tabBar: '38px',
-  toolbar: '40px',
+  toolbar: '30px',
   statusBar: '24px',
   font: {
     mono: '"SF Mono", "Fira Code", monospace',
