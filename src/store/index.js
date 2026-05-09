@@ -23,13 +23,18 @@ const createTabState = (tabPath) => ({
   sortOrder: 'asc',
   columnState: { ...DEFAULT_COLUMN_STATE },
   previewFile: null,
+  // Per-tab navigation history
+  navigationHistory: [],
+  navigationIndex: -1,
+  _isRestoringHistory: false,
 });
 
 // Snapshot the current pane-level state into a tab object
 const snapshotTab = (pane, globalPreviewFile) => {
   const base = pane.basePath || pane.path || '/';
+  const existingTab = pane.tabs[pane.activeTab];
   return {
-    id: pane.tabs[pane.activeTab]?.id || `tab-${Date.now()}`,
+    id: existingTab?.id || `tab-${Date.now()}`,
     path: pane.path || '/',
     basePath: base,
     currentBreadcrumbPath: pane.currentBreadcrumbPath || base,
@@ -42,6 +47,10 @@ const snapshotTab = (pane, globalPreviewFile) => {
     sortOrder: pane.sortOrder || 'asc',
     columnState: pane.columnState ? { ...pane.columnState } : { ...DEFAULT_COLUMN_STATE },
     previewFile: globalPreviewFile || null,
+    // Preserve per-tab navigation history from pane state
+    navigationHistory: pane.navigationHistory || existingTab?.navigationHistory || [],
+    navigationIndex: pane.navigationIndex ?? existingTab?.navigationIndex ?? -1,
+    _isRestoringHistory: pane._isRestoringHistory ?? existingTab?._isRestoringHistory ?? false,
   };
 };
 
@@ -58,6 +67,10 @@ const restoreFromTab = (tab) => ({
   sortOrder: tab.sortOrder || 'asc',
   columnState: tab.columnState || { ...DEFAULT_COLUMN_STATE },
   // Note: previewFile is restored separately in global state
+  // Restore per-tab navigation history
+  navigationHistory: tab.navigationHistory || [],
+  navigationIndex: tab.navigationIndex ?? -1,
+  _isRestoringHistory: false,
 });
 
 const createPane = (id, initialPath = '/') => {
@@ -79,7 +92,7 @@ const createPane = (id, initialPath = '/') => {
     activeBookmarkId: null, // New: ID of active bookmark for visual indication
     // Column view state
     columnState: { ...DEFAULT_COLUMN_STATE },
-    // Navigation history
+    // Navigation history (mirrored from active tab for convenience)
     navigationHistory: [],
     navigationIndex: -1,
     _isRestoringHistory: false,
@@ -565,7 +578,16 @@ export const useStore = create((set, get) => ({
       const newTab = createTabState(desktopPath);
       return {
         panes: s.panes.map(p => p.id === paneId
-          ? { ...p, ...restoreFromTab(newTab), tabs: [...savedTabs, newTab], activeTab: savedTabs.length }
+          ? {
+              ...p,
+              ...restoreFromTab(newTab),
+              tabs: [...savedTabs, newTab],
+              activeTab: savedTabs.length,
+              // New tab starts with its own empty history
+              navigationHistory: [],
+              navigationIndex: -1,
+              _isRestoringHistory: false,
+            }
           : p
         ),
         // New tab has no preview
@@ -574,7 +596,7 @@ export const useStore = create((set, get) => ({
       };
     });
 
-    // Navigate the new tab to Desktop to load files
+    // Navigate the new tab to Desktop to load files (this pushes index 0 to the new tab's history)
     get().navigateTo(paneId, desktopPath);
   },
 

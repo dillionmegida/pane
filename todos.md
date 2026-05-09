@@ -60,7 +60,3 @@
 - when i'm on Cmd + F or smart folders, i'd like the same functionality where if i select a media file, spacebar should play/pause it
 
 * when i delete item, i notice the file tree refreshes and changes the sort...i don't want that
-
-* clicking breadcrumbs does not hide preview pane
-
-* history tracking should work per tab and should not conflict with each other...have test for this

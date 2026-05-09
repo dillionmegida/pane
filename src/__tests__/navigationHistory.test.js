@@ -464,6 +464,155 @@ describe('Navigation History – column state & basePath restoration', () => {
   });
 });
 
+describe('Navigation History – per-tab isolation', () => {
+  // Build a pane with two tabs, each carrying their own navigation history
+  const makeTabWithHistory = (tabPath, historyPaths) => {
+    const history = historyPaths.map(p => ({
+      basePath: p,
+      currentBreadcrumbPath: p,
+      selectedFiles: [],
+      previewFilePath: null,
+    }));
+    return {
+      id: `tab-${tabPath.replace(/\//g, '-')}`,
+      path: tabPath,
+      basePath: tabPath,
+      currentBreadcrumbPath: tabPath,
+      label: tabPath.split('/').pop() || '/',
+      files: [],
+      selectedFiles: new Set(),
+      activeBookmarkId: null,
+      viewMode: 'column',
+      sortBy: 'name',
+      sortOrder: 'asc',
+      columnState: { paths: [tabPath], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+      previewFile: null,
+      navigationHistory: history,
+      navigationIndex: history.length - 1,
+      _isRestoringHistory: false,
+    };
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('each tab carries its own independent navigation history', () => {
+    const tab1 = makeTabWithHistory('/Desktop', ['/Desktop', '/Desktop/github', '/Desktop/github/repo']);
+    const tab2 = makeTabWithHistory('/Downloads', ['/Downloads', '/Downloads/movies']);
+
+    useStore.setState({
+      panes: [{
+        ...INITIAL_PANE,
+        tabs: [tab1, tab2],
+        activeTab: 0,
+        // Active tab (tab1) history mirrored at pane level
+        navigationHistory: tab1.navigationHistory,
+        navigationIndex: tab1.navigationIndex,
+        _isRestoringHistory: false,
+        basePath: tab1.basePath,
+        currentBreadcrumbPath: tab1.currentBreadcrumbPath,
+      }],
+      activePane: 'left',
+      previewFile: null,
+      showPreview: false,
+      initialized: true,
+    });
+
+    // Tab 1 history: 3 entries
+    expect(getPane().navigationHistory).toHaveLength(3);
+    expect(getPane().navigationIndex).toBe(2);
+
+    // Switch to tab 2 — should restore tab2's history
+    act(() => { useStore.getState().switchTab('left', 1); });
+
+    const paneAfterSwitch = getPane();
+    expect(paneAfterSwitch.navigationHistory).toHaveLength(2);
+    expect(paneAfterSwitch.navigationIndex).toBe(1);
+    expect(paneAfterSwitch.navigationHistory[0].basePath).toBe('/Downloads');
+    expect(paneAfterSwitch.navigationHistory[1].basePath).toBe('/Downloads/movies');
+
+    // Tab 2's history should not contain anything from Tab 1
+    const hasTab1Entry = paneAfterSwitch.navigationHistory.some(e => e.basePath.startsWith('/Desktop'));
+    expect(hasTab1Entry).toBe(false);
+  });
+
+  test('navigating in one tab does not affect another tab\'s history', () => {
+    const tab1 = makeTabWithHistory('/Desktop', ['/Desktop']);
+    const tab2 = makeTabWithHistory('/Downloads', ['/Downloads']);
+
+    useStore.setState({
+      panes: [{
+        ...INITIAL_PANE,
+        tabs: [tab1, tab2],
+        activeTab: 0,
+        navigationHistory: tab1.navigationHistory,
+        navigationIndex: tab1.navigationIndex,
+        _isRestoringHistory: false,
+        basePath: tab1.basePath,
+        currentBreadcrumbPath: tab1.currentBreadcrumbPath,
+      }],
+      activePane: 'left',
+      previewFile: null,
+      showPreview: false,
+      initialized: true,
+    });
+
+    // Push two more entries to tab 1
+    act(() => {
+      useStore.getState().pushToHistory('left', { basePath: '/Desktop', currentBreadcrumbPath: '/Desktop/github', selectedFiles: [], previewFilePath: null });
+      useStore.getState().pushToHistory('left', { basePath: '/Desktop', currentBreadcrumbPath: '/Desktop/github/repo', selectedFiles: [], previewFilePath: null });
+    });
+    expect(getPane().navigationHistory).toHaveLength(3); // tab1 now has 3
+
+    // Switch to tab 2 — tab2 should still have just 1 entry
+    act(() => { useStore.getState().switchTab('left', 1); });
+    expect(getPane().navigationHistory).toHaveLength(1);
+    expect(getPane().navigationHistory[0].basePath).toBe('/Downloads');
+
+    // Switch back to tab 1 — tab1 history fully intact
+    act(() => { useStore.getState().switchTab('left', 0); });
+    expect(getPane().navigationHistory).toHaveLength(3);
+    expect(getPane().navigationHistory[2].currentBreadcrumbPath).toBe('/Desktop/github/repo');
+  });
+
+  test('going back in tab 1 does not alter tab 2 history', () => {
+    const tab1 = makeTabWithHistory('/Desktop', ['/Desktop', '/Desktop/a', '/Desktop/b']);
+    const tab2 = makeTabWithHistory('/Downloads', ['/Downloads', '/Downloads/x']);
+
+    useStore.setState({
+      panes: [{
+        ...INITIAL_PANE,
+        tabs: [tab1, tab2],
+        activeTab: 0,
+        navigationHistory: tab1.navigationHistory,
+        navigationIndex: tab1.navigationIndex,
+        _isRestoringHistory: false,
+        basePath: tab1.basePath,
+        currentBreadcrumbPath: tab1.currentBreadcrumbPath,
+      }],
+      activePane: 'left',
+      previewFile: null,
+      showPreview: false,
+      initialized: true,
+    });
+
+    // Go back in tab 1 (index 2 → 1)
+    act(() => { useStore.getState().goBackInHistory('left'); });
+    expect(getPane().navigationIndex).toBe(1);
+
+    // Switch to tab 2 — should see tab2's full history, index unchanged
+    act(() => { useStore.getState().switchTab('left', 1); });
+    expect(getPane().navigationHistory).toHaveLength(2);
+    expect(getPane().navigationIndex).toBe(1); // tab2's own index, not 1 from tab1's go-back
+
+    // Switch back to tab 1 — go-back index preserved
+    act(() => { useStore.getState().switchTab('left', 0); });
+    expect(getPane().navigationIndex).toBe(1);
+    expect(getPane().navigationHistory).toHaveLength(3);
+  });
+});
+
 describe('Navigation History – _isRestoringHistory flag', () => {
   beforeEach(() => {
     jest.clearAllMocks();
