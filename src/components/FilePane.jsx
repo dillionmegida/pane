@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import styled from 'styled-components';
 import { useStore, formatSize, formatDate, getFileIcon, sortFiles, PREVIEW_TYPES } from '../store';
+import { getTagColors } from '../theme';
 import path from 'path-browserify';
 import PreviewPane from './PreviewPane';
 import QuickPreviewModal from './QuickPreviewModal';
@@ -476,6 +477,87 @@ const MenuDivider = styled.div`
   margin: 3px 0;
 `;
 
+const CtxTagRow = styled.div`
+  padding: 5px 10px 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  min-height: 32px;
+`;
+
+const CtxTagDot = styled.div.withConfig({ shouldForwardProp: p => !['active','color','hovered'].includes(p) })`
+display: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: ${p => p.color};
+  border: 2px solid ${p => p.active ? 'white' : 'transparent'};
+  box-shadow: ${p => p.active ? `0 0 0 2px ${p.color}` : 'none'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: white;
+  font-weight: 700;
+  transition: transform 0.1s;
+  transform: ${p => p.hovered ? 'scale(1.2)' : 'scale(1)'};
+  cursor: pointer;
+`;
+
+const CtxTagLabel = styled.div`
+  padding: 0 10px 5px;
+  font-size: 10px;
+  color: ${p => p.theme.text.tertiary};
+  min-height: 16px;
+`;
+
+// Tag dots for file views
+const FileTagDots = styled.span`
+  display: inline-flex;
+  margin-left: 5px;
+  vertical-align: middle;
+`;
+
+const FileTagDot = styled.span.withConfig({ shouldForwardProp: p => p !== 'offset' })`
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: ${p => p.color};
+  display: inline-block;
+  margin-left: ${p => p.offset}px;
+`;
+
+const GridTagDots = styled.span`
+  display: flex;
+  justify-content: center;
+  margin-top: 2px;
+`;
+
+const GridTagDot = styled.span.withConfig({ shouldForwardProp: p => p !== 'offset' })`
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: ${p => p.color};
+  display: inline-block;
+  margin-left: ${p => p.offset}px;
+`;
+
+const ColumnTagDots = styled.span`
+  display: flex;
+  flex-shrink: 0;
+`;
+
+const ColumnTagDot = styled.span.withConfig({ shouldForwardProp: p => p !== 'offset' })`
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: ${p => p.color};
+  display: inline-block;
+  margin-left: ${p => p.offset}px;
+  border: 1px solid white;
+`;
+
 const GridWrap = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
@@ -524,6 +606,235 @@ const GridName = styled.span`
   max-width: 72px;
 `;
 
+// ─── Inline Tag Picker (Finder-style floating panel) ────────────────────────
+const TagPickerOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+`;
+
+const TagPickerPanel = styled.div.withConfig({
+  shouldForwardProp: p => !['top','left'].includes(p),
+})`
+  position: fixed;
+  background: ${p => p.theme.bg.elevated};
+  border: 1px solid ${p => p.theme.border.strong};
+  border-radius: ${p => p.theme.radius.lg};
+  box-shadow: ${p => p.theme.shadow.lg};
+  width: 280px;
+  padding: 10px 0 6px;
+  z-index: 901;
+  top: ${p => p.top}px;
+  left: ${p => p.left}px;
+`;
+
+const TagPickerHeader = styled.div`
+  padding: 4px 12px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: ${p => p.theme.text.secondary};
+  border-bottom: 1px solid ${p => p.theme.border.subtle};
+  margin-bottom: 4px;
+`;
+
+const TagPickerColorRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+`;
+
+const TagPickerDot = styled.button.withConfig({
+  shouldForwardProp: p => !['active','noColor','color'].includes(p),
+})`
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: ${p => p.color || 'transparent'};
+  border: 2px solid ${p => p.active ? 'white' : 'transparent'};
+  box-shadow: ${p => p.active ? `0 0 0 2px ${p.color}` : p.noColor ? `inset 0 0 0 1.5px ${p.theme.border.normal}` : 'none'};
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: ${p => p.theme.text.tertiary};
+  transition: transform 0.1s;
+  &:hover { transform: scale(1.15); }
+`;
+
+const TagPickerInput = styled.input`
+  width: 100%;
+  background: ${p => p.theme.bg.elevated};
+  border: 1px solid ${p => p.theme.border.normal};
+  border-radius: ${p => p.theme.radius.sm};
+  color: ${p => p.theme.text.primary};
+  font-size: 12px;
+  padding: 5px 8px;
+  outline: none;
+  box-sizing: border-box;
+  &:focus { border-color: ${p => p.theme.accent.blue}; }
+`;
+
+const TagPickerRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background 0.07s;
+  &:hover { background: ${p => p.theme.bg.hover}; }
+`;
+
+const TagPickerDotSmall = styled.span.withConfig({
+  shouldForwardProp: p => p !== 'color',
+})`
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: ${p => p.color};
+  flex-shrink: 0;
+`;
+
+const TagPickerCheck = styled.span.withConfig({
+  shouldForwardProp: p => p !== 'visible',
+})`
+  margin-left: auto;
+  font-size: 12px;
+  color: ${p => p.theme.accent.blue};
+  opacity: ${p => p.visible ? 1 : 0};
+`;
+
+function InlineTagPicker({ file, allTags, fileTags, onClose, onChanged }) {
+  const { currentTheme } = useStore();
+  const TAG_COLORS = getTagColors(currentTheme);
+
+  const [localFileTags, setLocalFileTags] = useState(fileTags);
+  const [localAllTags, setLocalAllTags] = useState(allTags);
+  const [newTagName, setNewTagName] = useState('');
+  const [selectedColor, setSelectedColor] = useState(TAG_COLORS[0]);
+  const [pos, setPos] = useState({ top: 200, left: 200 });
+  const inputRef = useRef(null);
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    // Center in the screen by default, then adjust after mount
+    setPos({ top: Math.round(window.innerHeight / 2 - 150), left: Math.round(window.innerWidth / 2 - 140) });
+    setTimeout(() => inputRef.current?.focus(), 60);
+  }, []);
+
+  // Adjust if panel goes off-screen
+  useEffect(() => {
+    if (!panelRef.current) return;
+    const rect = panelRef.current.getBoundingClientRect();
+    let { top, left } = pos;
+    if (rect.bottom > window.innerHeight - 20) top = Math.max(20, window.innerHeight - rect.height - 20);
+    if (rect.right > window.innerWidth - 20) left = Math.max(20, window.innerWidth - rect.width - 20);
+    if (top !== pos.top || left !== pos.left) setPos({ top, left });
+  }, [localAllTags]);
+
+  const toggleTag = async (tag) => {
+    const isOn = localFileTags.includes(tag.tag_name);
+    if (isOn) {
+      await window.electronAPI.removeTag({ filePath: file.path, tagName: tag.tag_name });
+      const next = localFileTags.filter(t => t !== tag.tag_name);
+      setLocalFileTags(next);
+      onChanged(next);
+    } else {
+      await window.electronAPI.addTag({ filePath: file.path, tagName: tag.tag_name, color: tag.color });
+      const next = [...localFileTags, tag.tag_name];
+      setLocalFileTags(next);
+      onChanged(next);
+    }
+  };
+
+  const createAndAddTag = async () => {
+    const name = newTagName.trim();
+    if (!name) return;
+    await window.electronAPI.addTag({ filePath: file.path, tagName: name, color: selectedColor });
+    const next = [...localFileTags, name];
+    setLocalFileTags(next);
+    // Refresh all tags
+    const all = await window.electronAPI.getAllTags();
+    const nextAll = all.success ? all.tags : localAllTags;
+    setLocalAllTags(nextAll);
+    onChanged(next, nextAll);
+    setNewTagName('');
+  };
+
+  const COLOR_NAMES = ['Blue','Purple','Green','Orange','Red','Yellow','Pink','Teal'];
+
+  // Filter tags by search
+  const filtered = newTagName.trim()
+    ? localAllTags.filter(t => t.tag_name.toLowerCase().includes(newTagName.toLowerCase()))
+    : localAllTags;
+
+  return ReactDOM.createPortal(
+    <>
+      <TagPickerOverlay onClick={onClose} />
+      <TagPickerPanel ref={panelRef} top={pos.top} left={pos.left} onClick={e => e.stopPropagation()}>
+        <TagPickerHeader>🏷️ Tags — {file.name}</TagPickerHeader>
+
+        {/* Color row */}
+        <TagPickerColorRow>
+          <TagPickerDot noColor title="No color" onClick={() => setSelectedColor(null)}>✕</TagPickerDot>
+          {TAG_COLORS.slice(0, 8).map((c, i) => (
+            <TagPickerDot
+              key={c}
+              color={c}
+              active={selectedColor === c}
+              onClick={() => setSelectedColor(c)}
+              title={COLOR_NAMES[i]}
+            >
+              {selectedColor === c && '✓'}
+            </TagPickerDot>
+          ))}
+        </TagPickerColorRow>
+
+        {/* Search/create input */}
+        <div style={{ padding: '6px 12px 6px' }}>
+          <TagPickerInput
+            ref={inputRef}
+            value={newTagName}
+            onChange={e => setNewTagName(e.target.value)}
+            placeholder="Add or find a tag..."
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                // If exact match exists, toggle it; otherwise create
+                const exact = localAllTags.find(t => t.tag_name.toLowerCase() === newTagName.trim().toLowerCase());
+                if (exact) toggleTag(exact);
+                else createAndAddTag();
+              }
+              if (e.key === 'Escape') onClose();
+            }}
+          />
+        </div>
+
+        {/* Tag list */}
+        <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+          {filtered.map(tag => (
+            <TagPickerRow key={tag.tag_name} onClick={() => toggleTag(tag)}>
+              <TagPickerDotSmall color={tag.color} />
+              <span style={{ fontSize: 12, flex: 1, color: 'inherit' }}>{tag.tag_name}</span>
+              <TagPickerCheck visible={localFileTags.includes(tag.tag_name)}>✓</TagPickerCheck>
+            </TagPickerRow>
+          ))}
+          {newTagName.trim() && !localAllTags.find(t => t.tag_name.toLowerCase() === newTagName.trim().toLowerCase()) && (
+            <TagPickerRow onClick={createAndAddTag}>
+              <TagPickerDotSmall color={selectedColor || '#888'} />
+              <span style={{ fontSize: 12, flex: 1, color: 'inherit' }}>Create "{newTagName.trim()}"</span>
+            </TagPickerRow>
+          )}
+          {filtered.length === 0 && !newTagName.trim() && (
+            <div style={{ padding: '8px 12px', fontSize: 11, color: '#888' }}>No tags yet. Type to create one.</div>
+          )}
+        </div>
+      </TagPickerPanel>
+    </>,
+    document.body
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function FilePane({ paneId }) {
   const {
@@ -568,6 +879,18 @@ export default function FilePane({ paneId }) {
 
   const { path: currentPath, files, loading, selectedFiles, sortBy, sortOrder, viewMode, tabs, activeTab, currentBreadcrumbPath, columnState } = pane;
 
+  // fileTags: { [filePath]: [{ tag_name, color }] }
+  const [fileTags, setFileTags] = useState({});
+  // Context menu inline tag state
+  const [ctxAllTags, setCtxAllTags] = useState([]);
+  const [ctxFileTags, setCtxFileTags] = useState(new Set());
+  const [ctxTagHover, setCtxTagHover] = useState(null);
+  // Keep legacy tag menu state for InlineTagPicker (if still used)
+  const [tagMenuOpen, setTagMenuOpen] = useState(false);
+  const [tagMenuAllTags, setTagMenuAllTags] = useState([]);
+  const [tagMenuFileTags, setTagMenuFileTags] = useState([]);
+  const [tagMenuFile, setTagMenuFile] = useState(null);
+
   const [history, setHistory] = useState([pane?.path]);
   const [historyIdx, setHistoryIdx] = useState(0);
   const [contextMenu, setContextMenu] = useState(null);
@@ -589,10 +912,47 @@ export default function FilePane({ paneId }) {
   const [columnWidths, setColumnWidths] = useState({});
   const [resizingColumn, setResizingColumn] = useState(null);
   const columnsContainerRef = useRef(null);
-  
-  // Derived from store column state for convenience
+
+  // Derived from store column state for convenience (must be before tag effects)
   const columnPaths = getColumnPaths(paneId);
   const columnFiles = columnState.filesByPath;
+
+  // Load tags for all visible files
+  const loadTagsForFiles = useCallback(async (fileList) => {
+    if (!fileList || fileList.length === 0) return;
+    const entries = await Promise.all(
+      fileList.map(async f => {
+        const r = await window.electronAPI.getTags(f.path);
+        return [f.path, r.success ? r.tags : []];
+      })
+    );
+    setFileTags(prev => {
+      const next = { ...prev };
+      for (const [p, tags] of entries) next[p] = tags;
+      return next;
+    });
+  }, []);
+
+  // Reload tag dots when tags modal closes
+  const prevActiveModal = useRef(activeModal);
+  useEffect(() => {
+    if (prevActiveModal.current === 'tags' && activeModal === null) {
+      loadTagsForFiles(files);
+      const allColFiles = Object.values(columnFiles).flat();
+      if (allColFiles.length > 0) loadTagsForFiles(allColFiles);
+    }
+    prevActiveModal.current = activeModal;
+  }, [activeModal]);
+
+  useEffect(() => {
+    loadTagsForFiles(files);
+  }, [files]);
+
+  // Load tags for column files when they change
+  useEffect(() => {
+    const allColFiles = Object.values(columnFiles).flat();
+    if (allColFiles.length > 0) loadTagsForFiles(allColFiles);
+  }, [columnFiles]);
 
   // Derived selections based on breadcrumb path
   const getDerivedSelections = () => {
@@ -1154,6 +1514,15 @@ export default function FilePane({ paneId }) {
     
     setContextMenu({ x: menuX, y: menuY, file });
     setContextMenuFile(file);
+    setCtxTagHover(null);
+    // Load tags for the inline dot row
+    Promise.all([
+      window.electronAPI.getAllTags(),
+      window.electronAPI.getTags(file.path),
+    ]).then(([all, mine]) => {
+      setCtxAllTags(all.success ? all.tags : []);
+      setCtxFileTags(new Set(mine.success ? mine.tags.map(t => t.tag_name) : []));
+    });
   };
 
   const handleBackgroundContextMenu = (e) => {
@@ -1419,7 +1788,16 @@ export default function FilePane({ paneId }) {
             }}
           />
         ) : (
-          <FileName>{file.name}</FileName>
+          <FileName>
+            {file.name}
+            {(fileTags[file.path] || []).length > 0 && (
+              <FileTagDots>
+                {(fileTags[file.path] || []).map((t, i) => (
+                  <FileTagDot key={t.tag_name} color={t.color} offset={i > 0 ? -3.5 : 0} />
+                ))}
+              </FileTagDots>
+            )}
+          </FileName>
         )}
         <FileMeta>{file.isDirectory ? '—' : formatSize(file.size)}</FileMeta>
         <FileDate>{formatDate(file.modified)}</FileDate>
@@ -1493,6 +1871,13 @@ export default function FilePane({ paneId }) {
       >
         <GridIcon>{getFileIcon(file)}</GridIcon>
         <GridName>{file.name}</GridName>
+        {(fileTags[file.path] || []).length > 0 && (
+          <GridTagDots>
+            {(fileTags[file.path] || []).map((t, i) => (
+              <GridTagDot key={t.tag_name} color={t.color} offset={i > 0 ? -3 : 0} />
+            ))}
+          </GridTagDots>
+        )}
       </GridItem>
     );
   };
@@ -1752,6 +2137,13 @@ export default function FilePane({ paneId }) {
                       >
                         <span className="icon">{getFileIcon(file)}</span>
                         <span className="name">{file.name}</span>
+                        {(fileTags[file.path] || []).length > 0 && (
+                          <ColumnTagDots>
+                            {(fileTags[file.path] || []).map((t, i) => (
+                              <ColumnTagDot key={t.tag_name} color={t.color} offset={i > 0 ? -3.5 : 0} />
+                            ))}
+                          </ColumnTagDots>
+                        )}
                       </ColumnItem>
                     ))}
                   </ColumnList>
@@ -1803,7 +2195,27 @@ export default function FilePane({ paneId }) {
         <span>{selectedFiles.size > 0 ? `${selectedFiles.size} selected` : ''}</span>
       </StatusBar>
 
-      {/* Context Menu */}
+      {/* Inline Finder-style tag picker */}
+      {tagMenuOpen && tagMenuFile && (
+        <InlineTagPicker
+          file={tagMenuFile}
+          allTags={tagMenuAllTags}
+          fileTags={tagMenuFileTags}
+          onClose={() => { setTagMenuOpen(false); setTagMenuFile(null); }}
+          onChanged={(newFileTags, newAllTags) => {
+            setTagMenuFileTags(newFileTags);
+            if (newAllTags) setTagMenuAllTags(newAllTags);
+            // Refresh the tag dots for this file
+            window.electronAPI.getTags(tagMenuFile.path).then(r => {
+              if (r.success) {
+                setFileTags(prev => ({ ...prev, [tagMenuFile.path]: r.tags }));
+              }
+            });
+            useStore.getState().loadAllTags();
+          }}
+        />
+      )}
+
       {contextMenu && (
         <ContextMenu className="context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={e => e.stopPropagation()}>
           {contextMenu.background ? (
@@ -1875,10 +2287,48 @@ export default function FilePane({ paneId }) {
                 </MenuItem>
               )}
               <MenuDivider />
-              <MenuItem onClick={() => {
-                openModal('tags', { file: contextMenu.file });
-                setContextMenu(null); setContextMenuFile(null);
-              }}>🏷️ Tags...</MenuItem>
+              {/* Inline tag dot row */}
+              <CtxTagRow>
+                {ctxAllTags.map(tag => {
+                  const active = ctxFileTags.has(tag.tag_name);
+                  return (
+                    <CtxTagDot
+                      key={tag.tag_name}
+                      color={tag.color}
+                      active={active}
+                      hovered={ctxTagHover === tag.tag_name}
+                      onMouseEnter={() => setCtxTagHover(tag.tag_name)}
+                      onMouseLeave={() => setCtxTagHover(null)}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const file = contextMenu.file;
+                        if (active) {
+                          await window.electronAPI.removeTag({ filePath: file.path, tagName: tag.tag_name });
+                          setCtxFileTags(prev => { const n = new Set(prev); n.delete(tag.tag_name); return n; });
+                        } else {
+                          await window.electronAPI.addTag({ filePath: file.path, tagName: tag.tag_name });
+                          setCtxFileTags(prev => new Set([...prev, tag.tag_name]));
+                        }
+                        // Refresh tag dots
+                        window.electronAPI.getTags(file.path).then(r => {
+                          if (r.success) setFileTags(prev => ({ ...prev, [file.path]: r.tags }));
+                        });
+                        useStore.getState().loadAllTags();
+                      }}
+                    >
+                      {active ? '✓' : ''}
+                    </CtxTagDot>
+                  );
+                })}
+              </CtxTagRow>
+              <CtxTagLabel>
+                {ctxTagHover ? (
+                  ctxFileTags.has(ctxTagHover)
+                    ? `Remove "${ctxTagHover}"`
+                    : `Add "${ctxTagHover}"`
+                ) : "All tags"}
+              </CtxTagLabel>
+              <MenuDivider />
               <MenuItem onClick={() => {
                 openModal('permissions', { file: contextMenu.file });
                 setContextMenu(null); setContextMenuFile(null);

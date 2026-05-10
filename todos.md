@@ -55,8 +55,54 @@
 
 - another one is that, when i do Cmd + F, at the bottom, I can see 0 results and the file directory path...now i'd like to be able to change the directory path to something else...so basically that directory path should be a button i can use to select another directory for Cmd + F to search
 - same thing applies to Smart Folders...where the path is currently [path]:, i'd like the path to be a button i can click to select another path...changing this should not affect the current file tree columns by the way, that should stay the same
-- i think we should be using react window or something
 
 - when i'm on Cmd + F or smart folders, i'd like the same functionality where if i select a media file, spacebar should play/pause it
 
 * when i delete item, i notice the file tree refreshes and changes the sort...i don't want that
+
+* disk usage map should show folders first before files
+
+@SearchOverlay.jsx#L520-521 if the search input was in focus at the time of clicking root, the focus should return back to the input
+
+
+react window
+
+High Impact
+1. SearchOverlay results (line 592)
+
+results.map() renders all search matches
+Searching large directories can return thousands of files
+Currently renders every result, causing performance issues with large result sets
+2. FilePane list view (line 1687)
+
+files.map(renderFileRow) renders all files in a directory
+Directories like node_modules, vendor, or user folders can have 1000+ files
+Each row has multiple styled components and event handlers
+3. FilePane grid view (line 1691)
+
+files.map(renderGridItem) renders grid items
+Grid items are heavier (larger icons, more DOM per item)
+Same scalability issue as list view
+4. FilePane column view (line 1713)
+
+colFiles.map(file => ...) renders each column's contents
+Multiple columns with hundreds of files each compound the problem
+Column view is the default, so this affects most users
+Low Impact (skip for now)
+Sidebar bookmarks/tags - Typically < 50 items, not worth the complexity
+Tab bar - Usually < 10 tabs
+Breadcrumbs - Short path segments
+Recommendation
+Start with SearchOverlay first—it's the easiest win (single list, simple item structure) and has the highest potential for large result sets. Then tackle FilePane list/grid views for directories with many files.
+
+
+
+* show logos of apps in the applications directory
+* double clicking an app should open the app
+* i'm considering spacebar on directories to open disk usage modal
+* there's a way finder does renaming files, where you wait a few seconds and click and a rename is activated...i want the same
+* rename functionality seems broken...fix it, and rename should be inline in the filetree
+* @index.js#L1313-1338  i'd like to create my own custom icons
+* in filtree, diretories should come before files
+
+* if a file is a symlink, visually show that on the editor

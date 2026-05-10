@@ -5,7 +5,6 @@ const Wrapper = styled.div`
   width: 100%;
   height: ${p => p.maxHeight ? 'auto' : '100%'};
   background: #000;
-  border-radius: ${p => p.theme.radius.md};
   overflow: hidden;
   position: relative;
   display: flex;

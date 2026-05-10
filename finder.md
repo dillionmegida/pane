@@ -8,7 +8,7 @@ Applications - System applications folder
 Network - Browse network shares and servers
 iCloud Drive - Cloud storage with sync status
 Connected Servers - Mounted network volumes
-Tags - Color-coded tags in sidebar (Pane has tags but not in sidebar)
+
 Favorites - Custom favorite locations
 Home - User home directory shortcut
 Quick Look Enhancements
@@ -18,7 +18,6 @@ Trim video/audio in Quick Look
 Share from Quick Look - Direct sharing options
 Index sheet - Multiple file previews in grid
 File Labels/Colors
-7 color labels (red, orange, yellow, green, blue, purple, gray) - separate from tags
 Context Menu Options
 Get Info - Detailed file inspector window with metadata, permissions, sharing, comments
 Open With - Choose specific application

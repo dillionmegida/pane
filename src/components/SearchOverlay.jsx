@@ -517,13 +517,7 @@ export default function SearchOverlay() {
           <OptBtnWrapper active={excludedDirs.length > 0} onClick={() => setShowExcludeInput(v => !v)}>
             Excluded ({excludedDirs.length})
           </OptBtnWrapper>
-          <OptBtnWrapper active={rootSearch} onClick={() => {
-            const wasFocused = document.activeElement === inputRef.current;
-            setRootSearch(v => !v);
-            if (wasFocused) {
-              inputRef.current?.focus();
-            }
-          }}>Root</OptBtnWrapper>
+          <OptBtnWrapper active={rootSearch} onClick={() => setRootSearch(v => !v)}>Root</OptBtnWrapper>
         </Options>
 
         {showExcludeInput && (

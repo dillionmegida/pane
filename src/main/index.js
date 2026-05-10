@@ -63,9 +63,32 @@ function initDB() {
         undone INTEGER DEFAULT 0
       );
 
+      CREATE TABLE IF NOT EXISTS global_tags (
+        tag_name TEXT PRIMARY KEY,
+        color TEXT NOT NULL DEFAULT '#4A9EFF',
+        sort_order INTEGER DEFAULT 999
+      );
+
       CREATE INDEX IF NOT EXISTS idx_tags_path ON tags(file_path);
       CREATE INDEX IF NOT EXISTS idx_log_timestamp ON activity_log(timestamp DESC);
     `);
+
+    // Seed default tags if none exist
+    const existingGlobalTags = db.prepare('SELECT COUNT(*) as cnt FROM global_tags').get();
+    if (existingGlobalTags.cnt === 0) {
+      const defaults = [
+        { name: 'Red',    color: '#f87171', order: 0 },
+        { name: 'Orange', color: '#fb923c', order: 1 },
+        { name: 'Yellow', color: '#fbbf24', order: 2 },
+        { name: 'Green',  color: '#34d399', order: 3 },
+        { name: 'Blue',   color: '#4A9EFF', order: 4 },
+        { name: 'Purple', color: '#a78bfa', order: 5 },
+        { name: 'Grey',   color: '#9ca3af', order: 6 },
+      ];
+      const insert = db.prepare('INSERT OR IGNORE INTO global_tags (tag_name, color, sort_order) VALUES (?, ?, ?)');
+      for (const t of defaults) insert.run(t.name, t.color, t.order);
+    }
+
     return true;
   } catch (err) {
     console.error('DB init error:', err.message);
@@ -619,10 +642,13 @@ ipcMain.handle('fs:folderSize', async (event, dirPath) => {
 });
 
 // ─── IPC: Tags ────────────────────────────────────────────────────────────────
-ipcMain.handle('tags:add', async (event, { filePath, tagName, color }) => {
+ipcMain.handle('tags:add', async (event, { filePath, tagName }) => {
   if (!db) return { success: false, error: 'DB not available' };
   try {
-    db.prepare('INSERT OR REPLACE INTO tags (file_path, tag_name, color) VALUES (?, ?, ?)').run(filePath, tagName, color || '#4A9EFF');
+    // Get color from global_tags
+    const gt = db.prepare('SELECT color FROM global_tags WHERE tag_name = ?').get(tagName);
+    const color = gt ? gt.color : '#4A9EFF';
+    db.prepare('INSERT OR REPLACE INTO tags (file_path, tag_name, color) VALUES (?, ?, ?)').run(filePath, tagName, color);
     return { success: true };
   } catch (err) { return { success: false, error: err.message }; }
 });
@@ -638,7 +664,12 @@ ipcMain.handle('tags:remove', async (event, { filePath, tagName }) => {
 ipcMain.handle('tags:get', async (event, filePath) => {
   if (!db) return { success: true, tags: [] };
   try {
-    const tags = db.prepare('SELECT * FROM tags WHERE file_path = ?').all(filePath);
+    // Join with global_tags to get latest color
+    const tags = db.prepare(`
+      SELECT t.file_path, t.tag_name, COALESCE(g.color, t.color) as color
+      FROM tags t LEFT JOIN global_tags g ON t.tag_name = g.tag_name
+      WHERE t.file_path = ?
+    `).all(filePath);
     return { success: true, tags };
   } catch (err) { return { success: false, error: err.message }; }
 });
@@ -646,8 +677,53 @@ ipcMain.handle('tags:get', async (event, filePath) => {
 ipcMain.handle('tags:getAll', async () => {
   if (!db) return { success: true, tags: [] };
   try {
-    const tags = db.prepare('SELECT DISTINCT tag_name, color FROM tags').all();
+    const tags = db.prepare('SELECT tag_name, color, sort_order FROM global_tags ORDER BY sort_order ASC, tag_name ASC').all();
     return { success: true, tags };
+  } catch (err) { return { success: false, error: err.message }; }
+});
+
+ipcMain.handle('tags:create', async (event, { tagName, color }) => {
+  if (!db) return { success: false, error: 'DB not available' };
+  try {
+    const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM global_tags').get();
+    const order = (maxOrder.m ?? -1) + 1;
+    db.prepare('INSERT OR IGNORE INTO global_tags (tag_name, color, sort_order) VALUES (?, ?, ?)').run(tagName, color || '#4A9EFF', order);
+    return { success: true };
+  } catch (err) { return { success: false, error: err.message }; }
+});
+
+ipcMain.handle('tags:delete', async (event, tagName) => {
+  if (!db) return { success: false, error: 'DB not available' };
+  try {
+    db.prepare('DELETE FROM global_tags WHERE tag_name = ?').run(tagName);
+    db.prepare('DELETE FROM tags WHERE tag_name = ?').run(tagName);
+    return { success: true };
+  } catch (err) { return { success: false, error: err.message }; }
+});
+
+ipcMain.handle('tags:rename', async (event, { oldName, newName }) => {
+  if (!db) return { success: false, error: 'DB not available' };
+  try {
+    db.prepare('UPDATE global_tags SET tag_name = ? WHERE tag_name = ?').run(newName, oldName);
+    db.prepare('UPDATE tags SET tag_name = ? WHERE tag_name = ?').run(newName, oldName);
+    return { success: true };
+  } catch (err) { return { success: false, error: err.message }; }
+});
+
+ipcMain.handle('tags:recolor', async (event, { tagName, color }) => {
+  if (!db) return { success: false, error: 'DB not available' };
+  try {
+    db.prepare('UPDATE global_tags SET color = ? WHERE tag_name = ?').run(color, tagName);
+    db.prepare('UPDATE tags SET color = ? WHERE tag_name = ?').run(color, tagName);
+    return { success: true };
+  } catch (err) { return { success: false, error: err.message }; }
+});
+
+ipcMain.handle('tags:getFilesForTag', async (event, tagName) => {
+  if (!db) return { success: true, files: [] };
+  try {
+    const rows = db.prepare('SELECT file_path FROM tags WHERE tag_name = ?').all(tagName);
+    return { success: true, files: rows.map(r => r.file_path) };
   } catch (err) { return { success: false, error: err.message }; }
 });
 

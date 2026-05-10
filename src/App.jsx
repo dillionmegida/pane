@@ -7,6 +7,8 @@ import SearchOverlay from './components/SearchOverlay';
 // Modals
 import { PermissionsModal } from './components/modals/PermissionsModal';
 import { TagManagerModal } from './components/modals/TagManagerModal';
+import { TagBrowserModal } from './components/modals/TagBrowserModal';
+import { AllTagsModal } from './components/modals/AllTagsModal';
 import { SizeVisualizerModal } from './components/modals/SizeVisualizerModal';
 import { SmartFoldersModal } from './components/modals/SmartFoldersModal';
 import { SettingsModal } from './components/modals/SettingsModal';
@@ -223,6 +225,8 @@ export default function App() {
         {/* Modals */}
         {activeModal === 'permissions' && <PermissionsModal data={modalData} onClose={closeModal} />}
         {activeModal === 'tags' && <TagManagerModal data={modalData} onClose={closeModal} />}
+        {activeModal === 'tagBrowser' && <TagBrowserModal data={modalData} onClose={closeModal} />}
+        {activeModal === 'allTags' && <AllTagsModal onClose={closeModal} />}
         {activeModal === 'sizeViz' && <SizeVisualizerModal data={modalData} onClose={closeModal} />}
         {activeModal === 'smartFolders' && <SmartFoldersModal data={modalData} onClose={closeModal} />}
         {activeModal === 'settings' && <SettingsModal onClose={closeModal} />}

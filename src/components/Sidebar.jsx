@@ -123,12 +123,15 @@ const ScrollArea = styled.div`
   overflow-y: auto;
 `;
 
-const TagDot = styled.span`
-  width: 8px;
-  height: 8px;
+const TagDot = styled.span.withConfig({
+  shouldForwardProp: p => p !== 'color',
+})`
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: ${p => p.color};
   flex-shrink: 0;
+  display: inline-block;
 `;
 
 const BookmarkItem = styled(Item)`
@@ -291,24 +294,30 @@ export default function Sidebar() {
         <Divider />
 
         {/* Tags */}
-        {allTags.length > 0 && (
-          <Section>
-            <SectionHeader onClick={() => toggleSection('tags')} style={{ cursor: 'pointer' }}>
-              Tags
-            </SectionHeader>
-            {expandedSections.tags && allTags.slice(0, 12).map(tag => (
-              <Item key={tag.tag_name} onClick={async () => {
-                const result = await window.electronAPI.searchByTag(tag.tag_name);
-                if (result.success) {
-                  useStore.getState().openModal('tags', { filterTag: tag.tag_name, files: result.files });
-                }
-              }}>
-                <TagDot color={tag.color} />
-                <span className="name">{tag.tag_name}</span>
+        <Section>
+          <SectionHeader onClick={() => toggleSection('tags')} style={{ cursor: 'pointer' }}>
+            Tags
+          </SectionHeader>
+          {expandedSections.tags && (
+            <>
+              {allTags.map(tag => (
+                <Item key={tag.tag_name} onClick={async () => {
+                  const result = await window.electronAPI.searchByTag(tag.tag_name);
+                  if (result.success) {
+                    useStore.getState().openModal('tagBrowser', { filterTag: tag.tag_name, color: tag.color, files: result.files });
+                  }
+                }}>
+                  <TagDot color={tag.color} />
+                  <span className="name">{tag.tag_name}</span>
+                </Item>
+              ))}
+              <Item onClick={() => useStore.getState().openModal('allTags')} style={{ marginTop: 2 }}>
+                <span className="icon" style={{ fontSize: 11 }}>🏷️</span>
+                <span className="name" style={{ color: 'inherit' }}>All Tags…</span>
               </Item>
-            ))}
-          </Section>
-        )}
+            </>
+          )}
+        </Section>
 
       </ScrollArea>
       <SidebarFooter>
