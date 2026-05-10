@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled, { useTheme } from 'styled-components';
-import { useStore, formatSize, formatDate, getFileIcon } from '../../store';
+import { useStore, formatSize, formatDate } from '../../store';
 import ModalPreviewPane from '../ModalPreviewPane';
 import { getTagColors } from '../../theme';
+import { FileIcon as FileIconComponent } from '../FileIcons';
 
 // ─── Styled ───────────────────────────────────────────────────────────────────
 const Overlay = styled.div`
@@ -322,7 +323,17 @@ export function TagBrowserModal({ data, onClose }) {
                     onClick={() => { setSelectedIdx(i); setSelectedItem(file); }}
                     onDoubleClick={() => revealInColumns(file.path)}
                   >
-                    <FileIcon>{getFileIcon(file)}</FileIcon>
+                    <FileIcon>
+                      {file.isDirectory ? (
+                        file.name && file.name.endsWith('.app') ? (
+                          <FileIconComponent ext="app" size={16} />
+                        ) : (
+                          '📁'
+                        )
+                      ) : (
+                        <FileIconComponent ext={file.extension} size={16} />
+                      )}
+                    </FileIcon>
                     <FileInfo>
                       <FileName>{file.name}</FileName>
                       <FilePath>{file.path}</FilePath>

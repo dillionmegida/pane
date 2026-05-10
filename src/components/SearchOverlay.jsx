@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled, { useTheme } from 'styled-components';
-import { useStore, formatSize, formatDate, getFileIcon, PREVIEW_TYPES, getPreviewType } from '../store';
+import { useStore, formatSize, formatDate, PREVIEW_TYPES, getPreviewType } from '../store';
 import ModalPreviewPane from './ModalPreviewPane';
 import { useConcurrentDirectoryScanner } from '../hooks/useDirectoryScanner';
+import { FileIcon as FileIconComponent } from './FileIcons';
 
 // Resizable divider component
 const ResizableDivider = styled.div`
@@ -582,7 +583,17 @@ export default function SearchOverlay() {
                   onClick={() => { setSelectedIdx(i); setSelectedItem(file); }}
                   onDoubleClick={() => revealInColumns(file.path)}
                 >
-                  <ResultIcon>{getFileIcon(file)}</ResultIcon>
+                  <ResultIcon>
+                    {file.isDirectory ? (
+                      file.name && file.name.endsWith('.app') ? (
+                        <FileIconComponent ext="app" size={16} />
+                      ) : (
+                        '📁'
+                      )
+                    ) : (
+                      <FileIconComponent ext={file.extension} size={16} />
+                    )}
+                  </ResultIcon>
                   <ResultInfo>
                     <ResultName>{file.name}</ResultName>
                     <ResultPath>{file.path}</ResultPath>

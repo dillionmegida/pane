@@ -6,6 +6,7 @@ import { getTagColors } from '../theme';
 import path from 'path-browserify';
 import PreviewPane from './PreviewPane';
 import QuickPreviewModal from './QuickPreviewModal';
+import { FileIcon as FileIconComponent } from './FileIcons';
 
 // ─── Styled Components ───────────────────────────────────────────────────────
 const PaneContainer = styled.div`
@@ -243,8 +244,11 @@ const FileRow = styled.div`
 `;
 
 const FileIcon = styled.span`
+  display: inline-flex;
+  align-items: center;
   font-size: 13px;
   text-align: center;
+  vertical-align: middle;
 `;
 
 const FileName = styled.span`
@@ -437,6 +441,10 @@ const ColumnItem = styled.div`
     font-size: 14px;
     width: 20px;
     text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
   }
   
   .name {
@@ -592,6 +600,9 @@ const GridItem = styled.div`
 `;
 
 const GridIcon = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 28px;
 `;
 
@@ -1646,7 +1657,17 @@ export default function FilePane({ paneId }) {
         }}
         onDrop={e => handleDrop(e, file)}
       >
-        <FileIcon>{getFileIcon(file)}</FileIcon>
+        <FileIcon>
+          {file.isDirectory ? (
+            file.name && file.name.endsWith('.app') ? (
+              <FileIconComponent ext="app" size={16} />
+            ) : (
+              '📁'
+            )
+          ) : (
+            <FileIconComponent ext={file.extension} size={16} />
+          )}
+        </FileIcon>
         {isRenaming ? (
           <input
             ref={renameInputRef}
@@ -1746,7 +1767,17 @@ export default function FilePane({ paneId }) {
         }}
         onDrop={e => handleDrop(e, file)}
       >
-        <GridIcon>{getFileIcon(file)}</GridIcon>
+        <GridIcon>
+          {file.isDirectory ? (
+            file.name && file.name.endsWith('.app') ? (
+              <FileIconComponent ext="app" size={24} />
+            ) : (
+              '📁'
+            )
+          ) : (
+            <FileIconComponent ext={file.extension} size={24} />
+          )}
+        </GridIcon>
         <GridName>{file.name}</GridName>
         {(fileTags[file.path] || []).length > 0 && (
           <GridTagDots>
@@ -2012,7 +2043,17 @@ export default function FilePane({ paneId }) {
                           handleDrop(e, file);
                         }}
                       >
-                        <span className="icon">{getFileIcon(file)}</span>
+                        <span className="icon">
+                          {file.isDirectory ? (
+                            file.name && file.name.endsWith('.app') ? (
+                              <FileIconComponent ext="app" size={14} />
+                            ) : (
+                              '📁'
+                            )
+                          ) : (
+                            <FileIconComponent ext={file.extension} size={14} />
+                          )}
+                        </span>
                         <span className="name">{file.name}</span>
                         {(fileTags[file.path] || []).length > 0 && (
                           <ColumnTagDots>

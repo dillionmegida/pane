@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { formatSize, formatDate, getFileIcon, PREVIEW_TYPES, getPreviewType, useStore } from '../store';
+import { formatSize, formatDate, PREVIEW_TYPES, getPreviewType, useStore } from '../store';
 import CustomVideo from './CustomVideo';
 import CustomAudio from './CustomAudio';
+import { FileIcon as FileIconComponent } from './FileIcons';
 
 const getVideoMime = (path) => {
   const ext = path.split('.').pop().toLowerCase();
@@ -253,7 +254,15 @@ export default function ModalPreviewPane({
         <PreviewWrapper>
           <PreviewHeader>
             <PreviewTitle>
-              {file.isDirectory ? '📁' : getFileIcon(file)} {file.name}
+              {file.isDirectory ? (
+                file.name && file.name.endsWith('.app') ? (
+                  <FileIconComponent ext="app" size={16} />
+                ) : (
+                  '📁'
+                )
+              ) : (
+                <FileIconComponent ext={file.extension} size={16} />
+              )} {file.name}
             </PreviewTitle>
             <PreviewDetail>
               <strong>Path:</strong>
@@ -286,7 +295,17 @@ export default function ModalPreviewPane({
                     {directoryContents.length > 0 ? (
                       directoryContents.map((item, index) => (
                         <DirectoryItem key={item.path}>
-                          <DirectoryItemIcon>{getFileIcon(item)}</DirectoryItemIcon>
+                          <DirectoryItemIcon>
+                            {item.isDirectory ? (
+                              item.name && item.name.endsWith('.app') ? (
+                                <FileIconComponent ext="app" size={16} />
+                              ) : (
+                                '📁'
+                              )
+                            ) : (
+                              <FileIconComponent ext={item.extension} size={16} />
+                            )}
+                          </DirectoryItemIcon>
                           <DirectoryItemInfo>
                             <DirectoryItemName>{item.name}</DirectoryItemName>
                             <DirectoryItemMeta>

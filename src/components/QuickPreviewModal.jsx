@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import ReactDOM from 'react-dom';
 import styled, { keyframes } from 'styled-components';
-import { formatSize, formatDate, getFileIcon, PREVIEW_TYPES } from '../store';
+import { formatSize, formatDate, PREVIEW_TYPES } from '../store';
 import CustomVideo from './CustomVideo';
 import CustomAudio from './CustomAudio';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+import { FileIcon as FileIconComponent } from './FileIcons';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
@@ -317,7 +318,17 @@ export default function QuickPreviewModal({ file, onClose }) {
     <Overlay onClick={handleClose}>
       <Modal onClick={e => e.stopPropagation()}>
         <ModalHeader>
-          <FileIconLarge>{getFileIcon(file)}</FileIconLarge>
+          <FileIconLarge>
+            {file.isDirectory ? (
+              file.name && file.name.endsWith('.app') ? (
+                <FileIconComponent ext="app" size={48} />
+              ) : (
+                '📁'
+              )
+            ) : (
+              <FileIconComponent ext={file.extension} size={48} />
+            )}
+          </FileIconLarge>
           <HeaderInfo>
             <FileName title={file.name}>{file.name}</FileName>
             <FileMeta>
@@ -404,7 +415,17 @@ export default function QuickPreviewModal({ file, onClose }) {
 
           {!isImage && !isVideo && !isAudio && !isPdf && (
             <UnsupportedState>
-              <BigIcon>{getFileIcon(file)}</BigIcon>
+              <BigIcon>
+                {file.isDirectory ? (
+                  file.name && file.name.endsWith('.app') ? (
+                    <FileIconComponent ext="app" size={64} />
+                  ) : (
+                    '📁'
+                  )
+                ) : (
+                  <FileIconComponent ext={file.extension} size={64} />
+                )}
+              </BigIcon>
               <span>No quick preview available for this file type</span>
             </UnsupportedState>
           )}
