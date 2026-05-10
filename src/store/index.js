@@ -824,6 +824,81 @@ export const useStore = create((set, get) => ({
   setRevealTarget: (target) => set({ revealTarget: target }),
   clearRevealTarget: () => set({ revealTarget: null }),
 
+  // Reveal a file in the tree by building the column structure
+  revealFileInTree: async (paneId, filePath, fileDir, isDirectory = false) => {
+    const state = get();
+    const currentPane = state.panes.find(p => p.id === paneId);
+    if (!currentPane) return;
+
+    const existingBase = currentPane.basePath;
+
+    // Check if fileDir is under existingBase (proper subdirectory check)
+    const isUnderBase = existingBase && (
+      fileDir === existingBase || 
+      fileDir.startsWith(path.resolve(existingBase) + '/')
+    );
+    
+    const revealBase = isUnderBase ? existingBase : fileDir;
+
+    // Navigate to base first — skip history here, we push one combined entry at the end
+    await state.navigateTo(paneId, revealBase, { skipHistory: true });
+
+    // If fileDir is deeper than base, build column structure
+    if (fileDir !== revealBase) {
+      const relativePath = fileDir.replace(revealBase, '').replace(/^\//, '');
+      const segments = relativePath.split('/').filter(Boolean);
+
+      // Build cumulative paths
+      let currentPath = revealBase;
+      const columnPaths = [revealBase];
+      const filesByPath = {};
+
+      // Load each directory in the path
+      for (const segment of segments) {
+        currentPath = `${currentPath}/${segment}`;
+        columnPaths.push(currentPath);
+
+        const result = await window.electronAPI.readdir(currentPath);
+        if (result.success) {
+          filesByPath[currentPath] = result.files;
+        }
+      }
+
+      // Update column state with all the paths
+      state.updateColumnState(paneId, {
+        paths: columnPaths,
+        filesByPath,
+        focusedIndex: columnPaths.length - 1
+      });
+
+      // Set breadcrumb to the target directory
+      state.setCurrentBreadcrumbPath(paneId, fileDir);
+    }
+
+    // Select the target file/directory
+    state.setSelection(paneId, [filePath]);
+
+    // Preview file if it's not a directory
+    let previewFilePath = null;
+    if (!isDirectory) {
+      const file = await window.electronAPI.stat(filePath);
+      if (file.success) {
+        const name = filePath.split('/').pop();
+        const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+        set({ previewFile: { ...file.stat, path: filePath, name, extension: ext, isDirectory: false } });
+        previewFilePath = filePath;
+      }
+    }
+
+    // Push a single history entry for the full reveal navigation
+    state.pushNavHistory(paneId, {
+      basePath: revealBase,
+      currentBreadcrumbPath: fileDir,
+      selectedFiles: [filePath],
+      previewFilePath,
+    });
+  },
+
   // ── UI State ──────────────────────────────────────────────────────────────
   modalData: null,
   openModal: (name, data = null) => set({ activeModal: name, modalData: data }),

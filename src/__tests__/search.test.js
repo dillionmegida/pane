@@ -58,9 +58,11 @@ describe('Search Functionality', () => {
     });
     
     // Simulate setting search state
-    useStore.setState({
-      searchQuery: 'test',
-      searchResults: [{ name: 'test.txt', path: '/test.txt' }],
+    act(() => {
+      useStore.setState({
+        searchQuery: 'test',
+        searchResults: [{ name: 'test.txt', path: '/test.txt' }],
+      });
     });
     
     act(() => {
@@ -282,22 +284,12 @@ describe('Search Results Navigation', () => {
       stat: { size: 1024, modified: Date.now(), isDirectory: false }
     });
 
-    // Set reveal target for a file under Desktop/directory/file.png
+    // Reveal a file under Desktop/directory/file.png
     const filePath = '/Users/dillion/Desktop/directory/file.png';
     const fileDir = '/Users/dillion/Desktop/directory';
 
     await act(async () => {
-      useStore.getState().setRevealTarget({
-        paneId: 'left',
-        filePath,
-        fileDir,
-        isDirectory: false,
-      });
-    });
-
-    // Wait for async operations to complete
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await useStore.getState().revealFileInTree('left', filePath, fileDir, false);
     });
 
     const leftPane = useStore.getState().panes.find(p => p.id === 'left');
@@ -351,17 +343,7 @@ describe('Search Results Navigation', () => {
     const fileDir = '/Users/dillion/Desktop/a/b/c/d/e/f';
 
     await act(async () => {
-      useStore.getState().setRevealTarget({
-        paneId: 'left',
-        filePath,
-        fileDir,
-        isDirectory: false,
-      });
-    });
-
-    // Wait for async operations
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await useStore.getState().revealFileInTree('left', filePath, fileDir, false);
     });
 
     const leftPane = useStore.getState().panes.find(p => p.id === 'left');
@@ -422,22 +404,12 @@ describe('Search Results Navigation', () => {
       stat: { size: 512, modified: Date.now(), isDirectory: false }
     });
 
-    // Set reveal target for a file outside Desktop (in Documents)
+    // Reveal a file outside Desktop (in Documents)
     const filePath = '/Users/dillion/Documents/file.txt';
     const fileDir = '/Users/dillion/Documents';
 
     await act(async () => {
-      useStore.getState().setRevealTarget({
-        paneId: 'left',
-        filePath,
-        fileDir,
-        isDirectory: false,
-      });
-    });
-
-    // Wait for async operations
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await useStore.getState().revealFileInTree('left', filePath, fileDir, false);
     });
 
     const leftPane = useStore.getState().panes.find(p => p.id === 'left');

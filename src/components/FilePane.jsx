@@ -1219,9 +1219,6 @@ export default function FilePane({ paneId }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [viewMode, columnPaths, columnFiles, currentPath, files, paneId, setSelection, setCurrentBreadcrumbPath, setPreviewFile, selectedFiles, derivedSelections, focusedColumn]);
 
-  // Stores the pending reveal data so we can apply selection/preview once files load
-  const pendingRevealRef = useRef(null);
-
   // Subscribe to revealTarget from store so we can react when it's set
   const revealTarget = useStore(s => s.revealTarget);
 
@@ -1231,132 +1228,12 @@ export default function FilePane({ paneId }) {
 
     const { filePath, fileDir, isDirectory } = revealTarget;
 
-    // Capture the reveal data before clearing so the files-load effect can use it
-    pendingRevealRef.current = { filePath, fileDir, isDirectory };
-
-    const state = useStore.getState();
-
-    // Preserve the existing basePath so we don't reset the tab's root.
-    // Only change basePath if fileDir is NOT under the current basePath.
-    const currentPane = state.panes.find(p => p.id === paneId);
-    const existingBase = currentPane?.basePath;
-
-    // Check if fileDir is under existingBase (proper subdirectory check)
-    const isUnderBase = existingBase && (
-      fileDir === existingBase || 
-      fileDir.startsWith(path.resolve(existingBase) + '/')
-    );
-    
-    const revealBase = isUnderBase ? existingBase : fileDir;
-
-    // For deep nested paths, we need to build the column structure properly
-    // Build the path segments from base to target
-    const buildColumnPaths = async () => {
-      // Navigate to base first — skip history here, we push one combined entry at the end
-      await navigateTo(paneId, revealBase, { skipHistory: true });
-
-      // If fileDir is deeper than base, build column structure
-      if (fileDir !== revealBase) {
-        const relativePath = fileDir.replace(revealBase, '').replace(/^\//, '');
-        const segments = relativePath.split('/').filter(Boolean);
-
-        // Build cumulative paths
-        let currentPath = revealBase;
-        const columnPaths = [revealBase];
-        const filesByPath = {};
-
-        // Load each directory in the path
-        for (const segment of segments) {
-          currentPath = `${currentPath}/${segment}`;
-          columnPaths.push(currentPath);
-
-          const result = await window.electronAPI.readdir(currentPath);
-          if (result.success) {
-            filesByPath[currentPath] = result.files;
-          }
-        }
-
-        // Update column state with all the paths
-        updateColumnState(paneId, {
-          paths: columnPaths,
-          filesByPath,
-          focusedIndex: columnPaths.length - 1
-        });
-
-        // Set breadcrumb to the target directory
-        setCurrentBreadcrumbPath(paneId, fileDir);
-      }
-
-      // Select the target file/directory
-      setSelection(paneId, [filePath]);
-
-      // Preview file if it's not a directory
-      let previewFilePath = null;
-      if (!isDirectory) {
-        const file = await window.electronAPI.stat(filePath);
-        if (file.success) {
-          const name = filePath.split('/').pop();
-          const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
-          setPreviewFile({ ...file.stat, path: filePath, name, extension: ext, isDirectory: false });
-          previewFilePath = filePath;
-        }
-      }
-
-      // Push a single history entry for the full reveal navigation
-      pushNavHistory(paneId, {
-        basePath: revealBase,
-        currentBreadcrumbPath: fileDir,
-        selectedFiles: [filePath],
-        previewFilePath,
-      });
-    };
-    
-    buildColumnPaths();
+    // Call the store action to handle the reveal logic
+    useStore.getState().revealFileInTree(paneId, filePath, fileDir, isDirectory);
 
     // Clear the reveal target so it doesn't re-trigger
-    state.clearRevealTarget();
+    useStore.getState().clearRevealTarget();
   }, [paneId, revealTarget]);
-
-  // After files load for the parent dir, select the revealed item and set preview/second column
-  useEffect(() => {
-    if (!pendingRevealRef.current) return;
-    const { filePath, isDirectory, fileDir } = pendingRevealRef.current;
-    if (currentPath !== fileDir) return; // wait until the right directory is loaded
-
-    // Select the revealed item in the first column
-    setSelection(paneId, [filePath]);
-
-    if (isDirectory) {
-      // Load contents for the second column
-      const colFiles = columnFiles[filePath];
-      if (!colFiles) {
-        window.electronAPI.readdir(filePath).then(result => {
-          if (result.success) {
-            updateColumnState(paneId, { filesByPath: { ...columnFiles, [filePath]: result.files }, focusedIndex: 1 });
-          }
-        });
-      } else {
-        updateColumnState(paneId, { focusedIndex: 1 });
-      }
-      setPreviewFile(null);
-    } else {
-      // Find the file object in the loaded files list and preview it
-      const file = files.find(f => f.path === filePath);
-      if (file) {
-        setPreviewFile(file);
-      } else {
-        window.electronAPI.stat(filePath).then(r => {
-          if (r.success) {
-            const name = filePath.split('/').pop();
-            const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
-            setPreviewFile({ ...r.stat, path: filePath, name, extension: ext, isDirectory: false });
-          }
-        });
-      }
-    }
-
-    pendingRevealRef.current = null;
-  }, [paneId, currentPath, files]);
 
   const navigate = (p) => {
     const newHistory = [...history.slice(0, historyIdx + 1), p];
