@@ -1303,7 +1303,13 @@ export function formatDate(isoString) {
 }
 
 export function getFileIcon(file) {
-  if (file.isDirectory) return '📁';
+  if (file.isDirectory) {
+    // Check if it's an .app bundle (macOS application)
+    if (file.name && file.name.endsWith('.app')) {
+      return '🚀';
+    }
+    return '📁';
+  }
   const iconMap = {
     // Images
     jpg: '🖼️', jpeg: '🖼️', png: '🖼️', gif: '🖼️', webp: '🖼️', svg: '🖼️', ico: '🖼️',
@@ -1325,6 +1331,8 @@ export function getFileIcon(file) {
     sh: '⚙️', bash: '⚙️', zsh: '⚙️',
     // Fonts
     ttf: '🔤', otf: '🔤', woff: '🔤', woff2: '🔤',
+    // Applications
+    app: '🚀',
   };
   return iconMap[file.extension] || '📄';
 }

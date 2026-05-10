@@ -137,7 +137,7 @@ const BookmarkItem = styled(Item)`
 
 const FOLDER_ICONS = {
   home: '🏠', desktop: '🖥️', documents: '📁', downloads: '⬇️',
-  music: '🎵', pictures: '🖼️', movies: '🎬', default: '📁'
+  music: '🎵', pictures: '🖼️', movies: '🎬', applications: '🚀', default: '📁'
 };
 
 export default function Sidebar() {
