@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import styled from 'styled-components';
-import { useStore, formatSize, formatDate, getFileIcon, sortFiles } from '../store';
+import { useStore, formatSize, formatDate, getFileIcon, sortFiles, PREVIEW_TYPES } from '../store';
 import path from 'path-browserify';
 import PreviewPane from './PreviewPane';
+import QuickPreviewModal from './QuickPreviewModal';
 
 // ─── Styled Components ───────────────────────────────────────────────────────
 const PaneContainer = styled.div`
@@ -576,6 +577,7 @@ export default function FilePane({ paneId }) {
   const [creatingName, setCreatingName] = useState(null); // 'folder' | 'file'
   const [creatingNameValue, setCreatingNameValue] = useState('');
   const creatingInputRef = useRef(null);
+  const [quickPreviewFile, setQuickPreviewFile] = useState(null);
   const [dragOver, setDragOver] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [draggedFiles, setDraggedFiles] = useState([]);
@@ -675,6 +677,42 @@ export default function FilePane({ paneId }) {
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [resizingColumn]);
+
+  // Spacebar → open QuickPreviewModal for the selected file
+  useEffect(() => {
+    if (activePane !== paneId) return;
+    const handler = (e) => {
+      if (e.code !== 'Space') return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (useStore.getState().activeModal || useStore.getState().showSearch) return;
+      // Only act when this pane is active
+      if (useStore.getState().activePane !== paneId) return;
+      const selArray = [...selectedFiles];
+      if (selArray.length === 0) return;
+      const filePath = selArray[0];
+      // Find the file object
+      let fileObj = files.find(f => f.path === filePath);
+      if (!fileObj) {
+        // Search in column files
+        for (const colFiles of Object.values(columnFiles)) {
+          const found = colFiles.find(f => f.path === filePath);
+          if (found) { fileObj = found; break; }
+        }
+      }
+      if (!fileObj || fileObj.isDirectory) return;
+      const ext = fileObj.extension || '';
+      const isPreviewable = PREVIEW_TYPES.imageExts.includes(ext) ||
+        PREVIEW_TYPES.videoExts.includes(ext) ||
+        PREVIEW_TYPES.audioExts.includes(ext) ||
+        ext === 'pdf';
+      if (!isPreviewable) return;
+      e.preventDefault();
+      setQuickPreviewFile(fileObj);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [activePane, paneId, selectedFiles, files, columnFiles]);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -1730,6 +1768,14 @@ export default function FilePane({ paneId }) {
         <PreviewPane file={previewFile} width={`${previewWidth}px`} />
       )}
       </ContentArea>
+
+      {/* Quick Preview Modal (Spacebar) */}
+      {quickPreviewFile && (
+        <QuickPreviewModal
+          file={quickPreviewFile}
+          onClose={() => setQuickPreviewFile(null)}
+        />
+      )}
 
       {/* Inline create input */}
       {creatingName && (

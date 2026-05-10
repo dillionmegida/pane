@@ -1343,7 +1343,7 @@ export function isPreviewable(file) {
 export const PREVIEW_TYPES = {
   imageExts: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'],
   textExts: ['txt', 'md', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'json', 'py', 'rb', 'sh', 'yaml', 'yml', 'xml', 'csv', 'log'],
-  videoExts: ['mp4', 'mov', 'm4v', 'webm'],
+  videoExts: ['mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv'],
   audioExts: ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'],
 };
 

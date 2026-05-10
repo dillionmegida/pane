@@ -1,6 +1,13 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
 import styled from 'styled-components';
 import { useStore, formatSize, formatDate, PREVIEW_TYPES } from '../store/index';
+import CustomVideo from './CustomVideo';
+import CustomAudio from './CustomAudio';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
+
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 const Pane = styled.div`
   width: ${p => p.width}px;
@@ -105,17 +112,6 @@ const ActionBtn = styled.button`
   &:hover { opacity: 0.85; }
 `;
 
-const VideoEl = styled.video`
-  width: 100%;
-  background: #000;
-  max-width: 600px;
-`;
-
-const AudioEl = styled.audio`
-  width: 100%;
-  margin: 10px 0;
-`;
-
 const MetaSection = styled.div`
   width: 100%;
   padding: 10px 12px;
@@ -162,10 +158,72 @@ const FileName = styled.div`
   text-align: center;
 `;
 
+const PdfWrapper = styled.div`
+  width: 100%;
+  overflow: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: ${p => p.theme.bg.primary};
+  padding: 12px;
+  gap: 8px;
+
+  .react-pdf__Document {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .react-pdf__Page {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    background: white;
+  }
+
+  canvas {
+    max-width: 100%;
+    height: auto !important;
+  }
+`;
+
+const PdfNav = styled.div`
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 8px;
+  background: ${p => p.theme.bg.secondary};
+  border-radius: ${p => p.theme.radius.sm};
+  position: sticky;
+  top: 0;
+  z-index: 5;
+`;
+
+const PdfNavBtn = styled.button`
+  background: ${p => p.theme.bg.elevated};
+  border: 1px solid ${p => p.theme.border.normal};
+  color: ${p => p.theme.text.primary};
+  padding: 2px 8px;
+  border-radius: ${p => p.theme.radius.sm};
+  font-size: 10px;
+  cursor: pointer;
+  &:hover { background: ${p => p.theme.bg.hover}; }
+  &:disabled { opacity: 0.3; cursor: not-allowed; }
+`;
+
+const PdfInfo = styled.span`
+  font-size: 10px;
+  color: ${p => p.theme.text.tertiary};
+  font-family: ${p => p.theme.font.mono};
+`;
+
 export default function PreviewPane() {
   const { previewFile, closePreview, previewWidth, setPreviewWidth, zoom } = useStore();
   const handleRef = useRef(null);
   const mediaRef = useRef(null);
+  const [pdfNumPages, setPdfNumPages] = useState(null);
+  const [pdfPage, setPdfPage] = useState(1);
+  const [pdfData, setPdfData] = useState(null);
 
   const onResizeMouseDown = useCallback((e) => {
     e.preventDefault();
@@ -205,6 +263,8 @@ export default function PreviewPane() {
     setTextContent('');
     setEditMode(false);
     setEditContent('');
+    setPdfData(null);
+    
     if (previewFile && isText && previewFile.size < 2 * 1024 * 1024) {
       setLoading(true);
       window.electronAPI.readFile(previewFile.path).then(r => {
@@ -215,23 +275,24 @@ export default function PreviewPane() {
         setLoading(false);
       });
     }
-  }, [previewFile?.path, isText, previewFile?.size]);
-
-  // Spacebar play/pause for video/audio
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.code !== 'Space') return;
-      if (!mediaRef.current) return;
-      // Don't intercept spacebar if user is typing
-      const tag = document.activeElement?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      e.preventDefault();
-      if (mediaRef.current.paused) mediaRef.current.play();
-      else mediaRef.current.pause();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+    
+    // Load PDF as binary data
+    if (previewFile && isPdf) {
+      window.electronAPI.readFile(previewFile.path, 'binary')
+        .then(result => {
+          if (result.success && result.content) {
+            const binaryStr = result.content;
+            const len = binaryStr.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+              bytes[i] = binaryStr.charCodeAt(i);
+            }
+            setPdfData(bytes);
+          }
+        })
+        .catch(err => console.error('PDF load error:', err));
+    }
+  }, [previewFile?.path, isText, isPdf, previewFile?.size]);
 
   const saveEdits = async () => {
     if (!previewFile) return;
@@ -287,23 +348,47 @@ export default function PreviewPane() {
           <ImagePreview src={`file://${previewFile.path}`} alt={previewFile.name} />
         )}
         {isVideo && (
-          <VideoEl controls key={previewFile.path} ref={mediaRef}>
-            <source src={`file://${previewFile.path}`} />
-          </VideoEl>
+          <div style={{ width: '100%', padding: '0' }}>
+            <CustomVideo
+              ref={mediaRef}
+              key={previewFile.path}
+              src={`file://${previewFile.path}`}
+              maxHeight="300px"
+            />
+          </div>
         )}
         {isAudio && (
-          <div style={{ padding: '20px 12px', width: '100%' }}>
-            <AudioEl controls key={previewFile.path} ref={mediaRef}>
-              <source src={`file://${previewFile.path}`} />
-            </AudioEl>
+          <div style={{ padding: '12px', width: '100%' }}>
+            <CustomAudio
+              ref={mediaRef}
+              key={previewFile.path}
+              src={`file://${previewFile.path}`}
+            />
           </div>
         )}
         {isPdf && (
-          <iframe
-            src={`file://${previewFile.path}`}
-            style={{ width: '100%', flex: 1, border: 'none', background: '#fff' }}
-            title="PDF Preview"
-          />
+          <PdfWrapper>
+            <PdfNav>
+              <PdfNavBtn onClick={() => setPdfPage(p => Math.max(1, p - 1))} disabled={pdfPage <= 1}>
+                ←
+              </PdfNavBtn>
+              <PdfInfo>Page {pdfPage} {pdfNumPages ? `/ ${pdfNumPages}` : ''}</PdfInfo>
+              <PdfNavBtn onClick={() => setPdfPage(p => Math.min(pdfNumPages || p, p + 1))} disabled={pdfPage >= (pdfNumPages || 1)}>
+                →
+              </PdfNavBtn>
+            </PdfNav>
+            {pdfData ? (
+              <Document
+                file={{ data: pdfData }}
+                onLoadSuccess={({ numPages }) => { setPdfNumPages(numPages); setPdfPage(1); }}
+                loading={<div style={{ padding: '20px', color: '#4A9EFF', fontSize: 10 }}>Loading...</div>}
+              >
+                <Page pageNumber={pdfPage} width={Math.min(280, previewWidth - 40)} />
+              </Document>
+            ) : (
+              <div style={{ padding: '20px', color: '#4A9EFF', fontSize: 10 }}>Loading PDF...</div>
+            )}
+          </PdfWrapper>
         )}
         {isText && (
           <TextPreviewWrap>

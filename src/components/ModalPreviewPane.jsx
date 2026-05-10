@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { formatSize, formatDate, getFileIcon, PREVIEW_TYPES, getPreviewType, useStore } from '../store';
+import CustomVideo from './CustomVideo';
+import CustomAudio from './CustomAudio';
 
 const getVideoMime = (path) => {
   const ext = path.split('.').pop().toLowerCase();
@@ -17,7 +19,6 @@ const PreviewPane = styled.div`
   position: relative;
   height: 100%;
   flex-shrink: 0;
-  padding-bottom: 50px;
 `;
 
 const PreviewWrapper = styled.div`
@@ -302,14 +303,19 @@ export default function ModalPreviewPane({
                   </div>
                 )}
                 {previewType === 'video' && (
-                  <video controls style={{ maxWidth: '100%' }} key={previewContent}>
-                   <source src={`file://${previewContent}`} type={getVideoMime(previewContent)} />
-                  </video>
+                  <CustomVideo
+                    key={previewContent}
+                    src={`file://${previewContent}`}
+                    type={getVideoMime(previewContent)}
+                  />
                 )}
                 {previewType === 'audio' && (
-                  <audio controls style={{ width: '100%' }} key={previewContent}>
-                    <source src={`file://${previewContent}`} />
-                  </audio>
+                  <div style={{ padding: '8px' }}>
+                    <CustomAudio
+                      key={previewContent}
+                      src={`file://${previewContent}`}
+                    />
+                  </div>
                 )}
                 {previewType === 'image' && (
                   <img src={`file://${previewContent}`} alt={file.name} style={{ maxWidth: '100%', objectFit: 'contain' }} />
