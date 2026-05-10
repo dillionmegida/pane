@@ -139,6 +139,18 @@ export default function App() {
           state.closeTab(state.activePane, pane.activeTab);
         }
       }
+      // Cmd+1-9 = switch to tab
+      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
+        e.preventDefault();
+        const state = useStore.getState();
+        const pane = state.panes.find(p => p.id === state.activePane);
+        if (pane) {
+          const tabIndex = parseInt(e.key) - 1;
+          if (tabIndex < pane.tabs.length) {
+            state.switchTab(state.activePane, tabIndex);
+          }
+        }
+      }
       // Cmd+Shift+R = reveal selected file in column view
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'r') {
         e.preventDefault();
