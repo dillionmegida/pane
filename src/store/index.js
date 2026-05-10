@@ -438,11 +438,11 @@ export const useStore = create((set, get) => ({
   _applyHistoryEntry: async (paneId, historyEntry) => {
     const { basePath, currentBreadcrumbPath, selectedFiles, previewFilePath } = historyEntry;
 
-    // Set loading state
+    // Don't set loading state during history restoration to avoid visual flash
+    // We're restoring previously viewed content, so no loading indicator needed
     set(s => ({
       panes: s.panes.map(p => p.id === paneId ? {
         ...p,
-        loading: true,
         error: null,
         basePath,
         currentBreadcrumbPath,
@@ -453,7 +453,7 @@ export const useStore = create((set, get) => ({
     const result = await window.electronAPI.readdir(basePath);
     if (!result.success) {
       set(s => ({
-        panes: s.panes.map(p => p.id === paneId ? { ...p, loading: false, error: result.error } : p),
+        panes: s.panes.map(p => p.id === paneId ? { ...p, error: result.error } : p),
       }));
       return;
     }
