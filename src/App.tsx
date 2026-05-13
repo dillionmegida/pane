@@ -30,14 +30,26 @@ const GlobalStyle = createGlobalStyle`
   ::-webkit-scrollbar-corner { background: transparent; }
 `;
 
-const AppShell = styled.div`
+const AppShell = styled.div<{ zoomScale?: number }>`
   display: flex;
   flex-direction: column;
-  width: 100vw;
-  height: 100vh;
+  width: ${p => p.zoomScale ? `${100 / p.zoomScale}vw` : '100vw'};
+  height: ${p => p.zoomScale ? `${100 / p.zoomScale}vh` : '100vh'};
   overflow: hidden;
   background: ${p => p.theme.bg.primary};
   transform-origin: top left;
+  ${p => p.zoomScale ? `transform: scale(${p.zoomScale});` : ''}
+`;
+
+const LoadingShell = styled(AppShell)`
+  align-items: center;
+  justify-content: center;
+`;
+
+const LoadingText = styled.div`
+  color: #4A9EFF;
+  font-family: "SF Mono", monospace;
+  font-size: 13px;
 `;
 
 const ContentRow = styled.div`
@@ -45,6 +57,7 @@ const ContentRow = styled.div`
   flex: 1;
   overflow: hidden;
   position: relative;
+  height: 100%;
 `;
 
 const MainArea = styled.div`
@@ -153,19 +166,19 @@ export default function App() {
 
   if (!initialized) {
     return (
-      <AppShell style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: '#4A9EFF', fontFamily: '"SF Mono", monospace', fontSize: 13 }}>
+      <LoadingShell>
+        <LoadingText>
           Loading Pane...
-        </div>
-      </AppShell>
+        </LoadingText>
+      </LoadingShell>
     );
   }
 
   return (
     <>
       <GlobalStyle />
-      <AppShell style={{ transform: `scale(${zoom})`, width: `${100 / zoom}vw`, height: `${100 / zoom}vh` }}>
-        <ContentRow style={{ height: '100%' }}>
+      <AppShell zoomScale={zoom}>
+        <ContentRow>
           {showSidebar && <Sidebar />}
           <MainArea>
             <MainContent />

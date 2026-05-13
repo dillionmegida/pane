@@ -94,6 +94,33 @@ const NoneColorDot = styled.button`
   &:hover { border-color: ${p => p.theme.text.secondary}; }
 `;
 
+const TagModalBox = styled(ModalBox)`
+  max-height: 70vh;
+`;
+
+const AddTagRow = styled(Row)`
+  margin-bottom: 10px;
+`;
+
+const AddTagInput = styled(Input)`
+  flex: 1;
+`;
+
+const TagListSection = styled.div`
+  margin-top: 4px;
+`;
+
+const TagsLabel = styled(Label)`
+  margin-bottom: 6px;
+`;
+
+const EmptyTagMsg = styled.div`
+  color: #5a5a6b;
+  font-size: 11px;
+  text-align: center;
+  padding-top: 20px;
+`;
+
 interface FileArg {
   name: string;
   path: string;
@@ -162,7 +189,7 @@ export function TagManagerModal({ data, onClose }: TagManagerModalProps) {
 
   return (
     <Overlay onClick={onClose}>
-      <ModalBox width="340px" onClick={(e: React.MouseEvent) => e.stopPropagation()} style={{ maxHeight: '70vh' }}>
+      <TagModalBox width="340px" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
         <ModalHeader>
           <ModalTitle>🏷️ Tags{file ? ` — ${file.name}` : ''}</ModalTitle>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
@@ -178,22 +205,21 @@ export function TagManagerModal({ data, onClose }: TagManagerModalProps) {
           </ColorRow>
 
           {file && (
-            <Row style={{ marginBottom: 10 }}>
-              <Input
+            <AddTagRow>
+              <AddTagInput
                 ref={inputRef}
                 value={newTag}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewTag(e.target.value)}
                 placeholder="New tag name..."
                 onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && addTag()}
-                style={{ flex: 1 }}
               />
               <Btn primary onClick={() => addTag()} disabled={!newTag.trim()}>Add</Btn>
-            </Row>
+            </AddTagRow>
           )}
 
           {existingTags.length > 0 && (
-            <div style={{ marginTop: 4 }}>
-              <Label style={{ marginBottom: 6 }}>Tags</Label>
+            <TagListSection>
+              <TagsLabel>Tags</TagsLabel>
               {existingTags.map(tag => (
                 <TagRow key={tag.tag_name} onClick={() => file && toggleExistingTag(tag)}>
                   <TagDotSmall color={tag.color} />
@@ -201,19 +227,19 @@ export function TagManagerModal({ data, onClose }: TagManagerModalProps) {
                   <CheckIcon checked={fileTags.includes(tag.tag_name)}>✓</CheckIcon>
                 </TagRow>
               ))}
-            </div>
+            </TagListSection>
           )}
 
           {existingTags.length === 0 && !file && (
-            <div style={{ color: '#5a5a6b', fontSize: 11, textAlign: 'center', paddingTop: 20 }}>
+            <EmptyTagMsg>
               No tags yet. Open a file&apos;s context menu to add tags.
-            </div>
+            </EmptyTagMsg>
           )}
         </ModalBody>
         <ModalFooter>
           <Btn primary onClick={onClose}>Done</Btn>
         </ModalFooter>
-      </ModalBox>
+      </TagModalBox>
     </Overlay>
   );
 }

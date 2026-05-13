@@ -102,6 +102,16 @@ const TagDot = styled.span<{ color: string; offset: number }>`
   border: 1px solid white;
 `;
 
+const ColumnRenameInput = styled.input`
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: inherit;
+  border-radius: 3px;
+  outline: none;
+  min-width: 0;
+`;
+
 interface ColumnItemProps {
   file: FileItem;
   isSelected: boolean;
@@ -237,7 +247,7 @@ export default function ColumnItem({
         )}
       </ItemIcon>
       {isRenaming ? (
-        <input
+        <ColumnRenameInput
           ref={renameInputRef}
           value={renameValue}
           onChange={e => onRenameValueChange?.(e.target.value)}
@@ -247,11 +257,6 @@ export default function ColumnItem({
             if (e.key === 'Escape') { e.preventDefault(); onRenameCancel?.(); }
           }}
           onClick={e => e.stopPropagation()}
-          style={{
-            flex: 1, background: 'transparent', border: '1px solid #4A9EFF',
-            color: 'inherit', fontSize: 12, padding: '1px 4px',
-            borderRadius: 3, outline: 'none', minWidth: 0,
-          }}
         />
       ) : (
         <ItemName>{file.name}</ItemName>

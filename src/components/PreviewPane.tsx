@@ -205,6 +205,62 @@ const PdfInfo = styled.span`
   font-family: ${p => p.theme.font.mono};
 `;
 
+const EmptyPreview = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5a5a6b;
+  font-size: 12px;
+`;
+
+const VideoWrap = styled.div`
+  width: 100%;
+  padding: 0;
+`;
+
+const AudioWrap = styled.div`
+  padding: 12px;
+  width: 100%;
+`;
+
+const PdfLoading = styled.div`
+  padding: 20px;
+  color: #4A9EFF;
+  font-size: 10px;
+`;
+
+const EditTextarea = styled.textarea`
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  background: #111;
+  color: #e8e8ed;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 10px;
+  line-height: 1.6;
+  padding: 10px 12px;
+`;
+
+const LoadingPreview = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5a5a6b;
+  font-size: 11px;
+`;
+
+const NoPreviewLabel = styled.div`
+  font-size: 11px;
+  color: #5a5a6b;
+  padding: 4px 12px;
+  text-align: center;
+`;
+
 function isTextContent(content: string): boolean {
   if (!content) return false;
   const sample = content.slice(0, 512);
@@ -316,9 +372,9 @@ export default function PreviewPane() {
         <Header>
           <CloseBtn onClick={closePreview}>✕</CloseBtn>
         </Header>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5a5a6b', fontSize: 12 }}>
+        <EmptyPreview>
           Select a file to preview
-        </div>
+        </EmptyPreview>
       </Pane>
     );
   }
@@ -336,23 +392,23 @@ export default function PreviewPane() {
           <ImagePreview src={`file://${previewFile.path}`} alt={previewFile.name} />
         )}
         {isVideo && (
-          <div style={{ width: '100%', padding: '0' }}>
+          <VideoWrap>
             <CustomVideo
               ref={mediaRef}
               key={previewFile.path}
               src={`file://${previewFile.path}`}
               maxHeight="300px"
             />
-          </div>
+          </VideoWrap>
         )}
         {isAudio && (
-          <div style={{ padding: '12px', width: '100%' }}>
+          <AudioWrap>
             <CustomAudio
               ref={mediaRef}
               key={previewFile.path}
               src={`file://${previewFile.path}`}
             />
-          </div>
+          </AudioWrap>
         )}
         {isPdf && (
           <PdfWrapper>
@@ -365,28 +421,21 @@ export default function PreviewPane() {
               <Document
                 file={{ data: pdfData }}
                 onLoadSuccess={({ numPages }) => { setPdfNumPages(numPages); setPdfPage(1); }}
-                loading={<div style={{ padding: '20px', color: '#4A9EFF', fontSize: 10 }}>Loading...</div>}
+                loading={<PdfLoading>Loading...</PdfLoading>}
               >
                 <Page pageNumber={pdfPage} width={Math.min(280, previewWidth - 40)} />
               </Document>
             ) : (
-              <div style={{ padding: '20px', color: '#4A9EFF', fontSize: 10 }}>Loading PDF...</div>
+              <PdfLoading>Loading PDF...</PdfLoading>
             )}
           </PdfWrapper>
         )}
         {isText && (
           <TextPreviewWrap>
             {editMode ? (
-              <textarea
+              <EditTextarea
                 value={editContent}
                 onChange={e => setEditContent(e.target.value)}
-                style={{
-                  width: '100%', height: '100%', minHeight: 200,
-                  background: '#111', color: '#e8e8ed',
-                  border: 'none', outline: 'none', resize: 'none',
-                  fontFamily: '"SF Mono", "Fira Code", monospace',
-                  fontSize: 10, lineHeight: 1.6, padding: '10px 12px',
-                }}
               />
             ) : (
               <TextContent>
@@ -396,12 +445,12 @@ export default function PreviewPane() {
           </TextPreviewWrap>
         )}
         {loading && !isImage && !isVideo && !isAudio && !isPdf && (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5a5a6b', fontSize: 11 }}>Loading...</div>
+          <LoadingPreview>Loading...</LoadingPreview>
         )}
         {!loading && !isImage && !isText && !isVideo && !isAudio && !isPdf && (
           <>
             <IconPreview>{getIconForFile()}</IconPreview>
-            <div style={{ fontSize: 11, color: '#5a5a6b', padding: '4px 12px', textAlign: 'center' }}>Preview not available</div>
+            <NoPreviewLabel>Preview not available</NoPreviewLabel>
           </>
         )}
       </PreviewArea>

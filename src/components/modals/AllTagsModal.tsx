@@ -110,6 +110,26 @@ const ActionBtn = styled.button<{ danger?: boolean; primary?: boolean }>`
   &:hover { opacity: 0.85; }
 `;
 
+const EmptyTags = styled.div`
+  padding: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: #888;
+`;
+
+const PaletteRow = styled.div`
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  max-width: 140px;
+`;
+
+const CtxBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+`;
+
 const PALETTE = [
   '#f87171','#fb923c','#fbbf24','#34d399',
   '#4A9EFF','#a78bfa','#9ca3af','#f472b6',
@@ -236,19 +256,19 @@ export function AllTagsModal({ onClose }: AllTagsModalProps) {
             </TagRow>
           ))}
           {tags.length === 0 && (
-            <div style={{ padding: '20px', textAlign: 'center', fontSize: 12, color: '#888' }}>
+            <EmptyTags>
               No tags yet. Click + to create one.
-            </div>
+            </EmptyTags>
           )}
         </TagList>
 
         {creating && (
           <CreateRow>
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 140 }}>
+            <PaletteRow>
               {PALETTE.map(c => (
                 <CtxColorDot key={c} color={c} active={newColor === c} onClick={() => setNewColor(c)} />
               ))}
-            </div>
+            </PaletteRow>
             <CreateInput
               ref={createInputRef}
               value={newName}
@@ -263,7 +283,7 @@ export function AllTagsModal({ onClose }: AllTagsModalProps) {
 
       {ctxMenu && ReactDOM.createPortal(
         <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={(e) => { e.stopPropagation(); setCtxMenu(null); }} />
+          <CtxBackdrop onClick={(e) => { e.stopPropagation(); setCtxMenu(null); }} />
           <CtxMenu style={{ left: ctxMenu.x, top: ctxMenu.y }} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
             <CtxItem danger onClick={() => confirmDelete(ctxMenu.tag)}>Delete Tag &quot;{ctxMenu.tag.tag_name}&quot;…</CtxItem>
             <CtxDivider />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { useStore } from '../store';
 import type { Bookmark, Tag } from '../types';
@@ -74,6 +74,23 @@ const SectionHeader = styled.div`
   padding: 10px 12px 4px;
 `;
 
+const ClickableSectionHeader = styled(SectionHeader)`
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  padding-right: 12px;
+`;
+
+const AddBookmarkBtn = styled.span`
+  font-size: 12px;
+  cursor: pointer;
+  color: #4A9EFF;
+`;
+
+const ClickableSectionHeaderSimple = styled(SectionHeader)`
+  cursor: pointer;
+`;
+
 const Item = styled.div`
   display: flex;
   align-items: center;
@@ -104,6 +121,18 @@ const Item = styled.div`
   &:hover .remove { opacity: 1; }
 `;
 
+const AllTagsItem = styled(Item)`
+  margin-top: 2px;
+`;
+
+const AllTagsIcon = styled.span`
+  font-size: 11px;
+`;
+
+const AllTagsName = styled.span`
+  color: inherit;
+`;
+
 const Divider = styled.div`
   height: 1px;
   background: ${p => p.theme.border.subtle};
@@ -125,7 +154,14 @@ const TagDot = styled.span<{ color: string }>`
 `;
 
 const BookmarkItem = styled(Item)`
-  &.drag-over { background: ${p => p.theme.bg.selection}; }
+  &.dragging { opacity: 0.4; }
+`;
+
+const DropIndicatorLine = styled.div`
+  height: 2px;
+  background: ${p => p.theme.accent.blue};
+  margin: 0 4px;
+  border-radius: 1px;
 `;
 
 const FOLDER_ICONS: Record<string, string> = {
@@ -167,7 +203,9 @@ export default function Sidebar() {
     window.addEventListener('mouseup', onUp);
   }, [setSidebarWidth]);
 
-  const [dragOver, setDragOver] = useState<number | null>(null);
+  const [insertLineIndex, setInsertLineIndex] = useState<number | null>(null);
+  const [reorderSrcIdx, setReorderSrcIdx] = useState<number | null>(null);
+  const bookmarksListRef = useRef<HTMLDivElement>(null);
   const [expandedSections, setExpandedSections] = useState({ bookmarks: true, tags: true });
 
   const activePath = getActivePath(activePane);
@@ -184,14 +222,18 @@ export default function Sidebar() {
     if (bookmark) navigateToBookmark(activePane, bookmark.path, bookmark.id);
   };
 
-  const handleDrop = (e: React.DragEvent, targetIdx: number) => {
+  const handleReorderDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    setDragOver(null);
     const srcIdx = parseInt(e.dataTransfer.getData('bookmark-index'));
-    if (isNaN(srcIdx) || srcIdx === targetIdx) return;
+    const targetIdx = insertLineIndex ?? bookmarks.length;
+    setInsertLineIndex(null);
+    setReorderSrcIdx(null);
+    if (isNaN(srcIdx)) return;
+    let adjustedTarget = targetIdx > srcIdx ? targetIdx - 1 : targetIdx;
+    if (adjustedTarget === srcIdx) return;
     const newBookmarks = [...bookmarks];
     const [moved] = newBookmarks.splice(srcIdx, 1);
-    newBookmarks.splice(targetIdx, 0, moved);
+    newBookmarks.splice(adjustedTarget, 0, moved);
     setBookmarks(newBookmarks);
   };
 
@@ -214,6 +256,58 @@ export default function Sidebar() {
     setBookmarks(nb);
   };
 
+  const isExternalFileDrag = (e: React.DragEvent) =>
+    e.dataTransfer.types.includes('file-paths') && !e.dataTransfer.types.includes('bookmark-index');
+
+  const isBookmarkReorder = (e: React.DragEvent) =>
+    e.dataTransfer.types.includes('bookmark-index');
+
+  const handleBookmarksListDragOver = (e: React.DragEvent) => {
+    const isExternal = isExternalFileDrag(e);
+    const isReorder = isBookmarkReorder(e);
+    if (!isExternal && !isReorder) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = isExternal ? 'copy' : 'move';
+    const container = bookmarksListRef.current;
+    if (!container) { setInsertLineIndex(bookmarks.length); return; }
+    const items = container.querySelectorAll('[data-bookmark-idx]');
+    let idx = bookmarks.length;
+    for (let i = 0; i < items.length; i++) {
+      const rect = items[i].getBoundingClientRect();
+      if (e.clientY < rect.top + rect.height / 2) { idx = i; break; }
+    }
+    setInsertLineIndex(idx);
+  };
+
+  const handleBookmarksListDragLeave = (e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setInsertLineIndex(null);
+      setReorderSrcIdx(null);
+    }
+  };
+
+  const handleExternalDrop = (e: React.DragEvent) => {
+    if (!isExternalFileDrag(e)) return;
+    e.preventDefault();
+    const idx = insertLineIndex ?? bookmarks.length;
+    setInsertLineIndex(null);
+    const rawPaths = e.dataTransfer.getData('file-paths');
+    if (!rawPaths) return;
+    const paths: string[] = JSON.parse(rawPaths);
+    const newEntries = paths
+      .filter(p => !bookmarks.some(bm => bm.path === p))
+      .map(p => ({
+        id: `bm-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: p.split('/').pop() || p,
+        path: p,
+        icon: 'default',
+      }));
+    if (!newEntries.length) return;
+    const nb = [...bookmarks];
+    nb.splice(idx, 0, ...newEntries);
+    setBookmarks(nb);
+  };
+
   const toggleSection = (key: 'bookmarks' | 'tags') =>
     setExpandedSections(s => ({ ...s, [key]: !s[key] }));
 
@@ -233,38 +327,48 @@ export default function Sidebar() {
         <Divider />
 
         <Section>
-          <SectionHeader
-            onClick={() => toggleSection('bookmarks')}
-            style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', paddingRight: 12 }}
-          >
+          <ClickableSectionHeader onClick={() => toggleSection('bookmarks')}>
             <span>Bookmarks</span>
-            <span style={{ fontSize: 12, cursor: 'pointer', color: '#4A9EFF' }}
-              onClick={(e) => { e.stopPropagation(); addBookmark(); }}>+</span>
-          </SectionHeader>
-          {expandedSections.bookmarks && bookmarks.map((bm: Bookmark, idx: number) => (
-            <BookmarkItem
-              key={bm.path + idx}
-              className={`${dragOver === idx ? 'drag-over' : ''} ${activePath === bm.path ? 'active' : ''} ${activeBookmark && activeBookmark.id === bm.id ? 'bookmark-active' : ''}`}
-              draggable
-              onDragStart={e => e.dataTransfer.setData('bookmark-index', String(idx))}
-              onDragOver={e => { e.preventDefault(); setDragOver(idx); }}
-              onDragLeave={() => setDragOver(null)}
-              onDrop={e => handleDrop(e, idx)}
-              onClick={() => navigateBookmark(bm.path)}
+            <AddBookmarkBtn onClick={(e) => { e.stopPropagation(); addBookmark(); }}>+</AddBookmarkBtn>
+          </ClickableSectionHeader>
+          {expandedSections.bookmarks && (
+            <div
+              ref={bookmarksListRef}
+              onDragOver={handleBookmarksListDragOver}
+              onDragLeave={handleBookmarksListDragLeave}
+              onDrop={e => {
+                if (isBookmarkReorder(e)) handleReorderDrop(e);
+                else handleExternalDrop(e);
+              }}
             >
-              <span className="icon">{FOLDER_ICONS[bm.icon] || '📁'}</span>
-              <span className="name">{bm.name}</span>
-              <span className="remove" onClick={e => removeBookmark(idx, e)}>✕</span>
-            </BookmarkItem>
-          ))}
+              {bookmarks.map((bm: Bookmark, idx: number) => (
+                <React.Fragment key={bm.id}>
+                  {insertLineIndex === idx && <DropIndicatorLine />}
+                  <BookmarkItem
+                    data-bookmark-idx={idx}
+                    className={`${reorderSrcIdx === idx ? 'dragging' : ''} ${activePath === bm.path ? 'active' : ''} ${activeBookmark && activeBookmark.id === bm.id ? 'bookmark-active' : ''}`}
+                    draggable
+                    onDragStart={e => { e.dataTransfer.setData('bookmark-index', String(idx)); setReorderSrcIdx(idx); }}
+                    onDragEnd={() => { setInsertLineIndex(null); setReorderSrcIdx(null); }}
+                    onClick={() => navigateBookmark(bm.path)}
+                  >
+                    <span className="icon">{FOLDER_ICONS[bm.icon] || '📁'}</span>
+                    <span className="name">{bm.name}</span>
+                    <span className="remove" onClick={e => removeBookmark(idx, e)}>✕</span>
+                  </BookmarkItem>
+                </React.Fragment>
+              ))}
+              {insertLineIndex === bookmarks.length && <DropIndicatorLine />}
+            </div>
+          )}
         </Section>
 
         <Divider />
 
         <Section>
-          <SectionHeader style={{ cursor: 'pointer' }} onClick={() => openModal('smartFolders')}>
+          <ClickableSectionHeaderSimple onClick={() => openModal('smartFolders')}>
             Smart Folders ›
-          </SectionHeader>
+          </ClickableSectionHeaderSimple>
           {SMART_FOLDERS.map(sf => (
             <Item key={sf.id} onClick={() => openModal('smartFolders', sf)}>
               <span className="icon">{sf.icon}</span>
@@ -276,9 +380,9 @@ export default function Sidebar() {
         <Divider />
 
         <Section>
-          <SectionHeader onClick={() => toggleSection('tags')} style={{ cursor: 'pointer' }}>
+          <ClickableSectionHeaderSimple onClick={() => toggleSection('tags')}>
             Tags
-          </SectionHeader>
+          </ClickableSectionHeaderSimple>
           {expandedSections.tags && (
             <>
               {allTags.map((tag: Tag) => (
@@ -292,10 +396,10 @@ export default function Sidebar() {
                   <span className="name">{tag.tag_name}</span>
                 </Item>
               ))}
-              <Item onClick={() => useStore.getState().openModal('allTags')} style={{ marginTop: 2 }}>
-                <span className="icon" style={{ fontSize: 11 }}>🏷️</span>
-                <span className="name" style={{ color: 'inherit' }}>All Tags…</span>
-              </Item>
+              <AllTagsItem onClick={() => useStore.getState().openModal('allTags')}>
+                <AllTagsIcon className="icon">🏷️</AllTagsIcon>
+                <AllTagsName className="name">All Tags…</AllTagsName>
+              </AllTagsItem>
             </>
           )}
         </Section>

@@ -1,4 +1,27 @@
 import React from 'react';
+import styled from 'styled-components';
+
+const IconWrap = styled.div`
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+`;
+
+const IconLabel = styled.span<{ labelColor: string; labelFontSize: number }>`
+  font-size: ${p => p.labelFontSize}px;
+  color: ${p => p.labelColor};
+  font-weight: 600;
+  font-family: monospace;
+  letter-spacing: 0.03em;
+`;
+
+const IconGridWrap = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px;
+`;
 
 interface IconBase {
   color: string;
@@ -471,8 +494,8 @@ export function FileIcon({ ext, size = 32, showLabel = false, labelSize, style, 
   }
 
   return (
-    <div
-      style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 4, ...style }}
+    <IconWrap
+      style={style}
       className={className}
     >
       <svg
@@ -487,19 +510,14 @@ export function FileIcon({ ext, size = 32, showLabel = false, labelSize, style, 
         <g color={icon.color}>{icon.shape}</g>
       </svg>
       {showLabel && (
-        <span
-          style={{
-            fontSize: labelSize ?? Math.max(9, size * 0.28),
-            color: icon.color,
-            fontWeight: 600,
-            fontFamily: 'monospace',
-            letterSpacing: '0.03em',
-          }}
+        <IconLabel
+          labelColor={icon.color}
+          labelFontSize={labelSize ?? Math.max(9, size * 0.28)}
         >
           {icon.label}
-        </span>
+        </IconLabel>
       )}
-    </div>
+    </IconWrap>
   );
 }
 
@@ -516,11 +534,11 @@ export function FileIconGrid({ size = 40, showLabel = true }: FileIconGridProps)
   const all = [...allExts, ...withAlias];
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, padding: 16 }}>
+    <IconGridWrap>
       {all.map(ext => (
         <FileIcon key={ext} ext={ext} size={size} showLabel={showLabel} />
       ))}
-    </div>
+    </IconGridWrap>
   );
 }
 

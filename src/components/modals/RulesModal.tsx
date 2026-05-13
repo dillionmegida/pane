@@ -47,6 +47,51 @@ const AddBtn = styled.button`
   &:hover { border-color: ${p => p.theme.accent.blue}; color: ${p => p.theme.accent.blue}; }
 `;
 
+const EmptyRules = styled.div`
+  text-align: center;
+  padding: 40px 0;
+  color: #5a5a6b;
+  font-size: 12px;
+`;
+
+const RuleInfo = styled.div`
+  flex: 1;
+`;
+
+const RuleName = styled.div`
+  font-size: 12px;
+  font-weight: 600;
+  color: #e8e8ed;
+  margin-bottom: 2px;
+`;
+
+const RuleMeta = styled.div`
+  font-size: 10px;
+  color: #5a5a6b;
+`;
+
+const FormSection = styled.div`
+  margin-bottom: 14px;
+`;
+
+const SectionLabel = styled.div`
+  font-size: 11px;
+  font-weight: 700;
+  color: #5a5a6b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+`;
+
+const WatchField = styled.div`
+  flex: 1;
+`;
+
+const DeleteRuleBtn = styled(Btn)`
+  margin-right: auto;
+  color: #f87171;
+`;
+
 const CONDITION_FIELDS = ['filename_contains', 'extension_is', 'size_gt', 'size_lt', 'date_before', 'date_after', 'name_starts_with', 'name_ends_with'];
 const ACTION_TYPES = ['move_to', 'rename', 'tag', 'zip'];
 
@@ -169,9 +214,9 @@ export default function RulesModal({ onClose }: RulesModalProps) {
           <>
             <ModalBody>
               {rules.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '40px 0', color: '#5a5a6b', fontSize: 12 }}>
+                <EmptyRules>
                   No rules yet. Create one to auto-organise files.
-                </div>
+                </EmptyRules>
               )}
               {rules.map(rule => (
                 <RuleCard key={rule.id} onClick={() => setEditingRule({ ...rule })}>
@@ -182,13 +227,13 @@ export default function RulesModal({ onClose }: RulesModalProps) {
                     }} />
                     <span />
                   </Toggle>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#e8e8ed', marginBottom: 2 }}>{rule.name}</div>
-                    <div style={{ fontSize: 10, color: '#5a5a6b' }}>
+                  <RuleInfo>
+                    <RuleName>{rule.name}</RuleName>
+                    <RuleMeta>
                       {rule.conditions?.length || 0} condition{rule.conditions?.length !== 1 ? 's' : ''} · {rule.actions?.length || 0} action{rule.actions?.length !== 1 ? 's' : ''}
                       {rule.watch_path && ` · watching ${rule.watch_path.split('/').pop()}`}
-                    </div>
-                  </div>
+                    </RuleMeta>
+                  </RuleInfo>
                   <Btn onClick={(e: React.MouseEvent) => { e.stopPropagation(); runRule(rule.id); }} disabled={running === rule.id}>
                     {running === rule.id ? '⏳' : '▶ Run'}
                   </Btn>
@@ -204,13 +249,13 @@ export default function RulesModal({ onClose }: RulesModalProps) {
         ) : (
           <>
             <ModalBody>
-              <div style={{ marginBottom: 14 }}>
+              <FormSection>
                 <Label>Rule Name</Label>
                 <Input value={editingRule.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingRule(r => r ? { ...r, name: e.target.value } : r)} />
-              </div>
+              </FormSection>
 
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#5a5a6b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>CONDITIONS (IF)</div>
+              <FormSection>
+                <SectionLabel>CONDITIONS (IF)</SectionLabel>
                 {editingRule.conditions.map((cond, i) => (
                   <ConditionRow key={i}>
                     <Select value={cond.field} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateCondition(i, 'field', e.target.value)}>
@@ -222,10 +267,10 @@ export default function RulesModal({ onClose }: RulesModalProps) {
                   </ConditionRow>
                 ))}
                 <AddBtn onClick={addCondition}>+ Add Condition</AddBtn>
-              </div>
+              </FormSection>
 
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#5a5a6b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>ACTIONS (THEN)</div>
+              <FormSection>
+                <SectionLabel>ACTIONS (THEN)</SectionLabel>
                 {editingRule.actions.map((action, i) => (
                   <ActionRow key={i}>
                     <Select value={action.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateAction(i, 'type', e.target.value)}>
@@ -244,18 +289,18 @@ export default function RulesModal({ onClose }: RulesModalProps) {
                   </ActionRow>
                 ))}
                 <AddBtn onClick={addAction}>+ Add Action</AddBtn>
-              </div>
+              </FormSection>
 
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#5a5a6b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>WATCH SETTINGS</div>
+                <SectionLabel>WATCH SETTINGS</SectionLabel>
                 <Row align="flex-end">
-                  <div style={{ flex: 1 }}>
+                  <WatchField>
                     <Label>Watch Folder (optional)</Label>
                     <Row>
                       <Input value={editingRule.watchPath || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingRule(r => r ? { ...r, watchPath: e.target.value } : r)} placeholder="Folder to monitor..." />
                       <Btn onClick={() => choosePath('watchPath')}>Browse</Btn>
                     </Row>
-                  </div>
+                  </WatchField>
                   <div>
                     <Label>Run every (minutes, 0=manual)</Label>
                     <Input type="number" min={0} value={editingRule.scheduleInterval || 0} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingRule(r => r ? { ...r, scheduleInterval: +e.target.value } : r)} width="80px" />
@@ -265,9 +310,9 @@ export default function RulesModal({ onClose }: RulesModalProps) {
             </ModalBody>
             <ModalFooter>
               {editingRule.id && (
-                <Btn onClick={() => deleteRule(editingRule.id)} style={{ marginRight: 'auto', color: '#f87171' }}>
+                <DeleteRuleBtn onClick={() => deleteRule(editingRule.id)}>
                   Delete Rule
-                </Btn>
+                </DeleteRuleBtn>
               )}
               <Btn onClick={() => setEditingRule(null)}>Back</Btn>
               <Btn primary disabled={loading} onClick={() => saveRule(editingRule)}>

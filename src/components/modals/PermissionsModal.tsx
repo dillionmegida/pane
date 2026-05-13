@@ -1,5 +1,46 @@
 import React, { useState } from 'react';
+import styled from 'styled-components';
 import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Label } from './ModalPrimitives';
+
+const PermDisplay = styled.div`
+  font-family: monospace;
+  font-size: 24px;
+  text-align: center;
+  color: #34d399;
+  margin-bottom: 16px;
+  letter-spacing: 4px;
+`;
+
+const BitGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 16px;
+`;
+
+const BitLabel = styled.label<{ on: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  color: ${p => p.on ? '#e8e8ed' : '#5a5a6b'};
+`;
+
+const OctalRow = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+`;
+
+const OctalLabel = styled(Label)`
+  margin: 0;
+`;
+
+const OctalInput = styled(Input)`
+  flex: 1;
+  font-family: monospace;
+`;
 
 interface FilePermissions {
   octal?: string;
@@ -56,25 +97,25 @@ export function PermissionsModal({ data, onClose }: PermissionsModalProps) {
           <CloseBtn onClick={onClose}>✕</CloseBtn>
         </ModalHeader>
         <ModalBody>
-          <div style={{ fontFamily: 'monospace', fontSize: 24, textAlign: 'center', color: '#34d399', marginBottom: 16, letterSpacing: 4 }}>
+          <PermDisplay>
             {octalToRwx(perm)} ({perm})
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 16 }}>
+          </PermDisplay>
+          <BitGrid>
             {bits.map(bit => {
               const val = parseInt(perm, 8);
               const on = !!(val & (1 << bit.pos));
               return (
-                <label key={bit.label} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: on ? '#e8e8ed' : '#5a5a6b' }}>
+                <BitLabel key={bit.label} on={on}>
                   <input type="checkbox" checked={on} onChange={() => toggleBit(bit.pos)} />
                   {bit.label}
-                </label>
+                </BitLabel>
               );
             })}
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Label style={{ margin: 0 }}>Octal:</Label>
-            <Input value={perm} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPerm(e.target.value)} style={{ flex: 1, fontFamily: 'monospace' }} />
-          </div>
+          </BitGrid>
+          <OctalRow>
+            <OctalLabel>Octal:</OctalLabel>
+            <OctalInput value={perm} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPerm(e.target.value)} />
+          </OctalRow>
         </ModalBody>
         <ModalFooter>
           <Btn onClick={onClose}>Cancel</Btn>

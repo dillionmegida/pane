@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 import { useStore, formatSize, formatDate, PREVIEW_TYPES, getPreviewType } from '../store';
 import ModalPreviewPane from './ModalPreviewPane';
 import { useConcurrentDirectoryScanner } from '../hooks/useDirectoryScanner';
@@ -164,8 +164,158 @@ const StatusBar = styled.div`
   justify-content: space-between;
 `;
 
+const ConfirmOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.7);
+`;
+
+const ConfirmDialog = styled.div`
+  background: ${p => p.theme.bg.elevated};
+  border: 1px solid ${p => p.theme.border.strong};
+  border-radius: 10px;
+  padding: 24px 28px;
+  min-width: 320px;
+  max-width: 480px;
+  box-shadow: ${p => p.theme.shadow.lg};
+`;
+
+const ConfirmTitle = styled.div`
+  font-size: 0.875rem;
+  color: ${p => p.theme.text.primary};
+  margin-bottom: 8px;
+  font-weight: 600;
+`;
+
+const ConfirmMsg = styled.div`
+  font-size: 0.75rem;
+  color: ${p => p.theme.text.secondary};
+  margin-bottom: 20px;
+  word-break: break-all;
+`;
+
+const ConfirmActions = styled.div`
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+`;
+
+const CancelBtn = styled.button`
+  background: ${p => p.theme.bg.hover};
+  border: 1px solid ${p => p.theme.border.strong};
+  color: ${p => p.theme.text.primary};
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-size: 0.75rem;
+  cursor: pointer;
+`;
+
+const DangerBtn = styled.button`
+  background: ${p => p.theme.text.error};
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-size: 0.75rem;
+  cursor: pointer;
+`;
+
+const SearchIcon = styled.span`
+  font-size: 1rem;
+  color: ${p => p.theme.text.tertiary};
+`;
+
+const SearchingLabel = styled.span`
+  font-size: 0.75rem;
+  color: orange;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const StopBtn = styled.span`
+  cursor: pointer;
+  color: ${p => p.theme.accent.red};
+  font-size: 0.625rem;
+  padding: 1px 4px;
+  background: ${p => p.theme.bg.tertiary};
+  border-radius: ${p => p.theme.radius.sm};
+`;
+
+const CloseSearchBtn = styled.span`
+  font-size: 0.75rem;
+  color: ${p => p.theme.text.tertiary};
+  cursor: pointer;
+`;
+
+const ExcludePanel = styled.div`
+  padding: 8px 14px;
+  border-bottom: 1px solid ${p => p.theme.border.normal};
+  background: ${p => p.theme.bg.secondary};
+`;
+
+const ExcludeChips = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+`;
+
+const ExcludeChip = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: ${p => p.theme.bg.hover};
+  border: 1px solid ${p => p.theme.border.strong};
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.6875rem;
+  color: ${p => p.theme.text.secondary};
+`;
+
+const ExcludeRemove = styled.span`
+  cursor: pointer;
+  opacity: 0.6;
+`;
+
+const ExcludeInputRow = styled.div`
+  display: flex;
+  gap: 6px;
+`;
+
+const ExcludeInput = styled.input`
+  flex: 1;
+  background: ${p => p.theme.bg.hover};
+  border: 1px solid ${p => p.theme.border.strong};
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.6875rem;
+  color: ${p => p.theme.text.primary};
+  outline: none;
+`;
+
+const ExcludeAddBtn = styled.button`
+  background: ${p => p.theme.border.strong};
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 0.6875rem;
+  color: ${p => p.theme.text.primary};
+  cursor: pointer;
+`;
+
+const EmptyMsg = styled.div`
+  padding: 40px 16px;
+  text-align: center;
+  color: ${p => p.theme.text.tertiary};
+  font-size: 0.75rem;
+`;
+
 export default function SearchOverlay(): React.ReactElement {
-  const theme = useTheme() as any;
   const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode, setSelection, getActivePath, getBreadcrumbs, homeDir } = useStore() as any;
   const pane = panes.find((p: any) => p.id === activePane);
 
@@ -371,24 +521,22 @@ export default function SearchOverlay(): React.ReactElement {
   return (
     <Overlay onKeyDown={e => e.stopPropagation()} onKeyUp={e => e.stopPropagation()}>
       {confirmDelete && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)' }}
-          onClick={() => setConfirmDelete(null)}>
-          <div style={{ background: theme.bg.elevated, border: `1px solid ${theme.border.strong}`, borderRadius: 10, padding: '24px 28px', minWidth: 320, maxWidth: 480, boxShadow: theme.shadow.lg }}
-            onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-            <div style={{ fontSize: '0.875rem', color: theme.text.primary, marginBottom: 8, fontWeight: 600 }}>Move to Trash?</div>
-            <div style={{ fontSize: '0.75rem', color: theme.text.secondary, marginBottom: 20, wordBreak: 'break-all' }}>
+        <ConfirmOverlay onClick={() => setConfirmDelete(null)}>
+          <ConfirmDialog onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+            <ConfirmTitle>Move to Trash?</ConfirmTitle>
+            <ConfirmMsg>
               "{confirmDelete.name}" will be moved to Trash.
-            </div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ background: theme.bg.hover, border: `1px solid ${theme.border.strong}`, color: theme.text.primary, borderRadius: 6, padding: '6px 16px', fontSize: '0.75rem', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={doDelete} style={{ background: theme.text.error, border: 'none', color: '#fff', borderRadius: 6, padding: '6px 16px', fontSize: '0.75rem', cursor: 'pointer' }}>Move to Trash</button>
-            </div>
-          </div>
-        </div>
+            </ConfirmMsg>
+            <ConfirmActions>
+              <CancelBtn onClick={() => setConfirmDelete(null)}>Cancel</CancelBtn>
+              <DangerBtn onClick={doDelete}>Move to Trash</DangerBtn>
+            </ConfirmActions>
+          </ConfirmDialog>
+        </ConfirmOverlay>
       )}
       <SearchBox onClick={(e: React.MouseEvent) => e.stopPropagation()}>
         <InputWrap>
-          <span style={{ fontSize: '1rem', color: theme.text.tertiary }}>🔍</span>
+          <SearchIcon>🔍</SearchIcon>
           <SearchInput
             ref={inputRef}
             value={query}
@@ -397,14 +545,14 @@ export default function SearchOverlay(): React.ReactElement {
             placeholder={`Search in ${rootSearch ? (homeDir || '/') : (getActivePath(activePane) || '/')}`}
           />
           {loading && (
-            <span style={{ fontSize: '0.75rem', color: 'orange', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <SearchingLabel>
               Searching...
               {!contentSearch && isScanning && (
-                <span onClick={abortScan} style={{ cursor: 'pointer', color: theme.accent.red, fontSize: '0.625rem', padding: '1px 4px', background: theme.bg.tertiary, borderRadius: theme.radius.sm }} title="Stop search">■</span>
+                <StopBtn onClick={abortScan} title="Stop search">■</StopBtn>
               )}
-            </span>
+            </SearchingLabel>
           )}
-          <span style={{ fontSize: '0.75rem', color: theme.text.tertiary, cursor: 'pointer' }} onClick={toggleSearch}>✕</span>
+          <CloseSearchBtn onClick={toggleSearch}>✕</CloseSearchBtn>
         </InputWrap>
 
         <Options>
@@ -417,29 +565,27 @@ export default function SearchOverlay(): React.ReactElement {
         </Options>
 
         {showExcludeInput && (
-          <div style={{ padding: '8px 14px', borderBottom: `1px solid ${theme.border.normal}`, background: theme.bg.secondary }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+          <ExcludePanel>
+            <ExcludeChips>
               {excludedDirs.map((dir: string) => (
-                <span key={dir} style={{ display: 'flex', alignItems: 'center', gap: 4, background: theme.bg.hover, border: `1px solid ${theme.border.strong}`, borderRadius: 4, padding: '2px 6px', fontSize: '0.6875rem', color: theme.text.secondary }}>
+                <ExcludeChip key={dir}>
                   {dir}
-                  <span style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() => setExcludedDirs((d: string[]) => d.filter(x => x !== dir))}>✕</span>
-                </span>
+                  <ExcludeRemove onClick={() => setExcludedDirs((d: string[]) => d.filter(x => x !== dir))}>✕</ExcludeRemove>
+                </ExcludeChip>
               ))}
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input
+            </ExcludeChips>
+            <ExcludeInputRow>
+              <ExcludeInput
                 value={excludeInput}
                 onChange={e => setExcludeInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && excludeInput.trim()) { setExcludedDirs((d: string[]) => [...d, excludeInput.trim()]); setExcludeInput(''); } }}
                 placeholder="Add directory to exclude..."
-                style={{ flex: 1, background: theme.bg.hover, border: `1px solid ${theme.border.strong}`, borderRadius: 4, padding: '4px 8px', fontSize: '0.6875rem', color: theme.text.primary, outline: 'none' }}
               />
-              <button onClick={() => { if (excludeInput.trim()) { setExcludedDirs((d: string[]) => [...d, excludeInput.trim()]); setExcludeInput(''); } }}
-                style={{ background: theme.border.strong, border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: '0.6875rem', color: theme.text.primary, cursor: 'pointer' }}>
+              <ExcludeAddBtn onClick={() => { if (excludeInput.trim()) { setExcludedDirs((d: string[]) => [...d, excludeInput.trim()]); setExcludeInput(''); } }}>
                 Add
-              </button>
-            </div>
-          </div>
+              </ExcludeAddBtn>
+            </ExcludeInputRow>
+          </ExcludePanel>
         )}
 
         <MainContent ref={mainContentRef}>
@@ -471,10 +617,10 @@ export default function SearchOverlay(): React.ReactElement {
                 </ResultItem>
               ))}
               {!loading && !searchComplete && query && results.length === 0 && (
-                <div style={{ padding: '40px 16px', textAlign: 'center', color: theme.text.tertiary, fontSize: '0.75rem' }}>Type to search...</div>
+                <EmptyMsg>Type to search...</EmptyMsg>
               )}
               {!loading && searchComplete && query && results.length === 0 && (
-                <div style={{ padding: '40px 16px', textAlign: 'center', color: theme.text.tertiary, fontSize: '0.75rem' }}>No results for "{query}"</div>
+                <EmptyMsg>No results for "{query}"</EmptyMsg>
               )}
             </Results>
             <StatusBar>

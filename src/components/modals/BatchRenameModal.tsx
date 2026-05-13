@@ -1,8 +1,124 @@
 import React, { useState, useMemo } from 'react';
+import styled from 'styled-components';
 import { useStore } from '../../store';
 import path from 'path-browserify';
 import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Label, Row, Select } from './ModalPrimitives';
 import type { FileItem } from '../../types';
+
+const ModeRow = styled(Row)`
+  margin-bottom: 16px;
+  border-bottom: 1px solid #2e2e35;
+  padding-bottom: 12px;
+`;
+
+const PatternSection = styled.div`
+  margin-bottom: 16px;
+`;
+
+const TokenHelp = styled.div`
+  margin-top: 8px;
+  font-size: 10px;
+  color: #5a5a6b;
+  line-height: 1.8;
+`;
+
+const TokenCode = styled.code`
+  color: #4A9EFF;
+`;
+
+const CounterRow = styled(Row)`
+  margin-top: 10px;
+`;
+
+const FindReplaceRow = styled(Row)`
+  margin-bottom: 16px;
+  gap: 12px;
+`;
+
+const FlexField = styled.div`
+  flex: 1;
+`;
+
+const RegexWrap = styled.div`
+  padding-top: 20px;
+`;
+
+const RegexLabel = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #9898a8;
+  cursor: pointer;
+`;
+
+const CaseRow = styled(Row)`
+  margin-bottom: 16px;
+`;
+
+const CaseModeLabel = styled(Label)`
+  margin-bottom: 0;
+`;
+
+const PreviewTable = styled.div`
+  border: 1px solid #2e2e35;
+  border-radius: 6px;
+  overflow: hidden;
+`;
+
+const PreviewHeader = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 20px 1fr;
+  padding: 6px 12px;
+  background: #1e1e22;
+  font-size: 10px;
+  color: #5a5a6b;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+`;
+
+const PreviewList = styled.div`
+  max-height: 280px;
+  overflow-y: auto;
+`;
+
+const PreviewRow = styled.div<{ even: boolean }>`
+  display: grid;
+  grid-template-columns: 1fr 20px 1fr;
+  padding: 5px 12px;
+  font-size: 11px;
+  background: ${p => p.even ? 'transparent' : '#1a1a1e'};
+  border-bottom: 1px solid #222;
+`;
+
+const OldName = styled.span`
+  color: #9898a8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+`;
+
+const Arrow = styled.span`
+  color: #4A9EFF;
+  text-align: center;
+`;
+
+const NewName = styled.span<{ changed: boolean }>`
+  color: ${p => p.changed ? '#34d399' : '#5a5a6b'};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+  font-weight: ${p => p.changed ? 600 : 400};
+`;
+
+const FooterInfo = styled.span`
+  font-size: 11px;
+  color: #5a5a6b;
+  margin-right: auto;
+`;
 
 type RenameMode = 'pattern' | 'findReplace' | 'case';
 type CaseMode = 'unchanged' | 'lower' | 'upper' | 'title';
@@ -115,26 +231,26 @@ export default function BatchRenameModal({ data, onClose }: BatchRenameModalProp
         </ModalHeader>
 
         <ModalBody pad="16px">
-          <Row style={{ marginBottom: 16, borderBottom: '1px solid #2e2e35', paddingBottom: 12 }}>
+          <ModeRow>
             {MODES.map(m => (
               <Btn key={m} primary={mode === m} onClick={() => setMode(m)}>
                 {m === 'pattern' ? 'Pattern' : m === 'findReplace' ? 'Find & Replace' : 'Case'}
               </Btn>
             ))}
-          </Row>
+          </ModeRow>
 
           {mode === 'pattern' && (
-            <div style={{ marginBottom: 16 }}>
+            <PatternSection>
               <Label>Name Pattern</Label>
               <Input mono value={renamePattern} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRenamePattern(e.target.value)} placeholder="{original}_{counter}" />
-              <div style={{ marginTop: 8, fontSize: 10, color: '#5a5a6b', lineHeight: 1.8 }}>
-                Tokens: <code style={{ color: '#4A9EFF' }}>{'{original}'}</code> original name ·{' '}
-                <code style={{ color: '#4A9EFF' }}>{'{ext}'}</code> extension ·{' '}
-                <code style={{ color: '#4A9EFF' }}>{'{date}'}</code> today ({todayStr}) ·{' '}
-                <code style={{ color: '#4A9EFF' }}>{'{counter}'}</code> sequential number ·{' '}
-                <code style={{ color: '#4A9EFF' }}>{'{parent}'}</code> parent folder
-              </div>
-              <Row style={{ marginTop: 10 }}>
+              <TokenHelp>
+                Tokens: <TokenCode>{'{original}'}</TokenCode> original name ·{' '}
+                <TokenCode>{'{ext}'}</TokenCode> extension ·{' '}
+                <TokenCode>{'{date}'}</TokenCode> today ({todayStr}) ·{' '}
+                <TokenCode>{'{counter}'}</TokenCode> sequential number ·{' '}
+                <TokenCode>{'{parent}'}</TokenCode> parent folder
+              </TokenHelp>
+              <CounterRow>
                 <div>
                   <Label>Counter Start</Label>
                   <Input type="number" value={startCounter} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStartCounter(+e.target.value)} width="80px" />
@@ -151,65 +267,60 @@ export default function BatchRenameModal({ data, onClose }: BatchRenameModalProp
                   <Label>Suffix</Label>
                   <Input value={suffix} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSuffix(e.target.value)} width="120px" placeholder="e.g. _final" />
                 </div>
-              </Row>
-            </div>
+              </CounterRow>
+            </PatternSection>
           )}
 
           {mode === 'findReplace' && (
-            <Row style={{ marginBottom: 16, gap: 12 }}>
-              <div style={{ flex: 1 }}>
+            <FindReplaceRow>
+              <FlexField>
                 <Label>Find</Label>
                 <Input mono value={findStr} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFindStr(e.target.value)} placeholder="search string or regex" />
-              </div>
-              <div style={{ flex: 1 }}>
+              </FlexField>
+              <FlexField>
                 <Label>Replace</Label>
                 <Input mono value={replaceStr} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReplaceStr(e.target.value)} placeholder="replacement" />
-              </div>
-              <div style={{ paddingTop: 20 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#9898a8', cursor: 'pointer' }}>
+              </FlexField>
+              <RegexWrap>
+                <RegexLabel>
                   <input type="checkbox" checked={useRegex} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUseRegex(e.target.checked)} />
                   Regex
-                </label>
-              </div>
-            </Row>
+                </RegexLabel>
+              </RegexWrap>
+            </FindReplaceRow>
           )}
 
           {mode === 'case' && (
-            <Row style={{ marginBottom: 16 }}>
-              <Label style={{ marginBottom: 0 }}>Case Mode:</Label>
+            <CaseRow>
+              <CaseModeLabel>Case Mode:</CaseModeLabel>
               {(['unchanged', 'lower', 'upper', 'title'] as CaseMode[]).map(c => (
                 <Btn key={c} primary={caseMode === c} onClick={() => setCaseMode(c)}>
                   {c.charAt(0).toUpperCase() + c.slice(1)}
                 </Btn>
               ))}
-            </Row>
+            </CaseRow>
           )}
 
-          <div style={{ border: '1px solid #2e2e35', borderRadius: 6, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 20px 1fr', padding: '6px 12px', background: '#1e1e22', fontSize: 10, color: '#5a5a6b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <PreviewTable>
+            <PreviewHeader>
               <span>Before</span><span></span><span>After</span>
-            </div>
-            <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+            </PreviewHeader>
+            <PreviewList>
               {previews.map((p, i) => (
-                <div key={p.file.path} style={{
-                  display: 'grid', gridTemplateColumns: '1fr 20px 1fr',
-                  padding: '5px 12px', fontSize: 11,
-                  background: i % 2 === 0 ? 'transparent' : '#1a1a1e',
-                  borderBottom: '1px solid #222',
-                }}>
-                  <span style={{ color: '#9898a8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>{p.file.name}</span>
-                  <span style={{ color: '#4A9EFF', textAlign: 'center' }}>→</span>
-                  <span style={{ color: p.changed ? '#34d399' : '#5a5a6b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace', fontWeight: p.changed ? 600 : 400 }}>{p.newName}</span>
-                </div>
+                <PreviewRow key={p.file.path} even={i % 2 === 0}>
+                  <OldName>{p.file.name}</OldName>
+                  <Arrow>→</Arrow>
+                  <NewName changed={p.changed}>{p.newName}</NewName>
+                </PreviewRow>
               ))}
-            </div>
-          </div>
+            </PreviewList>
+          </PreviewTable>
         </ModalBody>
 
         <ModalFooter>
-          <span style={{ fontSize: 11, color: '#5a5a6b', marginRight: 'auto' }}>
+          <FooterInfo>
             {previews.filter(p => p.changed).length} files will be renamed
-          </span>
+          </FooterInfo>
           <Btn onClick={onClose}>Cancel</Btn>
           <Btn primary disabled={applying || previews.filter(p => p.changed).length === 0} onClick={apply}>
             {applying ? 'Renaming...' : 'Apply Rename'}

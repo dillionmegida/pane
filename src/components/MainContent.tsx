@@ -10,11 +10,12 @@ const Wrap = styled.div`
   position: relative;
 `;
 
-const PaneWrap = styled.div`
+const PaneWrap = styled.div<{ width?: string }>`
   display: flex;
   flex-direction: column;
   overflow: hidden;
   flex-shrink: 0;
+  ${p => p.width ? `width: ${p.width};` : 'flex: 1;'}
 `;
 
 const Divider = styled.div`
@@ -56,7 +57,7 @@ export default function MainContent() {
   if (!showRightPane) {
     return (
       <Wrap ref={containerRef}>
-        <PaneWrap style={{ flex: 1 }}>
+        <PaneWrap>
           <FilePane paneId="left" />
         </PaneWrap>
       </Wrap>
@@ -68,11 +69,11 @@ export default function MainContent() {
 
   return (
     <Wrap ref={containerRef}>
-      <PaneWrap style={{ width: leftW }}>
+      <PaneWrap width={leftW}>
         <FilePane paneId="left" />
       </PaneWrap>
       <Divider className={dragging ? 'dragging' : ''} onMouseDown={onMouseDown} />
-      <PaneWrap style={{ width: rightW }}>
+      <PaneWrap width={rightW}>
         <FilePane paneId="right" />
       </PaneWrap>
     </Wrap>

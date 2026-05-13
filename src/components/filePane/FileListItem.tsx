@@ -98,6 +98,17 @@ const TagDot = styled.span<{ color: string; offset: number }>`
   margin-left: ${p => p.offset}px;
 `;
 
+const ListRenameInput = styled.input`
+  background: transparent;
+  border: 1px solid #4A9EFF;
+  color: #e8e8ed;
+  font-size: 12px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  outline: none;
+  flex: 1;
+`;
+
 interface FileListItemProps {
   file: FileItem;
   isSelected: boolean;
@@ -204,7 +215,7 @@ export default function FileListItem({
       </FileIconWrap>
 
       {isRenaming ? (
-        <input
+        <ListRenameInput
           ref={renameInputRef}
           value={renameValue}
           onChange={e => setRenameValue(e.target.value)}
@@ -214,11 +225,6 @@ export default function FileListItem({
             if (e.key === 'Escape') onRenameCancel();
           }}
           onClick={e => e.stopPropagation()}
-          style={{
-            background: 'transparent', border: '1px solid #4A9EFF',
-            color: '#e8e8ed', fontSize: 12, padding: '1px 4px',
-            borderRadius: 3, outline: 'none', flex: 1,
-          }}
         />
       ) : (
         <FileName>

@@ -65,6 +65,17 @@ const TextContent = styled.pre`
   overflow-y: auto; flex: 1; background: ${p => p.theme.bg.primary};
 `;
 
+const LoadingLabel = styled.span`
+  color: #5a5a6b;
+  font-size: 11px;
+`;
+
+const NoPreviewLabel = styled.div`
+  font-size: 11px;
+  color: #5a5a6b;
+  margin-top: 8px;
+`;
+
 const isTextContent = (content: string): boolean => {
   if (!content || typeof content !== 'string') return false;
   if (content.includes('\0')) return false;
@@ -139,7 +150,7 @@ export default function ModalPreviewPane({ file, width, actions = [], onActionCl
           </PreviewMedia>
         )}
         {loadingText && (
-          <PreviewLabel><span style={{ color: '#5a5a6b', fontSize: 11 }}>Loading...</span></PreviewLabel>
+          <PreviewLabel><LoadingLabel>Loading...</LoadingLabel></PreviewLabel>
         )}
         {!loadingText && !isImage && !isVideo && !isAudio && isText && (
           <TextContent>{textContent}</TextContent>
@@ -147,7 +158,7 @@ export default function ModalPreviewPane({ file, width, actions = [], onActionCl
         {!loadingText && !isImage && !isVideo && !isAudio && !isText && (
           <PreviewLabel>
             <FileIconComponent ext={file.extension || ''} size={48} />
-            <div style={{ fontSize: 11, color: '#5a5a6b', marginTop: 8 }}>Preview not available</div>
+            <NoPreviewLabel>Preview not available</NoPreviewLabel>
           </PreviewLabel>
         )}
       </PreviewContent>

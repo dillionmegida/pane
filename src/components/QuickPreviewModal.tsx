@@ -104,6 +104,30 @@ const TextContentEl = styled.pre`
   color: ${p => p.theme.text.primary}; white-space: pre-wrap; word-break: break-all; margin: 0;
 `;
 
+const PathChip = styled(MetaChip)`
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const PdfErrorMsg = styled.div`
+  padding: 40px;
+  color: #ff4d4f;
+  text-align: center;
+`;
+
+const PdfLoadingMsg = styled.div`
+  padding: 40px;
+  color: #4A9EFF;
+`;
+
+const TextLoadingMsg = styled.div`
+  padding: 40px;
+  color: #4A9EFF;
+  text-align: center;
+`;
+
 interface QuickPreviewModalProps {
   file: FileItem | null;
   onClose: () => void;
@@ -188,9 +212,9 @@ export default function QuickPreviewModal({ file, onClose }: QuickPreviewModalPr
               {file.modified && <MetaChip><MetaLabel>Modified</MetaLabel> {formatDate(file.modified)}</MetaChip>}
               {ext && <MetaChip><MetaLabel>Kind</MetaLabel> {ext.toUpperCase()}</MetaChip>}
               {file.path && (
-                <MetaChip style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <PathChip>
                   <MetaLabel>Path</MetaLabel> {file.path}
-                </MetaChip>
+                </PathChip>
               )}
             </FileMeta>
           </HeaderInfo>
@@ -215,7 +239,7 @@ export default function QuickPreviewModal({ file, onClose }: QuickPreviewModalPr
           {isPdf && (
             <PdfContainer>
               {pdfError ? (
-                <div style={{ padding: '40px', color: '#ff4d4f', textAlign: 'center' }}>{pdfError}</div>
+                <PdfErrorMsg>{pdfError}</PdfErrorMsg>
               ) : (
                 <>
                   <PdfControls>
@@ -228,12 +252,12 @@ export default function QuickPreviewModal({ file, onClose }: QuickPreviewModalPr
                       file={{ data: pdfData }}
                       onLoadSuccess={({ numPages: n }) => { setNumPages(n); setPageNumber(1); setPdfError(null); }}
                       onLoadError={() => setPdfError('Failed to load PDF')}
-                      loading={<div style={{ padding: '40px', color: '#4A9EFF' }}>Loading PDF...</div>}
+                      loading={<PdfLoadingMsg>Loading PDF...</PdfLoadingMsg>}
                     >
                       <Page pageNumber={pageNumber} width={Math.min(900, window.innerWidth * 0.75)} />
                     </Document>
                   ) : (
-                    <div style={{ padding: '40px', color: '#4A9EFF' }}>Loading PDF...</div>
+                    <PdfLoadingMsg>Loading PDF...</PdfLoadingMsg>
                   )}
                 </>
               )}
@@ -241,7 +265,7 @@ export default function QuickPreviewModal({ file, onClose }: QuickPreviewModalPr
           )}
 
           {!isImage && !isVideo && !isAudio && !isPdf && loadingText && (
-            <div style={{ padding: '40px', color: '#4A9EFF', textAlign: 'center' }}>Loading...</div>
+            <TextLoadingMsg>Loading...</TextLoadingMsg>
           )}
 
           {isText && !loadingText && (

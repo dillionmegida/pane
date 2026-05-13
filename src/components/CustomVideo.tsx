@@ -98,6 +98,10 @@ const VolumeSlider = styled.input`
   cursor: pointer;
 `;
 
+const MuteBtn = styled(CtrlBtn)`
+  font-size: 12px;
+`;
+
 function formatTime(secs: number): string {
   if (!secs || isNaN(secs)) return '0:00';
   const m = Math.floor(secs / 60);
@@ -213,9 +217,9 @@ const CustomVideo = forwardRef<MediaHandle, CustomVideoProps>(function CustomVid
         </ProgressTrack>
         <TimeLabel>{formatTime(currentTime)} / {formatTime(duration)}</TimeLabel>
         <VolumeWrap>
-          <CtrlBtn onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'} style={{ fontSize: 12 }}>
+          <MuteBtn onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'}>
             {muted || volume === 0 ? '🔇' : volume < 0.5 ? '🔉' : '🔊'}
-          </CtrlBtn>
+          </MuteBtn>
           <VolumeSlider
             type="range"
             min={0}

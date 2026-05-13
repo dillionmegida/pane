@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 import { useStore, formatSize, formatDate } from '../../store';
 import ModalPreviewPane from '../ModalPreviewPane';
 import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
@@ -73,13 +73,52 @@ const SizeText = styled.span`color: ${p => p.theme.text.tertiary}; font-family: 
 const ModifiedText = styled.span`color: ${p => p.theme.text.tertiary}; font-size: 10px;`;
 const HeaderInfo = styled.div`display: flex; align-items: center; gap: 12px; font-size: 11px; color: ${p => p.theme.text.tertiary};`;
 
+const ScanStatusRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const StatusText = styled.span`
+  white-space: nowrap;
+`;
+
+const ExcludePanel = styled.div`
+  padding: 8px 10px;
+  border: 1px solid ${p => p.theme.border.normal};
+  border-radius: 6px;
+  background: ${p => p.theme.bg.secondary};
+  margin-bottom: 10px;
+`;
+
+const ExcludeChipsRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+`;
+
+const ExcludeRemoveBtn = styled.span`
+  cursor: pointer;
+  opacity: 0.6;
+`;
+
+const NoExclusions = styled.span`
+  font-size: 11px;
+  opacity: 0.6;
+`;
+
+const ExcludeInputRow = styled.div`
+  display: flex;
+  gap: 6px;
+`;
+
 interface SmartFoldersModalProps {
   data?: { id?: string };
   onClose: () => void;
 }
 
 export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
-  const theme = useTheme();
   const { panes, activePane, navigateTo } = useStore();
   const currentPane = panes.find(p => p.id === activePane);
 
@@ -241,31 +280,31 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
                 <OptBtnWrapper active={excludedDirectories.length > 0} onClick={() => setShowExclusionInput(p => !p)}>
                   {showExclusionInput ? '▼' : '▶'} Excluded ({excludedDirectories.length})
                 </OptBtnWrapper>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ScanStatusRow>
                   {isScanning && (
                     <StopBtn onClick={abortScan} title="Stop scanning">
                       <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
                     </StopBtn>
                   )}
-                  <span style={{ whiteSpace: 'nowrap' }}>
+                  <StatusText>
                     {isScanning
                       ? <>⏳ Scanning{scanResults.length > 0 ? ` (${scanResults.length} found so far)` : ''}...</>
                       : hasScannedOnce ? `${scanResults.length} results` : '—'}
-                  </span>
-                </div>
+                  </StatusText>
+                </ScanStatusRow>
               </Options>
               {showExclusionInput && (
-                <div style={{ padding: '8px 10px', border: `1px solid ${theme.border.normal}`, borderRadius: 6, background: theme.bg.secondary, marginBottom: 10 }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                <ExcludePanel>
+                  <ExcludeChipsRow>
                     {excludedDirectories.map(name => (
                       <ExcludePill key={name}>
                         {name}
-                        <span style={{ cursor: 'pointer', opacity: 0.6 }} onClick={() => setExcludedDirectories(p => p.filter(n => n !== name))}>✕</span>
+                        <ExcludeRemoveBtn onClick={() => setExcludedDirectories(p => p.filter(n => n !== name))}>✕</ExcludeRemoveBtn>
                       </ExcludePill>
                     ))}
-                    {excludedDirectories.length === 0 && <span style={{ fontSize: '11px', opacity: 0.6 }}>No exclusions</span>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                    {excludedDirectories.length === 0 && <NoExclusions>No exclusions</NoExclusions>}
+                  </ExcludeChipsRow>
+                  <ExcludeInputRow>
                     <ExcludeInput
                       value={exclusionInputValue}
                       onChange={e => setExclusionInputValue(e.target.value)}
@@ -283,8 +322,8 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
                         setExclusionInputValue('');
                       }
                     }}>Add</ExcludeAddBtn>
-                  </div>
-                </div>
+                  </ExcludeInputRow>
+                </ExcludePanel>
               )}
               {selectedFilterType === 'large' && (
                 <LargeFilterBox>

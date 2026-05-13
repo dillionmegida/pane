@@ -51,6 +51,25 @@ const TermBtn = styled.button`
   &:hover { background: ${p => p.theme.bg.hover}; color: ${p => p.theme.text.secondary}; }
 `;
 
+const HeaderActions = styled.div`
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+`;
+
+const ErrorWrap = styled.div`
+  padding: 16px;
+  color: inherit;
+  font-family: monospace;
+  font-size: 12px;
+`;
+
+const ErrorHint = styled.div`
+  margin-top: 8px;
+  opacity: 0.6;
+  font-size: 11px;
+`;
+
 const XtermContainer = styled.div`
   flex: 1;
   padding: 6px 8px;
@@ -186,20 +205,20 @@ export default function TerminalPane(): React.ReactElement {
       <ResizeHandle onMouseDown={onMouseDown} />
       <Header>
         <Title>⌨️ Terminal — {activePath}</Title>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+        <HeaderActions>
           <TermBtn onClick={() => (window as any).electronAPI.ptyCd(activePath)} title="CD to current folder">
             cd here
           </TermBtn>
           <TermBtn onClick={toggleTerminal} title="Close Terminal">✕</TermBtn>
-        </div>
+        </HeaderActions>
       </Header>
       {error ? (
-        <div style={{ padding: 16, color: 'inherit', fontFamily: 'monospace', fontSize: 12 }}>
+        <ErrorWrap>
           {error}
-          <div style={{ marginTop: 8, opacity: 0.6, fontSize: 11 }}>
+          <ErrorHint>
             Make sure node-pty is installed: npm install node-pty
-          </div>
-        </div>
+          </ErrorHint>
+        </ErrorWrap>
       ) : (
         <XtermContainer ref={containerRef} />
       )}

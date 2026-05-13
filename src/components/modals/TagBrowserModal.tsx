@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 import { useStore, formatSize, formatDate } from '../../store';
 import ModalPreviewPane from '../ModalPreviewPane';
 import { getTagColors } from '../../theme';
@@ -63,6 +63,18 @@ const ResizeDivider = styled.div`
   &:hover { background: ${p => p.theme.accent.blue}; }
 `;
 
+const ItemCount = styled.span`
+  margin-left: 8px;
+  font-weight: 400;
+  color: ${p => p.theme.text.secondary};
+  font-size: 13px;
+`;
+
+const HintText = styled.span`
+  color: ${p => p.theme.text.tertiary};
+  font-size: 0.6rem;
+`;
+
 interface TagBrowserFile {
   path: string;
   name: string;
@@ -78,7 +90,6 @@ interface TagBrowserModalProps {
 }
 
 export function TagBrowserModal({ data, onClose }: TagBrowserModalProps) {
-  const theme = useTheme();
   const { currentTheme } = useStore();
   const TAG_COLORS = getTagColors(currentTheme);
 
@@ -184,9 +195,9 @@ export function TagBrowserModal({ data, onClose }: TagBrowserModalProps) {
               <TagDot color={tagColor} />
               {filterTag}
             </TagChip>
-            <span style={{ marginLeft: 8, fontWeight: 400, color: theme.text.secondary, fontSize: 13 }}>
+            <ItemCount>
               {files.length} item{files.length !== 1 ? 's' : ''}
-            </span>
+            </ItemCount>
           </Title>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
         </Header>
@@ -224,7 +235,7 @@ export function TagBrowserModal({ data, onClose }: TagBrowserModalProps) {
             )}
             <StatusBar>
               <span>{files.length} tagged items</span>
-              <span style={{ color: theme.text.tertiary, fontSize: '0.6rem' }}>Double-click to reveal · Enter to reveal selected</span>
+              <HintText>Double-click to reveal · Enter to reveal selected</HintText>
             </StatusBar>
           </ResultsPane>
 

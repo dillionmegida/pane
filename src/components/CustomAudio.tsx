@@ -119,6 +119,14 @@ const VolumeSlider = styled.input`
   cursor: pointer;
 `;
 
+const HiddenAudio = styled.audio`
+  display: none;
+`;
+
+const MuteBtn = styled(CtrlBtn)`
+  font-size: 12px;
+`;
+
 function formatTime(secs: number): string {
   if (!secs || isNaN(secs)) return '0:00';
   const m = Math.floor(secs / 60);
@@ -229,9 +237,9 @@ const CustomAudio = forwardRef<MediaHandle, CustomAudioProps>(function CustomAud
 
   return (
     <Wrapper>
-      <audio ref={audioRef} key={src} autoPlay={autoPlay} style={{ display: 'none' }}>
+      <HiddenAudio ref={audioRef} key={src} autoPlay={autoPlay}>
         <source src={src} />
-      </audio>
+      </HiddenAudio>
       <WaveSection>
         {Array.from({ length: NUM_BARS }).map((_, i) => (
           <Bar key={i} idx={i} playing={playing} />
@@ -247,9 +255,9 @@ const CustomAudio = forwardRef<MediaHandle, CustomAudioProps>(function CustomAud
         </ProgressTrack>
         <TimeLabel>{formatTime(currentTime)} / {formatTime(duration)}</TimeLabel>
         <VolumeWrap>
-          <CtrlBtn onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'} style={{ fontSize: 12 }}>
+          <MuteBtn onClick={toggleMute} title={muted ? 'Unmute' : 'Mute'}>
             {muted || volume === 0 ? '🔇' : volume < 0.5 ? '🔉' : '🔊'}
-          </CtrlBtn>
+          </MuteBtn>
           <VolumeSlider
             type="range"
             min={0}

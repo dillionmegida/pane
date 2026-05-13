@@ -190,6 +190,32 @@ const NewItemRow = styled.div`
   height: 28px;
 `;
 
+const SizeHeaderCell = styled(ListHeaderCell)`
+  text-align: right;
+`;
+
+const NewItemInput = styled.input`
+  flex: 1;
+  background: transparent;
+  border: 1px solid #4A9EFF;
+  color: inherit;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  outline: none;
+`;
+
+const EmptyFolderIcon = styled.span`
+  font-size: 28px;
+`;
+
+const TabLabel = styled.span`
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
 // ─── Column widths state (per pane) ───────────────────────────────────────────
 const DEFAULT_COLUMN_WIDTH = 220;
 
@@ -833,7 +859,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
       <ListHeader>
         <ListHeaderCell />
         <ListHeaderCell>Name</ListHeaderCell>
-        <ListHeaderCell style={{ textAlign: 'right' }}>Size</ListHeaderCell>
+        <SizeHeaderCell>Size</SizeHeaderCell>
         <ListHeaderCell>Modified</ListHeaderCell>
         <ListHeaderCell>Kind</ListHeaderCell>
       </ListHeader>
@@ -841,7 +867,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
         {newItemMode && (
           <NewItemRow>
             <span>{newItemMode === 'folder' ? '📁' : '📄'}</span>
-            <input
+            <NewItemInput
               ref={newItemInputRef}
               value={newItemName}
               onChange={e => setNewItemName(e.target.value)}
@@ -851,13 +877,12 @@ export default function FilePane({ paneId }: FilePaneProps) {
                 if (e.key === 'Escape') { setNewItemMode(null); setNewItemName(''); }
               }}
               placeholder={newItemMode === 'folder' ? 'Folder name' : 'File name'}
-              style={{ flex: 1, background: 'transparent', border: '1px solid #4A9EFF', color: 'inherit', fontSize: 12, padding: '2px 6px', borderRadius: 3, outline: 'none' }}
             />
           </NewItemRow>
         )}
         {files.length === 0 && !newItemMode ? (
           <EmptyState>
-            <span style={{ fontSize: 28 }}>📂</span>
+            <EmptyFolderIcon>📂</EmptyFolderIcon>
             <span>Empty folder</span>
           </EmptyState>
         ) : (
@@ -1069,7 +1094,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
             active={i === activeTab}
             onClick={e => { e.stopPropagation(); switchTab(paneId, i); }}
           >
-            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{tab.label}</span>
+            <TabLabel>{tab.label}</TabLabel>
             {tabs.length > 1 && (
               <TabClose onClick={e => { e.stopPropagation(); closeTab(paneId, i); }}>✕</TabClose>
             )}

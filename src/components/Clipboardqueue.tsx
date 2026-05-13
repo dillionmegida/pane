@@ -1,5 +1,5 @@
 import React from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 import { useStore } from '../store';
 
 const Bar = styled.div`
@@ -39,8 +39,25 @@ const Btn = styled.button`
   &:hover { background: ${p => p.theme.bg.hover}; }
 `;
 
+const QueueLabel = styled.span`
+  color: ${p => p.theme.text.tertiary};
+  flex-shrink: 0;
+`;
+
+const ChipRow = styled.div`
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  overflow: hidden;
+`;
+
+const MoreLabel = styled.span`
+  opacity: 0.6;
+  font-size: 10px;
+  padding: 1px 4px;
+`;
+
 export default function ClipboardQueue() {
-  const theme = useTheme();
   const { clipboardQueue, clipboardMode, removeFromClipboard, clearClipboard, pasteClipboard, activePane, getActivePath } = useStore();
 
   if (clipboardQueue.length === 0) return null;
@@ -49,19 +66,19 @@ export default function ClipboardQueue() {
 
   return (
     <Bar>
-      <span style={{ color: theme.text.tertiary, flexShrink: 0 }}>
+      <QueueLabel>
         {clipboardMode === 'cut' ? '✂️' : '📋'} Queue ({clipboardQueue.length}):
-      </span>
-      <div style={{ display: 'flex', gap: 4, flex: 1, overflow: 'hidden' }}>
+      </QueueLabel>
+      <ChipRow>
         {clipboardQueue.slice(0, 6).map(fp => (
           <FileChip key={fp} cut={clipboardMode === 'cut'} onClick={() => removeFromClipboard(fp)} title={fp}>
             {fp.split('/').pop()}
           </FileChip>
         ))}
         {clipboardQueue.length > 6 && (
-          <span style={{ opacity: 0.6, fontSize: 10, padding: '1px 4px' }}>+{clipboardQueue.length - 6} more</span>
+          <MoreLabel>+{clipboardQueue.length - 6} more</MoreLabel>
         )}
-      </div>
+      </ChipRow>
       {activePanePath && (
         <Btn onClick={() => pasteClipboard(activePanePath)}>
           Paste here

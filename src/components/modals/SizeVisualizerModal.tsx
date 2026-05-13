@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 import { useStore, formatSize } from '../../store';
 import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
 import type { FolderSizeNode } from '../../types';
@@ -53,6 +53,46 @@ const ItemName = styled.span`font-size: 12px; color: ${p => p.theme.text.primary
 const ItemSize = styled.span`font-size: 11px; color: ${p => p.theme.text.tertiary}; flex-shrink: 0; width: 60px; text-align: right;`;
 const ItemPct = styled.span`font-size: 10px; color: ${p => p.theme.text.tertiary}; flex-shrink: 0; width: 36px; text-align: right;`;
 
+const ScanningMsg = styled.div`
+  text-align: center;
+  padding: 60px;
+  color: ${p => p.theme.accent.blue};
+`;
+
+const BreadcrumbSep = styled.span`
+  opacity: 0.4;
+`;
+
+const SummaryRow = styled.div`
+  font-size: 11px;
+  color: ${p => p.theme.text.tertiary};
+  margin-bottom: 10px;
+  display: flex;
+  gap: 12px;
+`;
+
+const SummaryTotal = styled.strong`
+  color: ${p => p.theme.text.secondary};
+`;
+
+const BackToRoot = styled.span`
+  cursor: pointer;
+  color: ${p => p.theme.accent.blue};
+`;
+
+const ItemList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const EmptyFolder = styled.div`
+  text-align: center;
+  padding: 30px;
+  color: ${p => p.theme.text.tertiary};
+  font-size: 12px;
+`;
+
 const COLORS = ['#4A9EFF', '#a78bfa', '#34d399', '#fb923c', '#f87171', '#fbbf24', '#f472b6', '#22d3ee', '#6ee7b7', '#fca5a5'];
 
 interface SizeVisualizerModalProps {
@@ -61,7 +101,6 @@ interface SizeVisualizerModalProps {
 }
 
 export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps) {
-  const theme = useTheme();
   const { setRevealTarget, activePane } = useStore();
   const paneId = data?.paneId || activePane;
 
@@ -108,16 +147,16 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
         </ModalHeader>
         <ModalBody pad="14px">
           {loading && (
-            <div style={{ textAlign: 'center', padding: 60, color: theme.accent.blue }}>
+            <ScanningMsg>
               Scanning folder sizes...
-            </div>
+            </ScanningMsg>
           )}
           {!loading && currentNode && (
             <>
               <Breadcrumb>
                 {nodeStack.map((node, i) => (
                   <React.Fragment key={node.path}>
-                    {i > 0 && <span style={{ opacity: 0.4 }}>›</span>}
+                    {i > 0 && <BreadcrumbSep>›</BreadcrumbSep>}
                     <BreadcrumbPart
                       active={i === nodeStack.length - 1}
                       onClick={() => i < nodeStack.length - 1 && navigateToIndex(i)}
@@ -128,17 +167,17 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
                 ))}
               </Breadcrumb>
 
-              <div style={{ fontSize: 11, color: theme.text.tertiary, marginBottom: 10, display: 'flex', gap: 12 }}>
-                <span>Total: <strong style={{ color: theme.text.secondary }}>{formatSize(currentNode.size)}</strong></span>
+              <SummaryRow>
+                <span>Total: <SummaryTotal>{formatSize(currentNode.size)}</SummaryTotal></span>
                 <span>{sorted.length} items shown{(currentNode.children?.length ?? 0) > 50 ? ` (of ${currentNode.children!.length})` : ''}</span>
                 {currentNode !== tree && (
-                  <span style={{ cursor: 'pointer', color: theme.accent.blue }} onClick={() => tree && setNodeStack([tree])}>
+                  <BackToRoot onClick={() => tree && setNodeStack([tree])}>
                     ↑ Back to root
-                  </span>
+                  </BackToRoot>
                 )}
-              </div>
+              </SummaryRow>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <ItemList>
                 {sorted.map((child, i) => {
                   const pct = (child.size / totalSize) * 100;
                   const color = COLORS[i % COLORS.length];
@@ -157,11 +196,11 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
                   );
                 })}
                 {sorted.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: 30, color: theme.text.tertiary, fontSize: 12 }}>
+                  <EmptyFolder>
                     Empty folder
-                  </div>
+                  </EmptyFolder>
                 )}
-              </div>
+              </ItemList>
             </>
           )}
         </ModalBody>
