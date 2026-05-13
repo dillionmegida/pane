@@ -231,6 +231,7 @@ const FileRow = styled.div`
   margin: 0 2px;
   position: relative;
   transition: background 0.07s;
+  scroll-margin-bottom: 72px;
 
   &:hover { background: ${p => p.selected ? p.theme.bg.selection : p.theme.bg.hover}; }
 
@@ -417,6 +418,7 @@ const ColumnItem = styled.div`
   color: ${p => p.theme.text.primary};
   background: ${p => p.contextMenuSelected ? p.theme.bg.hover : 'transparent'};
   position: relative;
+  scroll-margin-bottom: 72px;
   
   &:hover {
     background: ${p => p.theme.bg.hover};
@@ -622,6 +624,7 @@ const GridItem = styled.div`
   background: ${p => p.selected ? p.theme.bg.selection : 'transparent'};
   transition: background 0.07s;
   position: relative;
+  scroll-margin-bottom: 72px;
   &:hover { background: ${p => p.selected ? p.theme.bg.selection : p.theme.bg.hover}; }
   
   &.drag-over::after {
@@ -1173,6 +1176,57 @@ export default function FilePane({ paneId }) {
       }
     }, 50);
   }, [pane._isRestoringHistory, pane.navigationIndex]);
+
+  // Auto-scroll to selected file on mount/session restore (all view modes)
+  useEffect(() => {
+    if (loading) return;
+    if (selectedFiles.size === 0) return;
+    if (files.length === 0 && Object.keys(columnFiles).length === 0) return;
+    
+    // Wait for DOM to update after files are loaded
+    setTimeout(() => {
+      if (viewMode === 'column') {
+        if (!columnsContainerRef.current) return;
+        const columns = columnsContainerRef.current.querySelectorAll('[data-column-index]');
+        if (!columns.length) return;
+        
+        // Find which column contains the selected file by checking className
+        for (let colIdx = 0; colIdx < columns.length; colIdx++) {
+          const col = columns[colIdx];
+          const list = col.querySelector('[data-column-list]');
+          if (!list) continue;
+          
+          const items = Array.from(list.children);
+          const selectedItem = items.find(item => 
+            item.className && item.className.includes('selected')
+          );
+          
+          if (selectedItem) {
+            selectedItem.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            break;
+          }
+        }
+      } else if (viewMode === 'list' || viewMode === 'grid') {
+        // For list and grid views, find the first selected file in the DOM
+        if (!paneRef.current) return;
+        const firstSelectedPath = Array.from(selectedFiles)[0];
+        
+        // Find all file items and check which one matches
+        const allItems = paneRef.current.querySelectorAll('[draggable="true"]');
+        for (const item of allItems) {
+          // Check if this item corresponds to a selected file by checking its position in the files array
+          const itemIndex = Array.from(allItems).indexOf(item);
+          if (itemIndex >= 0 && itemIndex < files.length) {
+            const file = files[itemIndex];
+            if (selectedFiles.has(file.path)) {
+              item.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+              break;
+            }
+          }
+        }
+      }
+    }, 100);
+  }, [viewMode, loading, files.length, columnPaths.length]);
 
   // Keyboard navigation for column view
   useEffect(() => {
