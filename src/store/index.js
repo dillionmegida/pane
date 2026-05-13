@@ -401,6 +401,21 @@ export const useStore = create((set, get) => ({
   pushNavHistory: (paneId, entry) => {
     const pane = get().panes.find(p => p.id === paneId);
     if (!pane || pane._isRestoringHistory) return;
+
+    // Skip if the new entry is identical to the current history entry
+    // (e.g. clicking the already-active file or directory)
+    const currentIndex = pane.navigationIndex ?? -1;
+    if (currentIndex >= 0 && pane.navigationHistory && pane.navigationHistory[currentIndex]) {
+      const current = pane.navigationHistory[currentIndex];
+      const sameBase = current.basePath === entry.basePath;
+      const sameCrumb = current.currentBreadcrumbPath === entry.currentBreadcrumbPath;
+      const samePreview = (current.previewFilePath ?? null) === (entry.previewFilePath ?? null);
+      const currentSel = [...(current.selectedFiles || [])].sort().join('\0');
+      const newSel = [...(entry.selectedFiles || [])].sort().join('\0');
+      const sameSel = currentSel === newSel;
+      if (sameBase && sameCrumb && samePreview && sameSel) return;
+    }
+
     get().pushToHistory(paneId, entry);
   },
 

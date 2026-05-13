@@ -1,21 +1,4 @@
-/**
- * Navigation History Tests
- *
- * Covers the exact scenarios the user reported:
- *  1. Bookmark navigation pushes history (back arrow enabled after)
- *  2. Column directory click pushes history
- *  3. File click pushes history (with preview path)
- *  4. Back arrow decrements index; forward arrow increments it
- *  5. Back arrow is disabled at index 0, forward at end
- *  6. Navigating after going back truncates forward history
- *  7. basePath is stored per-entry (search reveal → different basePath)
- *  8. selectedFiles and previewFilePath are stored per-entry
- *  9. goBack/goForward don't push new history entries
- * 10. Max 50 history items enforced
- * 11. _isRestoringHistory flag blocks pushNavHistory during restoration
- */
-
-import { renderHook, act } from '@testing-library/react';
+import { act } from '@testing-library/react';
 import { useStore } from '../store';
 
 // ─── Electron API mock ────────────────────────────────────────────────────────
@@ -648,5 +631,128 @@ describe('Navigation History – _isRestoringHistory flag', () => {
 
     expect(getPane()._isRestoringHistory).toBe(false);
     expect(getPane().navigationIndex).toBe(1);
+  });
+});
+
+describe('Navigation History – no-op when clicking already-active item', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetStore();
+  });
+
+  test('clicking the already-active directory does not push a new history entry', () => {
+    act(() => {
+      useStore.getState().pushNavHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github',
+        selectedFiles: ['/Desktop/github'],
+        previewFilePath: null,
+      });
+    });
+    expect(getPane().navigationHistory).toHaveLength(1);
+    expect(getPane().navigationIndex).toBe(0);
+
+    // Click the same directory again — should be a no-op
+    act(() => {
+      useStore.getState().pushNavHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github',
+        selectedFiles: ['/Desktop/github'],
+        previewFilePath: null,
+      });
+    });
+
+    expect(getPane().navigationHistory).toHaveLength(1);
+    expect(getPane().navigationIndex).toBe(0);
+  });
+
+  test('clicking the already-active file does not push a new history entry', () => {
+    act(() => {
+      useStore.getState().pushNavHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github',
+        selectedFiles: ['/Desktop/github/index.js'],
+        previewFilePath: '/Desktop/github/index.js',
+      });
+    });
+    expect(getPane().navigationHistory).toHaveLength(1);
+
+    // Click the same file again — should be a no-op
+    act(() => {
+      useStore.getState().pushNavHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github',
+        selectedFiles: ['/Desktop/github/index.js'],
+        previewFilePath: '/Desktop/github/index.js',
+      });
+    });
+
+    expect(getPane().navigationHistory).toHaveLength(1);
+    expect(getPane().navigationIndex).toBe(0);
+  });
+
+  test('clicking a different directory after the active one does push a new entry', () => {
+    act(() => {
+      useStore.getState().pushNavHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github',
+        selectedFiles: ['/Desktop/github'],
+        previewFilePath: null,
+      });
+    });
+
+    act(() => {
+      useStore.getState().pushNavHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/projects',
+        selectedFiles: ['/Desktop/projects'],
+        previewFilePath: null,
+      });
+    });
+
+    expect(getPane().navigationHistory).toHaveLength(2);
+    expect(getPane().navigationIndex).toBe(1);
+    expect(getPane().navigationHistory[1].currentBreadcrumbPath).toBe('/Desktop/projects');
+  });
+
+  test('clicking the same directory with different selectedFiles does push a new entry', () => {
+    act(() => {
+      useStore.getState().pushNavHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github',
+        selectedFiles: ['/Desktop/github/a.js'],
+        previewFilePath: '/Desktop/github/a.js',
+      });
+    });
+
+    act(() => {
+      useStore.getState().pushNavHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github',
+        selectedFiles: ['/Desktop/github/b.js'],
+        previewFilePath: '/Desktop/github/b.js',
+      });
+    });
+
+    expect(getPane().navigationHistory).toHaveLength(2);
+    expect(getPane().navigationIndex).toBe(1);
+  });
+
+  test('repeated clicks on the active directory accumulate no extra entries', () => {
+    const entry = {
+      basePath: '/Desktop',
+      currentBreadcrumbPath: '/Desktop/github',
+      selectedFiles: ['/Desktop/github'],
+      previewFilePath: null,
+    };
+
+    act(() => {
+      for (let i = 0; i < 5; i++) {
+        useStore.getState().pushNavHistory('left', entry);
+      }
+    });
+
+    expect(getPane().navigationHistory).toHaveLength(1);
+    expect(getPane().navigationIndex).toBe(0);
   });
 });
