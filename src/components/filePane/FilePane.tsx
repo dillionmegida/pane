@@ -28,10 +28,9 @@ const TabBar = styled.div`
   align-items: center;
   background: ${p => p.theme.bg.secondary};
   border-bottom: 1px solid ${p => p.theme.border.subtle};
-  height: 32px;
+  height: 26px;
   overflow: hidden;
   flex-shrink: 0;
-  padding: 0 4px;
   gap: 2px;
 `;
 
@@ -41,12 +40,10 @@ const Tab = styled.div<{ active: boolean }>`
   gap: 5px;
   padding: 0 10px;
   height: 26px;
-  border-radius: ${p => p.theme.radius.sm};
   cursor: pointer;
   font-size: 11px;
   background: ${p => p.active ? p.theme.bg.primary : 'transparent'};
   color: ${p => p.active ? p.theme.text.primary : p.theme.text.tertiary};
-  border: 1px solid ${p => p.active ? p.theme.border.normal : 'transparent'};
   transition: all 0.1s;
   white-space: nowrap;
   overflow: hidden;
@@ -68,10 +65,9 @@ const AddTabBtn = styled.button`
   color: ${p => p.theme.text.tertiary};
   cursor: pointer;
   font-size: 16px;
-  padding: 2px 6px;
+  padding: 6px;
   border-radius: ${p => p.theme.radius.sm};
   flex-shrink: 0;
-  line-height: 1;
   &:hover { background: ${p => p.theme.bg.hover}; color: ${p => p.theme.text.primary}; }
 `;
 
@@ -96,10 +92,8 @@ const NavBtn = styled.button<{ disabled?: boolean }>`
   opacity: ${p => p.disabled ? 0.35 : 1};
   transition: all 0.1s;
   &:hover:not(:disabled) { background: ${p => p.theme.bg.hover}; color: ${p => p.theme.text.primary}; }
-  border: 2px solid red;
   display: flex;
   justify-content: center;
-  font-size: 15px;
   align-items: center;
 `;
 
@@ -1081,13 +1075,26 @@ export default function FilePane({ paneId }: FilePaneProps) {
             )}
           </Tab>
         ))}
-        <AddTabBtn onClick={e => { e.stopPropagation(); addTab(paneId); }} title="New Tab">+</AddTabBtn>
+        <AddTabBtn onClick={e => { e.stopPropagation(); addTab(paneId); }} title="New Tab">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </AddTabBtn>
       </TabBar>
 
       {/* Toolbar */}
       <Toolbar>
-        <NavBtn disabled={!canGoBack} onClick={() => goBackInHistory(paneId)} title="Back">‹</NavBtn>
-        <NavBtn disabled={!canGoForward} onClick={() => goForwardInHistory(paneId)} title="Forward">›</NavBtn>
+        <NavBtn disabled={!canGoBack} onClick={() => goBackInHistory(paneId)} title="Back">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </NavBtn>
+        <NavBtn disabled={!canGoForward} onClick={() => goForwardInHistory(paneId)} title="Forward">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </NavBtn>
         <PaneBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />
       </Toolbar>
 
