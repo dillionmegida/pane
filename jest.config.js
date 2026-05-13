@@ -1,10 +1,15 @@
 module.exports = {
   testEnvironment: 'jsdom',
-  testMatch: ['**/__tests__/**/*.test.js', '**/?(*.)+(spec|test).js'],
+  testMatch: [
+    '**/__tests__/**/*.test.js',
+    '**/__tests__/**/*.test.ts',
+    '**/?(*.)+(spec|test).js',
+    '**/?(*.)+(spec|test).ts',
+  ],
   collectCoverageFrom: [
-    'src/**/*.js',
+    'src/**/*.ts',
+    'src/**/*.tsx',
     '!src/main/**',
-    '!src/**/*.jsx',
     '!src/__tests__/**',
   ],
   coveragePathIgnorePatterns: [
@@ -15,7 +20,10 @@ module.exports = {
     '^path-browserify$': '<rootDir>/node_modules/path-browserify',
   },
   testPathIgnorePatterns: ['/node_modules/', '/dist/'],
-  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.js'],
+  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
+  transform: {
+    '^.+\\.(js|jsx|ts|tsx)$': 'babel-jest',
+  },
   transformIgnorePatterns: [
     'node_modules/(?!(zustand)/)',
   ],

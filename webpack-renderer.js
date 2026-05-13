@@ -6,7 +6,7 @@ module.exports = (env, argv) => {
 
   return {
     devtool: process.env.NODE_ENV === 'development' ? 'cheap-module-source-map' : false,
-    entry: { main: './src/index.jsx' },
+    entry: { main: './src/index.tsx' },
     target: 'web',
     optimization: {
       runtimeChunk: false,
@@ -43,7 +43,7 @@ module.exports = (env, argv) => {
     module: {
       rules: [
         {
-          test: /\.(js|jsx)$/,
+          test: /\.(js|jsx|ts|tsx)$/,
           exclude: /node_modules/,
           use: {
             loader: 'babel-loader',
@@ -51,6 +51,7 @@ module.exports = (env, argv) => {
               presets: [
                 ['@babel/preset-env', { targets: { electron: '28' } }],
                 ['@babel/preset-react', { runtime: 'automatic' }],
+                ['@babel/preset-typescript'],
               ],
             },
           },

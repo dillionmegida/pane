@@ -105,4 +105,26 @@ Start with SearchOverlay first—it's the easiest win (single list, simple item 
 * @index.js#L1313-1338  i'd like to create my own custom icons
 * in filtree, diretories should come before files
 
-* if a file is a symlink, visually show that on the editor
+
+
+* notice a bunch of jumps if i open two many columns and then click something on the second column (basically because the horizontal window becomes smaller so there's layout shift)...how finder does this is that it keeps the "maximum scroll width reached" so it doesn't jump around
+
+so here's what i expect
+
+when i click an item in a previous column, don't do scroll into view (scroll into view is only when i click an item that pops up a new column, or if the item i click on is not int the view at all)...
+
+at the same time, don't resize the horizontal width yet...so if i open 7 columns, keep that same width and don't resize it...when i click an item in the first column, then now you can resize back to original
+
+* i should be able to drag a folder to the bookmarks section in left sidebar (there should be a visual indication when i'm dragging in the bookmarks tab)
+
+* i select sort in the context menu and the context menu doesn't close...it should close.
+
+* when i right click on directory, i see the "sort" section appear twice
+
+* when i right click on a file, i see the "sort" section...i shoulnd't see it for files
+
+* when i collapse the sections in the left sidebar, persist the collapsed state
+
+* the scroll bar width in the columns is too big...reduce it
+
+* while i'm dragging, ensure that i can't hover on any item and that the cursor doesn't change from the dragging state
