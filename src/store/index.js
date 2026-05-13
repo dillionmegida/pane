@@ -656,6 +656,12 @@ export const useStore = create((set, get) => ({
     }));
   },
 
+  toggleHiddenFiles: async () => {
+    const newValue = !get().showHidden;
+    set({ showHidden: newValue });
+    await window.electronAPI.storeSet('showHidden', newValue);
+  },
+
   // ── Tabs ─────────────────────────────────────────────────────────────────
   addTab: (paneId, tabPath) => {
     const { homeDir } = get();
@@ -1022,6 +1028,8 @@ export const useStore = create((set, get) => ({
   searchLoading: false,
   toggleSearch: () => set(s => ({ showSearch: !s.showSearch, searchQuery: '', searchResults: [] })),
 
+  showHidden: false,
+
   searchFiles: async (query, opts = {}) => {
     const { activePane, panes } = get();
     const pane = panes.find(p => p.id === activePane);
@@ -1185,13 +1193,14 @@ export const useStore = create((set, get) => ({
     set({ homeDir });
 
     // Restore persisted UI state
-    const [savedSidebar, savedSession, savedZoom, savedPreviewWidth, savedSidebarWidth, savedTheme] = await Promise.all([
+    const [savedSidebar, savedSession, savedZoom, savedPreviewWidth, savedSidebarWidth, savedTheme, savedShowHidden] = await Promise.all([
       window.electronAPI.storeGet('showSidebar'),
       window.electronAPI.storeGet('session'),
       window.electronAPI.storeGet('zoom'),
       window.electronAPI.storeGet('previewWidth'),
       window.electronAPI.storeGet('sidebarWidth'),
       window.electronAPI.storeGet('theme'),
+      window.electronAPI.storeGet('showHidden'),
     ]);
 
     if (savedSidebar != null) set({ showSidebar: savedSidebar });
@@ -1199,6 +1208,7 @@ export const useStore = create((set, get) => ({
     if (savedPreviewWidth != null) set({ previewWidth: savedPreviewWidth });
     if (savedSidebarWidth != null) set({ sidebarWidth: savedSidebarWidth });
     if (savedTheme != null) set({ currentTheme: savedTheme });
+    if (savedShowHidden != null) set({ showHidden: savedShowHidden });
     if (savedSession?.directorySorts) set({ directorySorts: savedSession.directorySorts });
 
     // Determine starting paths from session or fallback to homeDir
@@ -1539,4 +1549,9 @@ export function getPreviewType(file) {
   if (PREVIEW_TYPES.textExts.includes(ext)) return 'text';
   if (ext === 'pdf') return 'pdf';
   return 'unknown';
+}
+
+export function filterHiddenFiles(files, showHidden) {
+  if (showHidden) return files;
+  return files.filter(f => !f.name.startsWith('.'));
 }

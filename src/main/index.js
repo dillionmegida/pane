@@ -202,7 +202,6 @@ function registerGlobalShortcuts() {
 // ─── IPC: File System ─────────────────────────────────────────────────────────
 ipcMain.handle('fs:readdir', async (event, dirPath) => {
   try {
-    const showHidden = store ? store.get('showHidden', false) : false;
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
     const files = [];
     const batchSize = 32; // Bound concurrency for stat calls
@@ -210,16 +209,27 @@ ipcMain.handle('fs:readdir', async (event, dirPath) => {
     for (let i = 0; i < entries.length; i += batchSize) {
       const batch = entries.slice(i, i + batchSize);
       const results = await Promise.allSettled(batch.map(async (entry) => {
-        if (!showHidden && entry.name.startsWith('.')) return null;
 
         const fullPath = path.join(dirPath, entry.name);
         try {
-          const stat = await fs.promises.stat(fullPath);
+          const isSymlink = entry.isSymbolicLink();
+          const stat = await fs.promises.lstat(fullPath);
+          let symlinkTarget = null;
+          
+          if (isSymlink) {
+            try {
+              symlinkTarget = await fs.promises.readlink(fullPath);
+            } catch (e) {
+              // Ignore errors reading symlink target
+            }
+          }
+          
           return {
             name: entry.name,
             path: fullPath,
             isDirectory: entry.isDirectory(),
-            isSymlink: entry.isSymbolicLink(),
+            isSymlink,
+            symlinkTarget,
             size: stat.size,
             modified: stat.mtime.toISOString(),
             created: stat.birthtime.toISOString(),

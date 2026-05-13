@@ -1,13 +1,28 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import styled from 'styled-components';
-import { useStore, formatSize, formatDate, getFileIcon, sortFiles, PREVIEW_TYPES } from '../store';
+import styled, { useTheme, createGlobalStyle } from 'styled-components';
+import { Tooltip } from 'react-tooltip';
+import { useStore, formatSize, formatDate, getFileIcon, sortFiles, PREVIEW_TYPES, filterHiddenFiles } from '../store';
 import { SORT_TYPES } from '../helpers/sort';
 import { getTagColors } from '../theme';
 import path from 'path-browserify';
 import PreviewPane from './PreviewPane';
 import QuickPreviewModal from './QuickPreviewModal';
 import { FileIcon as FileIconComponent } from './FileIcons';
+
+// ─── Global Styles ────────────────────────────────────────────────────────────
+const SymlinkTooltipStyles = createGlobalStyle`
+  .symlink-tooltip {
+    background-color: ${props => props.theme.bg.elevated} !important;
+    color: ${props => props.theme.text.primary} !important;
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+    border-radius: ${props => props.theme.radius.sm} !important;
+    border: 2px solid ${props => props.theme.border.strong} !important;
+    box-shadow: ${props => props.theme.shadow.md} !important;
+    z-index: 9999 !important;
+  }
+`;
 
 // ─── Styled Components ───────────────────────────────────────────────────────
 const PaneContainer = styled.div`
@@ -604,6 +619,54 @@ const ColumnTagDot = styled.span.withConfig({ shouldForwardProp: p => p !== 'off
   border: 1px solid white;
 `;
 
+const SymlinkIndicator = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  font-size: 11px;
+  color: ${p => p.theme.text.tertiary};
+  opacity: 0.7;
+  cursor: help;
+  vertical-align: middle;
+  
+  &:hover {
+    opacity: 1;
+    color: ${p => p.theme.accent.blue};
+  }
+`;
+
+const GridSymlinkIndicator = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  font-size: 10px;
+  color: ${p => p.theme.text.tertiary};
+  opacity: 0.7;
+  cursor: help;
+  
+  &:hover {
+    opacity: 1;
+    color: ${p => p.theme.accent.blue};
+  }
+`;
+
+const ColumnSymlinkIndicator = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  font-size: 10px;
+  color: ${p => p.theme.text.tertiary};
+  opacity: 0.7;
+  cursor: help;
+  flex-shrink: 0;
+  
+  &:hover {
+    opacity: 1;
+    color: ${p => p.theme.accent.blue};
+  }
+`;
+
 const GridWrap = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
@@ -887,6 +950,7 @@ function InlineTagPicker({ file, allTags, fileTags, onClose, onChanged }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function FilePane({ paneId }) {
+  const theme = useTheme();
   const {
     panes,
     activePane,
@@ -924,13 +988,17 @@ export default function FilePane({ paneId }) {
     setDirectorySort,
     getDirSort,
     directorySorts,
+    showHidden,
   } = useStore();
 
   const pane = panes.find(p => p.id === paneId);
 
   if (!pane) return null;
 
-  const { path: currentPath, files, loading, selectedFiles, sortBy, sortOrder, viewMode, tabs, activeTab, currentBreadcrumbPath, columnState } = pane;
+  const { path: currentPath, files: allFiles, loading, selectedFiles, sortBy, sortOrder, viewMode, tabs, activeTab, currentBreadcrumbPath, columnState } = pane;
+  
+  // Filter files based on showHidden setting
+  const files = filterHiddenFiles(allFiles, showHidden);
 
   // fileTags: { [filePath]: [{ tag_name, color }] }
   const [fileTags, setFileTags] = useState({});
@@ -1238,7 +1306,7 @@ export default function FilePane({ paneId }) {
       if (focusedColumn < 0 || focusedColumn >= columnPaths.length) return;
 
       const columnKey = columnPaths[focusedColumn];
-      const columnFilesList = focusedColumn === 0 ? files : (columnFiles[columnKey] || []);
+      const columnFilesList = focusedColumn === 0 ? files : filterHiddenFiles(columnFiles[columnKey] || [], showHidden);
 
       if (columnFilesList.length === 0 && e.key !== 'ArrowLeft' && e.key !== 'Escape') return;
 
@@ -1281,7 +1349,7 @@ export default function FilePane({ paneId }) {
           const selectedItem = columnFilesList[currentIndex];
           if (!selectedItem || !selectedItem.isDirectory) break;
 
-          const nextColumnFiles = columnFiles[selectedItem.path] || [];
+          const nextColumnFiles = filterHiddenFiles(columnFiles[selectedItem.path] || [], showHidden);
           if (nextColumnFiles.length === 0) break;
 
           updateColumnState(paneId, { focusedIndex: focusedColumn + 1 });
@@ -1800,6 +1868,14 @@ export default function FilePane({ paneId }) {
         ) : (
           <FileName>
             {file.name}
+            {file.isSymlink && file.symlinkTarget && (
+              <SymlinkIndicator 
+                data-tooltip-id="symlink-tooltip"
+                data-tooltip-content={`→ ${file.symlinkTarget}`}
+              >
+                ↗
+              </SymlinkIndicator>
+            )}
             {(fileTags[file.path] || []).length > 0 && (
               <FileTagDots>
                 {(fileTags[file.path] || []).map((t, i) => (
@@ -1891,6 +1967,14 @@ export default function FilePane({ paneId }) {
           )}
         </GridIcon>
         <GridName>{file.name}</GridName>
+        {file.isSymlink && file.symlinkTarget && (
+          <GridSymlinkIndicator 
+            data-tooltip-id="symlink-tooltip"
+            data-tooltip-content={`→ ${file.symlinkTarget}`}
+          >
+            ↗
+          </GridSymlinkIndicator>
+        )}
         {(fileTags[file.path] || []).length > 0 && (
           <GridTagDots>
             {(fileTags[file.path] || []).map((t, i) => (
@@ -2051,7 +2135,7 @@ export default function FilePane({ paneId }) {
             {/* Render all columns from derived columnPaths */}
             {columnPaths.map((colPath, idx) => {
               const isFirstColumn = idx === 0;
-              const colFiles = isFirstColumn ? files : (columnFiles[colPath] || []);
+              const colFiles = isFirstColumn ? files : filterHiddenFiles(columnFiles[colPath] || [], showHidden);
               return (
                 <Column key={colPath} width={columnWidths[idx] ? `${columnWidths[idx]}px` : '200px'} className={focusedColumn === idx ? 'active' : ''} data-column-index={idx}>
                   <ColumnList 
@@ -2167,6 +2251,14 @@ export default function FilePane({ paneId }) {
                           )}
                         </span>
                         <span className="name">{file.name}</span>
+                        {file.isSymlink && file.symlinkTarget && (
+                          <ColumnSymlinkIndicator 
+                            data-tooltip-id="symlink-tooltip"
+                            data-tooltip-content={`→ ${file.symlinkTarget}`}
+                          >
+                            ↗
+                          </ColumnSymlinkIndicator>
+                        )}
                         {(fileTags[file.path] || []).length > 0 && (
                           <ColumnTagDots>
                             {(fileTags[file.path] || []).map((t, i) => (
@@ -2501,6 +2593,15 @@ export default function FilePane({ paneId }) {
           )}
         </ContextMenu>
       )}
+
+      {/* Symlink Tooltip */}
+      <Tooltip 
+        id="symlink-tooltip"
+        place="top"
+        delayShow={100}
+        opacity={1}
+        className="symlink-tooltip"
+      />
     </PaneContainer>
   );
 }

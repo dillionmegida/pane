@@ -186,6 +186,16 @@ export default function App() {
         const state = useStore.getState();
         state.goForwardInHistory(state.activePane);
       }
+      // Cmd+, = open settings
+      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+        e.preventDefault();
+        useStore.getState().openModal('settings');
+      }
+      // Cmd+. = toggle hidden files
+      if ((e.metaKey || e.ctrlKey) && e.key === '.') {
+        e.preventDefault();
+        useStore.getState().toggleHiddenFiles();
+      }
       // Escape = close search / modal
       if (e.key === 'Escape') {
         if (activeModal) closeModal();
