@@ -220,6 +220,16 @@ export default function SearchOverlay() {
     inputRef.current?.focus();
   }, []);
 
+  // Load persisted root search preference on mount
+  useEffect(() => {
+    window.electronAPI.storeGet('searchRoot').then(v => setRootSearch(!!v));
+  }, []);
+
+  // Persist root search preference when it changes
+  useEffect(() => {
+    window.electronAPI.storeSet('searchRoot', rootSearch);
+  }, [rootSearch]);
+
   // Handle resize
   useEffect(() => {
     if (!isResizing) return;
