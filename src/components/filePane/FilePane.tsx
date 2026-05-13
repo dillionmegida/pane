@@ -96,9 +96,10 @@ const NavBtn = styled.button<{ disabled?: boolean }>`
   opacity: ${p => p.disabled ? 0.35 : 1};
   transition: all 0.1s;
   &:hover:not(:disabled) { background: ${p => p.theme.bg.hover}; color: ${p => p.theme.text.primary}; }
-  /* border: 2px solid red; */
+  border: 2px solid red;
   display: flex;
   justify-content: center;
+  font-size: 15px;
   align-items: center;
 `;
 
@@ -411,6 +412,8 @@ export default function FilePane({ paneId }: FilePaneProps) {
       const curIdx = files.findIndex(f => f.path === file.path);
       const [lo, hi] = lastIdx < curIdx ? [lastIdx, curIdx] : [curIdx, lastIdx];
       setSelection(paneId, files.slice(lo, hi + 1).map(f => f.path));
+    } else if (selectedFiles.size === 1 && selectedFiles.has(file.path)) {
+      startRename(file);
     } else {
       setSelection(paneId, [file.path]);
     }
@@ -434,6 +437,10 @@ export default function FilePane({ paneId }: FilePaneProps) {
       return;
     }
 
+    if (selectedFiles.size === 1 && selectedFiles.has(file.path)) {
+      startRename(file);
+      return;
+    }
     setSelection(paneId, [file.path]);
     updateColumnState(paneId, {
       selectedByColumn: { ...(columnState.selectedByColumn || {}), [columnIndex]: file.path },
@@ -635,11 +642,14 @@ export default function FilePane({ paneId }: FilePaneProps) {
     setSelection(paneId, []);
     refreshPane(paneId);
     if (viewMode === 'column') {
-      const dir = pane.currentBreadcrumbPath || pane.path;
-      const result = await readDirSorted(dir, paneId);
-      if (result.success) {
-        updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: result.files } });
-      }
+      // Re-read every parent dir that had a deleted file so the list updates immediately
+      const affectedDirs = [...new Set(targets.map(fp => fp.substring(0, fp.lastIndexOf('/'))))];
+      const newFbp = { ...(columnState.filesByPath || {}) };
+      await Promise.all(affectedDirs.map(async dir => {
+        const result = await readDirSorted(dir, paneId);
+        if (result.success) newFbp[dir] = result.files;
+      }));
+      updateColumnState(paneId, { filesByPath: newFbp });
     }
   };
 
@@ -780,21 +790,37 @@ export default function FilePane({ paneId }: FilePaneProps) {
   // ── Column resizer ─────────────────────────────────────────────────────────
   const handleColumnResizerMouseDown = (columnIndex: number) => (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     const startX = e.clientX;
     const startWidth = columnWidths[columnIndex] ?? DEFAULT_COLUMN_WIDTH;
+    let currentWidth = startWidth;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
 
     const onMove = (me: MouseEvent) => {
-      const newWidth = Math.max(120, Math.min(500, startWidth + me.clientX - startX));
+      currentWidth = Math.max(120, Math.min(500, startWidth + me.clientX - startX));
+      const colEl = columnViewRef.current?.querySelector<HTMLElement>(
+        `[data-column-index="${columnIndex}"]`
+      );
+      if (colEl) {
+        colEl.style.width = `${currentWidth}px`;
+        colEl.style.minWidth = `${currentWidth}px`;
+      }
+    };
+
+    const onUp = () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
       setColumnWidths(prev => {
         const next = [...prev];
-        next[columnIndex] = newWidth;
+        next[columnIndex] = currentWidth;
         return next;
       });
     };
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
+
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   };

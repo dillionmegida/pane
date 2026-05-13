@@ -18,14 +18,18 @@ const ColumnList = styled.div`
   flex: 1;
   overflow-y: auto;
   padding: 2px 0 48px;
+  scrollbar-width: thin;
+  &::-webkit-scrollbar { width: 1px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: ${p => p.theme.border.subtle}; border-radius: 1px; }
 `;
 
 const ColumnResizer = styled.div`
   position: absolute;
-  right: -3px;
+  right: -2px;
   top: 0;
   bottom: 0;
-  width: 6px;
+  width: 4px;
   cursor: col-resize;
   z-index: 10;
   &:hover { background: ${p => p.theme.accent.blue}40; }

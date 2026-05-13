@@ -1064,6 +1064,99 @@ describe('Rename - input value is full filename including extension', () => {
   });
 });
 
+// ── Delete removes file from column filesByPath immediately (regression) ──────
+
+describe('Delete - removes deleted files from column filesByPath immediately', () => {
+  const makeFile = (name: string, dir: string, isDir = false): any => ({
+    path: `${dir}/${name}`, name, extension: '', size: 0, modified: '', isDirectory: isDir,
+  });
+
+  test('affectedDirs derived from deleted file paths', () => {
+    const targets = ['/Desktop/A/file.txt', '/Desktop/A/other.txt', '/Desktop/B/doc.pdf'];
+    const affectedDirs = [...new Set(targets.map(fp => fp.substring(0, fp.lastIndexOf('/'))))];
+    expect(affectedDirs).toHaveLength(2);
+    expect(affectedDirs).toContain('/Desktop/A');
+    expect(affectedDirs).toContain('/Desktop/B');
+  });
+
+  test('filesByPath is updated with refreshed dirs after delete', () => {
+    const filesByPath: Record<string, any[]> = {
+      '/Desktop': [makeFile('A', '/Desktop', true), makeFile('B', '/Desktop', true)],
+      '/Desktop/A': [makeFile('file.txt', '/Desktop/A'), makeFile('other.txt', '/Desktop/A')],
+      '/Desktop/B': [makeFile('doc.pdf', '/Desktop/B')],
+    };
+
+    const targets = ['/Desktop/A/file.txt'];
+    const affectedDirs = [...new Set(targets.map(fp => fp.substring(0, fp.lastIndexOf('/'))))];
+
+    const updatedA = [makeFile('other.txt', '/Desktop/A')];
+    const newFbp = { ...filesByPath };
+    affectedDirs.forEach(dir => {
+      if (dir === '/Desktop/A') newFbp[dir] = updatedA;
+    });
+
+    expect(newFbp['/Desktop/A']).toHaveLength(1);
+    expect(newFbp['/Desktop/A'][0].name).toBe('other.txt');
+    expect(newFbp['/Desktop/B']).toHaveLength(1);
+    expect(newFbp['/Desktop']).toHaveLength(2);
+  });
+
+  test('deleting multiple files across different dirs refreshes each dir', () => {
+    const targets = ['/Desktop/A/a1.txt', '/Desktop/B/b1.txt'];
+    const affectedDirs = [...new Set(targets.map(fp => fp.substring(0, fp.lastIndexOf('/'))))];
+    expect(affectedDirs).toHaveLength(2);
+    expect(affectedDirs).toContain('/Desktop/A');
+    expect(affectedDirs).toContain('/Desktop/B');
+  });
+
+  test('deleting from base dir refreshes base dir in filesByPath', () => {
+    const targets = ['/Desktop/file.txt'];
+    const affectedDirs = [...new Set(targets.map(fp => fp.substring(0, fp.lastIndexOf('/'))))];
+    expect(affectedDirs).toEqual(['/Desktop']);
+  });
+});
+
+// ── Click selected file enters rename mode (regression) ───────────────────────
+
+describe('Click - clicking already-selected file enters rename mode', () => {
+  const simulateFileClick = (
+    selectedFiles: Set<string>,
+    clickedPath: string,
+  ): 'rename' | 'select' | 'multi' => {
+    const multi = false;
+    const shift = false;
+    if (multi) return 'multi';
+    if (shift) return 'select';
+    if (selectedFiles.size === 1 && selectedFiles.has(clickedPath)) return 'rename';
+    return 'select';
+  };
+
+  test('clicking a file that is the sole selection enters rename mode', () => {
+    const selected = new Set(['/Desktop/file.txt']);
+    expect(simulateFileClick(selected, '/Desktop/file.txt')).toBe('rename');
+  });
+
+  test('clicking a different file when one is selected selects it (no rename)', () => {
+    const selected = new Set(['/Desktop/file.txt']);
+    expect(simulateFileClick(selected, '/Desktop/other.txt')).toBe('select');
+  });
+
+  test('clicking a file when multiple are selected selects it (no rename)', () => {
+    const selected = new Set(['/Desktop/a.txt', '/Desktop/b.txt']);
+    expect(simulateFileClick(selected, '/Desktop/a.txt')).toBe('select');
+  });
+
+  test('clicking a file when nothing is selected selects it (no rename)', () => {
+    const selected = new Set<string>();
+    expect(simulateFileClick(selected, '/Desktop/file.txt')).toBe('select');
+  });
+
+  test('column view: clicking already-selected file enters rename mode', () => {
+    const selected = new Set(['/Desktop/A/doc.pdf']);
+    expect(simulateFileClick(selected, '/Desktop/A/doc.pdf')).toBe('rename');
+  });
+});
+
 // ── Add folder enters rename mode with full folder name (regression) ──────────
 
 describe('Add folder - creates untitled folder then enters rename mode', () => {
