@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import styled from 'styled-components';
 import { useStore, formatSize, formatDate, getFileIcon, sortFiles, PREVIEW_TYPES } from '../store';
+import { SORT_TYPES } from '../helpers/sort';
 import { getTagColors } from '../theme';
 import path from 'path-browserify';
 import PreviewPane from './PreviewPane';
@@ -520,6 +521,41 @@ const CtxTagLabel = styled.div`
   min-height: 16px;
 `;
 
+const CtxSortRow = styled.div`
+  padding: 5px 8px 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const CtxSortBtn = styled.button.withConfig({ shouldForwardProp: p => p !== 'active' })`
+  width: 34px;
+  height: 34px;
+  border-radius: ${p => p.theme.radius.sm};
+  background: ${p => p.active ? p.theme.accent.blue + '22' : p.theme.bg.primary};
+  border: 1.5px solid ${p => p.active ? p.theme.accent.blue : p.theme.border.subtle};
+  color: ${p => p.active ? p.theme.accent.blue : p.theme.text.tertiary};
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+  flex-shrink: 0;
+  &:hover {
+    border-color: ${p => p.theme.accent.blue};
+    color: ${p => p.theme.accent.blue};
+    background: ${p => p.theme.accent.blue + '15'};
+  }
+  svg { width: 18px; height: 18px; display: block; }
+`;
+
+const CtxSortLabel = styled.div`
+  padding: 0 10px 5px;
+  font-size: 10px;
+  color: ${p => p.theme.text.tertiary};
+  min-height: 16px;
+`;
+
 // Tag dots for file views
 const FileTagDots = styled.span`
   display: inline-flex;
@@ -882,6 +918,9 @@ export default function FilePane({ paneId }) {
     goForwardInHistory,
     pushNavHistory,
     closePreview,
+    setDirectorySort,
+    getDirSort,
+    directorySorts,
   } = useStore();
 
   const pane = panes.find(p => p.id === paneId);
@@ -896,6 +935,9 @@ export default function FilePane({ paneId }) {
   const [ctxAllTags, setCtxAllTags] = useState([]);
   const [ctxFileTags, setCtxFileTags] = useState(new Set());
   const [ctxTagHover, setCtxTagHover] = useState(null);
+  // Context menu sort state
+  const [ctxSortTarget, setCtxSortTarget] = useState(null); // dirPath the sort applies to
+  const [ctxSortHover, setCtxSortHover] = useState(null);
   // Keep legacy tag menu state for InlineTagPicker (if still used)
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const [tagMenuAllTags, setTagMenuAllTags] = useState([]);
@@ -1289,7 +1331,9 @@ export default function FilePane({ paneId }) {
       if (!columnFiles[file.path]) {
         window.electronAPI.readdir(file.path).then(result => {
           if (result.success) {
-            updateColumnState(paneId, { filesByPath: { ...columnFiles, [file.path]: result.files } });
+            const dirSort = useStore.getState().getDirSort(file.path);
+            const sorted = sortFiles(result.files, dirSort, 'asc');
+            updateColumnState(paneId, { filesByPath: { ...columnFiles, [file.path]: sorted } });
           }
         });
       }
@@ -1393,16 +1437,23 @@ export default function FilePane({ paneId }) {
     const menuX = (fileRect.right / zoom) - (rect.left / zoom) - 8;
     
     // Check if menu would clip at bottom of screen
-    const estimatedMenuHeight = 200; // approximate height in pixels
+    const estimatedMenuHeight = 250;
     const paneBottom = (window.innerHeight / zoom) - (rect.top / zoom);
     if (menuY + estimatedMenuHeight > paneBottom) {
-      // Position above: bottom of menu at top of file
       menuY = (fileRect.top / zoom) - (rect.top / zoom) - estimatedMenuHeight;
     }
     
+    // Determine sort target: if right-clicking a dir, sort applies to that dir.
+    // If right-clicking a file, sort applies to its parent dir.
+    const sortTarget = file.isDirectory
+      ? file.path
+      : (file.path.split('/').slice(0, -1).join('/') || '/');
+
     setContextMenu({ x: menuX, y: menuY, file });
     setContextMenuFile(file);
     setCtxTagHover(null);
+    setCtxSortHover(null);
+    setCtxSortTarget(sortTarget);
     // Load tags for the inline dot row
     Promise.all([
       window.electronAPI.getAllTags(),
@@ -1417,6 +1468,12 @@ export default function FilePane({ paneId }) {
     e.preventDefault();
     const rect = paneRef.current.getBoundingClientRect();
     const zoom = useStore.getState().zoom;
+    // Sort target for background click: currentBreadcrumbPath (active dir),
+    // or fallback to basePath
+    const currentPane = useStore.getState().panes.find(p => p.id === paneId);
+    const bgSortTarget = currentPane?.currentBreadcrumbPath || currentPane?.basePath || currentPath;
+    setCtxSortTarget(bgSortTarget);
+    setCtxSortHover(null);
     setContextMenu({ x: (e.clientX / zoom) - (rect.left / zoom), y: (e.clientY / zoom) - (rect.top / zoom), file: null, background: true });
   };
 
@@ -2161,6 +2218,34 @@ export default function FilePane({ paneId }) {
                 </MenuItem>
               )}
               <MenuDivider />
+              {/* Inline sort row for background context menu */}
+              <CtxSortRow>
+                {SORT_TYPES.map(st => {
+                  const active = getDirSort(ctxSortTarget || currentBreadcrumbPath) === st.id;
+                  return (
+                    <CtxSortBtn
+                      key={st.id}
+                      active={active}
+                      title={st.label}
+                      onMouseEnter={() => setCtxSortHover(st.id)}
+                      onMouseLeave={() => setCtxSortHover(null)}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        await setDirectorySort(ctxSortTarget || currentBreadcrumbPath, st.id);
+                      }}
+                    >
+                      <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" dangerouslySetInnerHTML={{ __html: st.svgInner }} />
+                    </CtxSortBtn>
+                  );
+                })}
+              </CtxSortRow>
+              <CtxSortLabel>
+                {ctxSortHover
+                  ? `Sort by ${SORT_TYPES.find(s => s.id === ctxSortHover)?.label}`
+                  : `Sort: ${SORT_TYPES.find(s => s.id === getDirSort(ctxSortTarget || currentBreadcrumbPath))?.label || 'Name'}`
+                }
+              </CtxSortLabel>
+              <MenuDivider />
               <MenuItem onClick={() => { openModal('sizeViz', { path: currentBreadcrumbPath, paneId }); setContextMenu(null); setContextMenuFile(null); }}>
                 📊 Disk Usage Map
               </MenuItem>
@@ -2181,6 +2266,35 @@ export default function FilePane({ paneId }) {
                     openModal('sizeViz', { path: contextMenu.file.path, paneId });
                     setContextMenu(null); setContextMenuFile(null);
                   }}>📊 Disk Usage Map</MenuItem>
+                  <MenuDivider />
+                  {/* Inline sort row — only shown on directory right-click */}
+                  <CtxSortRow>
+                    {SORT_TYPES.map(st => {
+                      const active = getDirSort(ctxSortTarget) === st.id;
+                      return (
+                        <CtxSortBtn
+                          key={st.id}
+                          active={active}
+                          title={st.label}
+                          onMouseEnter={() => setCtxSortHover(st.id)}
+                          onMouseLeave={() => setCtxSortHover(null)}
+                          onClick={async (ev) => {
+                            ev.stopPropagation();
+                            await setDirectorySort(ctxSortTarget, st.id);
+                          }}
+                        >
+                          <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" dangerouslySetInnerHTML={{ __html: st.svgInner }} />
+                        </CtxSortBtn>
+                      );
+                    })}
+                  </CtxSortRow>
+                  <CtxSortLabel>
+                    {ctxSortHover
+                      ? `Sort by ${SORT_TYPES.find(s => s.id === ctxSortHover)?.label}`
+                      : `Sort: ${SORT_TYPES.find(s => s.id === getDirSort(ctxSortTarget))?.label || 'Name'}`
+                    }
+                  </CtxSortLabel>
+                  <MenuDivider />
                 </>
               )}
               <MenuItem onClick={() => { startRename(contextMenu.file); setContextMenu(null); setContextMenuFile(null); }}>✏️ Rename</MenuItem>
@@ -2246,6 +2360,34 @@ export default function FilePane({ paneId }) {
                     : `Add "${ctxTagHover}"`
                 ) : "All tags"}
               </CtxTagLabel>
+              <MenuDivider />
+              {/* Inline sort row — applies to the containing directory */}
+              <CtxSortRow>
+                {SORT_TYPES.map(st => {
+                  const active = getDirSort(ctxSortTarget) === st.id;
+                  return (
+                    <CtxSortBtn
+                      key={st.id}
+                      active={active}
+                      title={st.label}
+                      onMouseEnter={() => setCtxSortHover(st.id)}
+                      onMouseLeave={() => setCtxSortHover(null)}
+                      onClick={async (ev) => {
+                        ev.stopPropagation();
+                        await setDirectorySort(ctxSortTarget, st.id);
+                      }}
+                    >
+                      <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" dangerouslySetInnerHTML={{ __html: st.svgInner }} />
+                    </CtxSortBtn>
+                  );
+                })}
+              </CtxSortRow>
+              <CtxSortLabel>
+                {ctxSortHover
+                  ? `Sort by ${SORT_TYPES.find(s => s.id === ctxSortHover)?.label}`
+                  : `Sort: ${SORT_TYPES.find(s => s.id === getDirSort(ctxSortTarget))?.label || 'Name'}`
+                }
+              </CtxSortLabel>
               <MenuDivider />
               <MenuItem onClick={() => {
                 openModal('permissions', { file: contextMenu.file });

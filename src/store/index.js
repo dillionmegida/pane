@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import path from 'path-browserify';
+import { sortFiles, DEFAULT_SORT } from '../helpers/sort';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 const DEFAULT_COLUMN_STATE = {
@@ -133,7 +134,8 @@ export const useStore = create((set, get) => ({
       return;
     }
 
-    const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
+    const dirSort = get().getDirSort(dirPath);
+    const files = sortFiles(result.files, dirSort, 'asc');
 
     set(s => {
       const currentPane = s.panes.find(p => p.id === paneId);
@@ -189,7 +191,8 @@ export const useStore = create((set, get) => ({
       return;
     }
 
-    const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
+    const revealDirSort = get().getDirSort(dirPath);
+    const files = sortFiles(result.files, revealDirSort, 'asc');
 
     set(s => {
       const currentPane = s.panes.find(p => p.id === paneId);
@@ -234,7 +237,8 @@ export const useStore = create((set, get) => ({
       return;
     }
 
-    const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
+    const bmDirSort = get().getDirSort(dirPath);
+    const files = sortFiles(result.files, bmDirSort, 'asc');
 
     set(s => {
       const currentPane = s.panes.find(p => p.id === paneId);
@@ -281,6 +285,93 @@ export const useStore = create((set, get) => ({
       return { ...p, selectedFiles: sel };
     }),
   })),
+
+  // ── Directory-specific sorts ─────────────────────────────────────────────
+  // Maps dirPath → sortBy string. Persisted globally so all tabs/panes share it.
+  directorySorts: {},
+
+  // Helper (not an action) – get the effective sortBy for a given dir path
+  getDirSort: (dirPath) => {
+    const { directorySorts } = get();
+    return directorySorts[dirPath] || DEFAULT_SORT;
+  },
+
+  // Set a sort for a directory, then re-sort that dir in every pane/tab that has it open
+  setDirectorySort: async (dirPath, sortBy) => {
+    // Persist the sort
+    set(s => ({ directorySorts: { ...s.directorySorts, [dirPath]: sortBy } }));
+
+    // Re-read and re-sort that directory in every pane
+    const result = await window.electronAPI.readdir(dirPath);
+    if (!result.success) return;
+    const sorted = sortFiles(result.files, sortBy, 'asc');
+
+    set(s => ({
+      panes: s.panes.map(p => {
+        let updated = { ...p };
+        // If this dir is the main pane path, update files
+        if (p.path === dirPath) {
+          updated = { ...updated, files: sorted };
+        }
+        // Update columnState.filesByPath for this dir if present
+        if (updated.columnState?.filesByPath?.[dirPath]) {
+          updated = {
+            ...updated,
+            columnState: {
+              ...updated.columnState,
+              filesByPath: {
+                ...updated.columnState.filesByPath,
+                [dirPath]: sorted,
+              },
+            },
+          };
+        }
+        // Also update the active tab snapshot
+        const newTabs = updated.tabs.map((t, i) => {
+          if (i !== updated.activeTab) return t;
+          let updatedTab = { ...t };
+          if (updatedTab.columnState?.filesByPath?.[dirPath]) {
+            updatedTab = {
+              ...updatedTab,
+              columnState: {
+                ...updatedTab.columnState,
+                filesByPath: {
+                  ...updatedTab.columnState.filesByPath,
+                  [dirPath]: sorted,
+                },
+              },
+            };
+          }
+          if (updatedTab.path === dirPath) {
+            updatedTab = { ...updatedTab, files: sorted };
+          }
+          return updatedTab;
+        });
+        // Also update inactive tabs
+        const allTabs = updated.tabs.map((t, i) => {
+          if (i === updated.activeTab) return newTabs[i];
+          let updatedTab = { ...t };
+          if (updatedTab.columnState?.filesByPath?.[dirPath]) {
+            updatedTab = {
+              ...updatedTab,
+              columnState: {
+                ...updatedTab.columnState,
+                filesByPath: {
+                  ...updatedTab.columnState.filesByPath,
+                  [dirPath]: sorted,
+                },
+              },
+            };
+          }
+          if (updatedTab.path === dirPath) {
+            updatedTab = { ...updatedTab, files: sorted };
+          }
+          return updatedTab;
+        });
+        return { ...updated, tabs: allTabs };
+      }),
+    }));
+  },
 
   setSortBy: (paneId, sortBy, sortOrder) => set(s => ({
     panes: s.panes.map(p => {
@@ -459,7 +550,8 @@ export const useStore = create((set, get) => ({
     }
 
     const pane = get().panes.find(p => p.id === paneId);
-    const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
+    const histDirSort = get().getDirSort(basePath);
+    const files = sortFiles(result.files, histDirSort, 'asc');
 
     // Build column structure from basePath → currentBreadcrumbPath
     const columnPaths = [];
@@ -480,7 +572,8 @@ export const useStore = create((set, get) => ({
         if (colPath !== basePath) {
           const colResult = await window.electronAPI.readdir(colPath);
           if (colResult.success) {
-            filesByPath[colPath] = sortFiles(colResult.files, pane.sortBy, pane.sortOrder);
+            const colDirSort = get().getDirSort(colPath);
+            filesByPath[colPath] = sortFiles(colResult.files, colDirSort, 'asc');
           }
         }
       }
@@ -556,7 +649,8 @@ export const useStore = create((set, get) => ({
       return;
     }
 
-    const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
+    const refreshDirSort = get().getDirSort(pane.path);
+    const files = sortFiles(result.files, refreshDirSort, 'asc');
     set(s => ({
       panes: s.panes.map(p => p.id === paneId ? { ...p, files, loading: false } : p),
     }));
@@ -1036,7 +1130,8 @@ export const useStore = create((set, get) => ({
     const result = await window.electronAPI.readdir(dirPath);
     if (!result.success) return result;
 
-    const files = sortFiles(result.files, pane.sortBy, pane.sortOrder);
+    const rdDirSort = get().getDirSort(dirPath);
+    const files = sortFiles(result.files, rdDirSort, 'asc');
     return { success: true, files };
   },
 
@@ -1079,6 +1174,7 @@ export const useStore = create((set, get) => ({
       panes: session,
       activePane,
       previewFilePath: previewFile?.path || null,
+      directorySorts: get().directorySorts || {},
     });
   },
 
@@ -1103,6 +1199,7 @@ export const useStore = create((set, get) => ({
     if (savedPreviewWidth != null) set({ previewWidth: savedPreviewWidth });
     if (savedSidebarWidth != null) set({ sidebarWidth: savedSidebarWidth });
     if (savedTheme != null) set({ currentTheme: savedTheme });
+    if (savedSession?.directorySorts) set({ directorySorts: savedSession.directorySorts });
 
     // Determine starting paths from session or fallback to homeDir
     let savedActivePane = 'left';
@@ -1134,7 +1231,12 @@ export const useStore = create((set, get) => ({
         colPaths.push(base);
       }
       const entries = await Promise.all(
-        colPaths.map(cp => window.electronAPI.readdir(cp).then(r => [cp, r.success ? r.files : []]))
+        colPaths.map(cp => window.electronAPI.readdir(cp).then(r => {
+          if (!r.success) return [cp, []];
+          const dirSort = get().getDirSort(cp);
+          const sorted = sortFiles(r.files, dirSort, 'asc');
+          return [cp, sorted];
+        }))
       );
       return Object.fromEntries(entries);
     };
@@ -1162,7 +1264,11 @@ export const useStore = create((set, get) => ({
         const focusedIndex = computeFocusedIndex(base, breadcrumb);
         // Also load the base directory files for the tab
         const baseDirResult = await window.electronAPI.readdir(base);
-        const files = baseDirResult.success ? baseDirResult.files : [];
+        let files = [];
+        if (baseDirResult.success) {
+          const baseDirSort = get().getDirSort(base);
+          files = sortFiles(baseDirResult.files, baseDirSort, 'asc');
+        }
         // Restore preview file if saved
         let previewFile = null;
         if (tab.previewFilePath) {
@@ -1256,10 +1362,21 @@ export const useStore = create((set, get) => ({
           return await hydrateTab(ps);
         };
 
-        const [leftFiles, rightFiles] = await Promise.all([
+        const [leftFilesRaw, rightFilesRaw] = await Promise.all([
           hydratePane(leftSession),
           hydratePane(rightSession),
         ]);
+        // Sort the hydrated column files
+        const leftFiles = {};
+        for (const [dirPath, files] of Object.entries(leftFilesRaw)) {
+          const dirSort = get().getDirSort(dirPath);
+          leftFiles[dirPath] = sortFiles(files, dirSort, 'asc');
+        }
+        const rightFiles = {};
+        for (const [dirPath, files] of Object.entries(rightFilesRaw)) {
+          const dirSort = get().getDirSort(dirPath);
+          rightFiles[dirPath] = sortFiles(files, dirSort, 'asc');
+        }
 
         set(s => ({
           activePane: savedActivePane,
@@ -1334,25 +1451,8 @@ export const useStore = create((set, get) => ({
   },
 }));
 
-// ─── Sort Helper ──────────────────────────────────────────────────────────────
-export function sortFiles(files, sortBy = 'name', sortOrder = 'asc') {
-  const sorted = [...files].sort((a, b) => {
-    // Directories always first
-    if (a.isDirectory && !b.isDirectory) return -1;
-    if (!a.isDirectory && b.isDirectory) return 1;
-
-    let cmp = 0;
-    switch (sortBy) {
-      case 'name': cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }); break;
-      case 'size': cmp = a.size - b.size; break;
-      case 'modified': cmp = new Date(a.modified) - new Date(b.modified); break;
-      case 'extension': cmp = a.extension.localeCompare(b.extension); break;
-      default: cmp = a.name.localeCompare(b.name);
-    }
-    return sortOrder === 'desc' ? -cmp : cmp;
-  });
-  return sorted;
-}
+// ─── Sort Helper (re-exported from helpers/sort.js) ──────────────────────────
+export { sortFiles } from '../helpers/sort';
 
 // ─── File Utils ───────────────────────────────────────────────────────────────
 export function formatSize(bytes) {
