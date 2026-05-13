@@ -486,3 +486,380 @@ describe('Column View - Edge Cases', () => {
     expect(leftPane.columnState.filesByPath['/Users/john/EmptyFolder']).toHaveLength(0);
   });
 });
+
+describe('Column View - empty space click deselects and trims columns (regression)', () => {
+  const BASE = '/Users/test';
+
+  const mkPane = (overrides = {}) => ({
+    id: 'left', path: BASE, basePath: BASE, files: [],
+    loading: false, error: null, selectedFiles: new Set<string>(),
+    sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
+    tabs: [], activeTab: 0, currentBreadcrumbPath: BASE,
+    columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+    navigationHistory: [], navigationIndex: -1, _isRestoringHistory: false,
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useStore.setState({ panes: [mkPane()], activePane: 'left' } as any);
+  });
+
+  test('empty click on base column (index 0) removes all child columns', () => {
+    useStore.setState({
+      panes: [mkPane({
+        selectedFiles: new Set([`${BASE}/Documents`]),
+        columnState: {
+          paths: [`${BASE}/Documents`, `${BASE}/Documents/Projects`],
+          filesByPath: {
+            [BASE]: [],
+            [`${BASE}/Documents`]: [],
+            [`${BASE}/Documents/Projects`]: [],
+          },
+          selectedByColumn: { 0: `${BASE}/Documents`, 1: `${BASE}/Documents/Projects` },
+          focusedIndex: 2,
+        },
+      })],
+    } as any);
+
+    act(() => {
+      const s = useStore.getState();
+      s.setSelection('left', []);
+      s.setColumnState('left', {
+        paths: [],
+        filesByPath: { [BASE]: [] },
+        selectedByColumn: {},
+        focusedIndex: 0,
+      });
+    });
+
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left') as any;
+    expect(pane.columnState.paths).toHaveLength(0);
+    expect(pane.columnState.selectedByColumn).toEqual({});
+    expect(pane.columnState.focusedIndex).toBe(0);
+    expect(pane.selectedFiles.size).toBe(0);
+  });
+
+  test('empty click on child column keeps that column but removes columns to its right', () => {
+    useStore.setState({
+      panes: [mkPane({
+        selectedFiles: new Set([`${BASE}/Documents/Projects`]),
+        columnState: {
+          paths: [`${BASE}/Documents`, `${BASE}/Documents/Projects`],
+          filesByPath: {
+            [BASE]: [],
+            [`${BASE}/Documents`]: [],
+            [`${BASE}/Documents/Projects`]: [],
+          },
+          selectedByColumn: { 0: `${BASE}/Documents`, 1: `${BASE}/Documents/Projects` },
+          focusedIndex: 2,
+        },
+      })],
+    } as any);
+
+    act(() => {
+      const s = useStore.getState();
+      const pane = s.panes.find((p: any) => p.id === 'left') as any;
+      // colIndex=1 = second column (first child). Keep paths[0..0] = [Documents].
+      const colIndex = 1;
+      const keptPaths = pane.columnState.paths.slice(0, colIndex);
+      const keepSet = new Set([BASE, ...keptPaths]);
+      const newFbp: Record<string, any[]> = {};
+      for (const [k, v] of Object.entries(pane.columnState.filesByPath)) {
+        if (keepSet.has(k)) newFbp[k] = v as any[];
+      }
+      const newSelByCol: Record<number, string> = {};
+      for (let i = 0; i < colIndex; i++) {
+        if (pane.columnState.selectedByColumn?.[i]) newSelByCol[i] = pane.columnState.selectedByColumn[i];
+      }
+      delete newSelByCol[colIndex];
+      s.setSelection('left', []);
+      s.setColumnState('left', {
+        paths: keptPaths,
+        filesByPath: newFbp,
+        selectedByColumn: newSelByCol,
+        focusedIndex: colIndex,
+      });
+    });
+
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left') as any;
+    // Column 1 (Documents) is kept, column 2 (Projects) is removed
+    expect(pane.columnState.paths).toHaveLength(1);
+    expect(pane.columnState.paths[0]).toBe(`${BASE}/Documents`);
+    expect(pane.columnState.filesByPath[`${BASE}/Documents`]).toBeDefined();
+    expect(pane.columnState.filesByPath[`${BASE}/Documents/Projects`]).toBeUndefined();
+    expect(pane.selectedFiles.size).toBe(0);
+    // The item previously selected in column 1 is cleared
+    expect(pane.columnState.selectedByColumn[1]).toBeUndefined();
+  });
+
+  test('empty click on deepest child column keeps it, removes nothing (no columns to its right)', () => {
+    useStore.setState({
+      panes: [mkPane({
+        columnState: {
+          paths: [`${BASE}/Documents`, `${BASE}/Documents/Projects`],
+          filesByPath: {
+            [BASE]: [],
+            [`${BASE}/Documents`]: [],
+            [`${BASE}/Documents/Projects`]: [],
+          },
+          selectedByColumn: { 0: `${BASE}/Documents`, 1: `${BASE}/Documents/Projects` },
+          focusedIndex: 2,
+        },
+      })],
+    } as any);
+
+    act(() => {
+      const s = useStore.getState();
+      const pane = s.panes.find((p: any) => p.id === 'left') as any;
+      // colIndex=2 = third column (second child). Keep paths[0..1] = both child paths.
+      const colIndex = 2;
+      const keptPaths = pane.columnState.paths.slice(0, colIndex);
+      const newSelByCol: Record<number, string> = {};
+      for (let i = 0; i < colIndex; i++) {
+        if (pane.columnState.selectedByColumn?.[i]) newSelByCol[i] = pane.columnState.selectedByColumn[i];
+      }
+      delete newSelByCol[colIndex];
+      s.setSelection('left', []);
+      s.setColumnState('left', {
+        paths: keptPaths,
+        filesByPath: { [BASE]: [], [`${BASE}/Documents`]: [], [`${BASE}/Documents/Projects`]: [] },
+        selectedByColumn: newSelByCol,
+        focusedIndex: colIndex,
+      });
+    });
+
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left') as any;
+    // Both child columns preserved
+    expect(pane.columnState.paths).toHaveLength(2);
+    expect(pane.columnState.paths[1]).toBe(`${BASE}/Documents/Projects`);
+    expect(pane.columnState.filesByPath[`${BASE}/Documents/Projects`]).toBeDefined();
+    // Selection in this column is cleared
+    expect(pane.columnState.selectedByColumn[2]).toBeUndefined();
+    expect(pane.selectedFiles.size).toBe(0);
+    expect(pane.columnState.focusedIndex).toBe(2);
+  });
+});
+
+describe('Column View - paths array is child-only (regression)', () => {
+  const BASE = '/Users';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useStore.setState({
+      panes: [{
+        id: 'left',
+        path: BASE,
+        basePath: BASE,
+        files: [
+          { name: 'john', path: `${BASE}/john`, isDirectory: true, size: 0, modified: '', extension: '' },
+          { name: 'jane', path: `${BASE}/jane`, isDirectory: true, size: 0, modified: '', extension: '' },
+        ],
+        loading: false, error: null, selectedFiles: new Set(),
+        sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
+        tabs: [{ id: 't1', path: BASE, basePath: BASE, label: 'Users' }],
+        activeTab: 0,
+        currentBreadcrumbPath: BASE,
+        columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+        navigationHistory: [], navigationIndex: -1, _isRestoringHistory: false,
+      }],
+      activePane: 'left',
+    } as any);
+  });
+
+  const getPane = () => useStore.getState().panes.find((p: any) => p.id === 'left') as any;
+
+  test('paths starts empty — basePath is NOT stored in paths', () => {
+    expect(getPane().columnState.paths).toHaveLength(0);
+  });
+
+  test('clicking a child directory appends only the child path, not basePath', () => {
+    act(() => {
+      useStore.getState().updateColumnState('left', {
+        paths: ['/Users/john'],
+        filesByPath: { '/Users/john': [] },
+        selectedByColumn: { 0: '/Users/john' },
+        focusedIndex: 1,
+      });
+    });
+    const paths = getPane().columnState.paths;
+    expect(paths).toHaveLength(1);
+    expect(paths[0]).toBe('/Users/john');
+    expect(paths).not.toContain('/Users');
+  });
+
+  test('clicking a directory in column 1 truncates deeper paths and appends new one', () => {
+    act(() => {
+      useStore.getState().updateColumnState('left', {
+        paths: ['/Users/john', '/Users/john/Documents', '/Users/john/Documents/work'],
+        filesByPath: {},
+        selectedByColumn: { 0: '/Users/john', 1: '/Users/john/Documents', 2: '/Users/john/Documents/work' },
+        focusedIndex: 3,
+      });
+    });
+
+    // Simulate clicking '/Users/john/Projects' in column index 1 (paths[0] = /Users/john)
+    // Expected: paths[0..0] kept, new path appended → ['/Users/john', '/Users/john/Projects']
+    act(() => {
+      const keptPaths = ['/Users/john'];
+      useStore.getState().updateColumnState('left', {
+        paths: [...keptPaths, '/Users/john/Projects'],
+        selectedByColumn: { 0: '/Users/john', 1: '/Users/john/Projects' },
+        focusedIndex: 2,
+      });
+    });
+
+    const paths = getPane().columnState.paths;
+    expect(paths).toHaveLength(2);
+    expect(paths[0]).toBe('/Users/john');
+    expect(paths[1]).toBe('/Users/john/Projects');
+    expect(paths).not.toContain('/Users/john/Documents/work');
+  });
+
+  test('focusedIndex 0 refers to base column, 1 refers to paths[0]', () => {
+    act(() => {
+      useStore.getState().updateColumnState('left', {
+        paths: ['/Users/john'],
+        focusedIndex: 1,
+      });
+    });
+    const { paths, focusedIndex } = getPane().columnState;
+    // focusedIndex 1 → paths[0]
+    expect(paths[focusedIndex - 1]).toBe('/Users/john');
+  });
+});
+
+describe('Column View - exact column count via getColumnPaths (regression)', () => {
+  const BASE = '/Users/test';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useStore.setState({
+      panes: [{
+        id: 'left', path: BASE, basePath: BASE, files: [],
+        loading: false, error: null, selectedFiles: new Set(),
+        sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
+        tabs: [], activeTab: 0, currentBreadcrumbPath: BASE,
+        columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+        navigationHistory: [], navigationIndex: -1, _isRestoringHistory: false,
+      }],
+      activePane: 'left',
+    } as any);
+  });
+
+  const setState = (breadcrumb: string) =>
+    useStore.setState({ panes: [{ ...(useStore.getState().panes[0] as any), currentBreadcrumbPath: breadcrumb }] } as any);
+
+  test('at basePath: getColumnPaths returns exactly 1 entry (base column only)', () => {
+    const paths = useStore.getState().getColumnPaths('left');
+    expect(paths).toHaveLength(1);
+    expect(paths[0]).toBe(BASE);
+  });
+
+  test('1 level deep: getColumnPaths returns exactly 2 entries', () => {
+    setState(`${BASE}/Documents`);
+    const paths = useStore.getState().getColumnPaths('left');
+    expect(paths).toHaveLength(2);
+    expect(paths[0]).toBe(BASE);
+    expect(paths[1]).toBe(`${BASE}/Documents`);
+  });
+
+  test('2 levels deep: getColumnPaths returns exactly 3 entries', () => {
+    setState(`${BASE}/Documents/Projects`);
+    const paths = useStore.getState().getColumnPaths('left');
+    expect(paths).toHaveLength(3);
+    expect(paths[2]).toBe(`${BASE}/Documents/Projects`);
+  });
+
+  test('3 levels deep: getColumnPaths returns exactly 4 entries', () => {
+    setState(`${BASE}/Documents/Projects/WebApp`);
+    const paths = useStore.getState().getColumnPaths('left');
+    expect(paths).toHaveLength(4);
+  });
+
+  test('basePath is always paths[0]', () => {
+    setState(`${BASE}/Documents/Projects`);
+    expect(useStore.getState().getColumnPaths('left')[0]).toBe(BASE);
+  });
+
+  test('no duplicate entries — each path segment appears once', () => {
+    setState(`${BASE}/a/b/c`);
+    const paths = useStore.getState().getColumnPaths('left');
+    expect(new Set(paths).size).toBe(paths.length);
+  });
+});
+
+describe('Column View - toggleHiddenFiles (regression)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (window as any).electronAPI.readdir.mockResolvedValue({ success: true, files: [] });
+    useStore.setState({
+      showHidden: false,
+      panes: [{
+        id: 'left', path: '/Users', basePath: '/Users', files: [],
+        loading: false, error: null, selectedFiles: new Set(),
+        sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
+        tabs: [], activeTab: 0, currentBreadcrumbPath: '/Users',
+        columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+        navigationHistory: [], navigationIndex: -1, _isRestoringHistory: false,
+      }],
+    } as any);
+  });
+
+  test('toggleHiddenFiles flips showHidden from false to true', async () => {
+    expect(useStore.getState().showHidden).toBe(false);
+    await act(async () => { await useStore.getState().toggleHiddenFiles(); });
+    expect(useStore.getState().showHidden).toBe(true);
+  });
+
+  test('toggleHiddenFiles flips showHidden back to false', async () => {
+    useStore.setState({ showHidden: true } as any);
+    await act(async () => { await useStore.getState().toggleHiddenFiles(); });
+    expect(useStore.getState().showHidden).toBe(false);
+  });
+
+  test('toggleHiddenFiles persists value via storeSet', async () => {
+    await act(async () => { await useStore.getState().toggleHiddenFiles(); });
+    expect((window as any).electronAPI.storeSet).toHaveBeenCalledWith('showHidden', true);
+  });
+
+  test('toggleHiddenFiles calls readdir to refresh base pane files', async () => {
+    (window as any).electronAPI.readdir.mockResolvedValue({ success: true, files: [] });
+    useStore.setState({
+      panes: [{
+        id: 'left', path: '/Users', basePath: '/Users', files: [],
+        loading: false, error: null, selectedFiles: new Set(),
+        sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
+        tabs: [], activeTab: 0, currentBreadcrumbPath: '/Users',
+        columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+        navigationHistory: [], navigationIndex: -1, _isRestoringHistory: false,
+      }],
+      showHidden: false,
+    } as any);
+    await act(async () => { await useStore.getState().toggleHiddenFiles(); });
+    expect((window as any).electronAPI.readdir).toHaveBeenCalledWith('/Users');
+  });
+
+  test('toggleHiddenFiles calls readdir for each loaded column directory', async () => {
+    (window as any).electronAPI.readdir.mockResolvedValue({ success: true, files: [] });
+    useStore.setState({
+      panes: [{
+        id: 'left', path: '/Users', basePath: '/Users', files: [],
+        loading: false, error: null, selectedFiles: new Set(),
+        sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
+        tabs: [], activeTab: 0, currentBreadcrumbPath: '/Users/john',
+        columnState: {
+          paths: ['/Users/john'],
+          filesByPath: { '/Users/john': [], '/Users/john/Documents': [] },
+          selectedByColumn: {}, focusedIndex: 1,
+        },
+        navigationHistory: [], navigationIndex: -1, _isRestoringHistory: false,
+      }],
+      showHidden: false,
+    } as any);
+    await act(async () => { await useStore.getState().toggleHiddenFiles(); });
+    const calledPaths = (window as any).electronAPI.readdir.mock.calls.map((c: any) => c[0]);
+    expect(calledPaths).toContain('/Users/john');
+    expect(calledPaths).toContain('/Users/john/Documents');
+  });
+});

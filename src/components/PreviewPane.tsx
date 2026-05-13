@@ -390,13 +390,19 @@ export default function PreviewPane() {
               />
             ) : (
               <TextContent>
-                {loading ? 'Loading...' : (textContent.slice(0, 8000) + (textContent.length > 8000 ? '\n\n... (truncated)' : ''))}
+                {textContent.slice(0, 8000) + (textContent.length > 8000 ? '\n\n... (truncated)' : '')}
               </TextContent>
             )}
           </TextPreviewWrap>
         )}
-        {!isImage && !isText && !isVideo && !isAudio && !isPdf && (
-          <IconPreview>{getIconForFile()}</IconPreview>
+        {loading && !isImage && !isVideo && !isAudio && !isPdf && (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5a5a6b', fontSize: 11 }}>Loading...</div>
+        )}
+        {!loading && !isImage && !isText && !isVideo && !isAudio && !isPdf && (
+          <>
+            <IconPreview>{getIconForFile()}</IconPreview>
+            <div style={{ fontSize: 11, color: '#5a5a6b', padding: '4px 12px', textAlign: 'center' }}>Preview not available</div>
+          </>
         )}
       </PreviewArea>
 
@@ -418,7 +424,7 @@ export default function PreviewPane() {
         <MetaRow><MetaKey>Modified</MetaKey><MetaVal>{formatDate(previewFile.modified)}</MetaVal></MetaRow>
         <MetaRow><MetaKey>Created</MetaKey><MetaVal>{formatDate((previewFile as unknown as Record<string, string>).created)}</MetaVal></MetaRow>
         {previewFile.extension && <MetaRow><MetaKey>Kind</MetaKey><MetaVal>{previewFile.extension.toUpperCase()}</MetaVal></MetaRow>}
-        {previewFile.permissions && <MetaRow><MetaKey>Permissions</MetaKey><MetaVal>{previewFile.permissions}</MetaVal></MetaRow>}
+        {previewFile.permissions && <MetaRow><MetaKey>Permissions</MetaKey><MetaVal>{typeof previewFile.permissions === 'object' ? (previewFile.permissions as Record<string, unknown>).octal as string : String(previewFile.permissions)}</MetaVal></MetaRow>}
       </MetaSection>
     </Pane>
   );

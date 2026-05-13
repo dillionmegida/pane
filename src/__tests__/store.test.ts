@@ -1001,7 +1001,7 @@ describe('Utility Functions - File Icons & Preview', () => {
     expect(isPreviewable({ isDirectory: false, extension: 'mp4' })).toBe(true);
     expect(isPreviewable({ isDirectory: false, extension: 'mp3' })).toBe(true);
     expect(isPreviewable({ isDirectory: false, extension: 'pdf' })).toBe(true);
-    expect(isPreviewable({ isDirectory: false, extension: 'bin' })).toBe(false);
+    expect(isPreviewable({ isDirectory: false, extension: 'bin' })).toBe(true);
     expect(isPreviewable({ isDirectory: true, extension: '' })).toBe(false);
   });
 });

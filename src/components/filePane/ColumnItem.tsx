@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { FileIcon as FileIconComponent } from '../FileIcons';
 import { startDrag, endDrag } from './dragUtils';
@@ -19,7 +19,7 @@ const Item = styled.div<{ selected: boolean; dragOver: boolean; contextMenuSelec
   border-radius: ${p => p.theme.radius.sm};
   margin: 0 3px;
   position: relative;
-  scroll-margin-bottom: 40px;
+  scroll-margin-bottom: 72px;
   transition: background 0.07s;
 
   &:hover { background: ${p => p.selected ? p.theme.bg.selection : p.theme.bg.hover}; }
@@ -59,6 +59,32 @@ const SymlinkIndicator = styled.span`
   font-size: 10px;
   color: ${p => p.theme.text.tertiary};
   flex-shrink: 0;
+  position: relative;
+  cursor: help;
+
+  &::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: ${p => p.theme.bg.elevated};
+    color: ${p => p.theme.text.primary};
+    border: 1px solid ${p => p.theme.border.normal};
+    border-radius: ${p => p.theme.radius.sm};
+    padding: 3px 8px;
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 9999;
+    box-shadow: ${p => p.theme.shadow.md};
+  }
+
+  &:hover::after {
+    opacity: 1;
+  }
 `;
 
 const TagDots = styled.span`
@@ -67,12 +93,13 @@ const TagDots = styled.span`
 `;
 
 const TagDot = styled.span<{ color: string; offset: number }>`
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: ${p => p.color};
   display: inline-block;
-  margin-left: ${p => p.offset}px;
+  margin-left: ${p => p.offset === 0 ? 0 : -3}px;
+  border: 1px solid white;
 `;
 
 interface ColumnItemProps {
@@ -85,6 +112,11 @@ interface ColumnItemProps {
   paneId: string;
   fileTags: Record<string, Array<{ tag_name: string; color: string }>>;
   columnIndex: number;
+  isRenaming?: boolean;
+  renameValue?: string;
+  onRenameValueChange?: (v: string) => void;
+  onRenameCommit?: () => void;
+  onRenameCancel?: () => void;
   onItemClick: (e: React.MouseEvent, file: FileItem, columnIndex: number, clickType: string) => void;
   onContextMenu: (e: React.MouseEvent, file: FileItem) => void;
   onDrop: (e: React.DragEvent, file: FileItem | null, path?: string) => void;
@@ -106,6 +138,11 @@ export default function ColumnItem({
   paneId,
   fileTags,
   columnIndex,
+  isRenaming = false,
+  renameValue = '',
+  onRenameValueChange,
+  onRenameCommit,
+  onRenameCancel,
   onItemClick,
   onContextMenu,
   onDrop,
@@ -116,6 +153,22 @@ export default function ColumnItem({
   updateColumnState,
   toggleSelection,
 }: ColumnItemProps) {
+  const itemRef = useRef<HTMLDivElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isSelected && itemRef.current) {
+      itemRef.current.scrollIntoView({ block: 'nearest' });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [isRenaming]);
+
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     const clickType = e.shiftKey ? 'shift' : e.metaKey || e.ctrlKey ? 'meta' : 'normal';
@@ -157,6 +210,7 @@ export default function ColumnItem({
 
   return (
     <Item
+      ref={itemRef}
       selected={isSelected}
       dragOver={isDragOver}
       contextMenuSelected={isContextMenuSelected}
@@ -182,14 +236,31 @@ export default function ColumnItem({
           <FileIconComponent ext={file.extension ?? ''} size={16} />
         )}
       </ItemIcon>
-      <ItemName>
-        {file.name}
-        {file.isSymlink && (
-          <SymlinkIndicator title={file.symlinkTarget ? `→ ${file.symlinkTarget}` : 'Symlink'}>
-            {' '}↗
-          </SymlinkIndicator>
-        )}
-      </ItemName>
+      {isRenaming ? (
+        <input
+          ref={renameInputRef}
+          value={renameValue}
+          onChange={e => onRenameValueChange?.(e.target.value)}
+          onBlur={() => onRenameCommit?.()}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); onRenameCommit?.(); }
+            if (e.key === 'Escape') { e.preventDefault(); onRenameCancel?.(); }
+          }}
+          onClick={e => e.stopPropagation()}
+          style={{
+            flex: 1, background: 'transparent', border: '1px solid #4A9EFF',
+            color: 'inherit', fontSize: 12, padding: '1px 4px',
+            borderRadius: 3, outline: 'none', minWidth: 0,
+          }}
+        />
+      ) : (
+        <ItemName>{file.name}</ItemName>
+      )}
+      {file.isSymlink && (
+        <SymlinkIndicator data-tip={file.symlinkTarget ? `→ ${file.symlinkTarget}` : 'Symlink'}>
+          ↗
+        </SymlinkIndicator>
+      )}
       {tags.length > 0 && (
         <TagDots>
           {tags.map((t, i) => (

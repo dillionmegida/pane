@@ -266,6 +266,55 @@ describe('QuickPreview - media stop on close', () => {
   });
 });
 
+describe('QuickPreview - spacebar blocked by modal/search guards (regression)', () => {
+  const buildGuardedHandler = (opts: {
+    activeModal?: string | null;
+    showSearch?: boolean;
+    activePane?: string;
+    paneId?: string;
+  }) => {
+    const { activeModal = null, showSearch = false, activePane = 'left', paneId = 'left' } = opts;
+    let triggered = false;
+    const handler = (e: { code: string }) => {
+      if (e.code !== 'Space') return;
+      if (activeModal || showSearch) return;
+      if (activePane !== paneId) return;
+      triggered = true;
+    };
+    return { handler, isTriggered: () => triggered };
+  };
+
+  test('spacebar opens preview when no modal and no search', () => {
+    const { handler, isTriggered } = buildGuardedHandler({});
+    handler({ code: 'Space' });
+    expect(isTriggered()).toBe(true);
+  });
+
+  test('spacebar is blocked when activeModal is set', () => {
+    const { handler, isTriggered } = buildGuardedHandler({ activeModal: 'tagManager' });
+    handler({ code: 'Space' });
+    expect(isTriggered()).toBe(false);
+  });
+
+  test('spacebar is blocked when showSearch is true', () => {
+    const { handler, isTriggered } = buildGuardedHandler({ showSearch: true });
+    handler({ code: 'Space' });
+    expect(isTriggered()).toBe(false);
+  });
+
+  test('spacebar is blocked when pane is not active', () => {
+    const { handler, isTriggered } = buildGuardedHandler({ activePane: 'right', paneId: 'left' });
+    handler({ code: 'Space' });
+    expect(isTriggered()).toBe(false);
+  });
+
+  test('non-Space key does not trigger preview', () => {
+    const { handler, isTriggered } = buildGuardedHandler({});
+    handler({ code: 'Enter' });
+    expect(isTriggered()).toBe(false);
+  });
+});
+
 describe('QuickPreview - header metadata', () => {
   test('file name is accessible on the file object', () => {
     const file = makeFile('vacation.mp4');

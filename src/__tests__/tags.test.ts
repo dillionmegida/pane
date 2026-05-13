@@ -251,3 +251,120 @@ describe('Default tags', () => {
     });
   });
 });
+
+describe('Tags - context menu onTagsChanged callback (regression)', () => {
+  const filePath = '/Users/test/photo.jpg';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (window as any).electronAPI.getTags.mockResolvedValue({ success: true, tags: [{ tag_name: 'red', color: '#f00' }] });
+    (window as any).electronAPI.addTag.mockResolvedValue({ success: true });
+    (window as any).electronAPI.removeTag.mockResolvedValue({ success: true });
+  });
+
+  test('onTagsChanged is called with updated tags after adding a tag', async () => {
+    const onTagsChanged = jest.fn();
+
+    await (window as any).electronAPI.addTag({ filePath, tagName: 'red' });
+    const r = await (window as any).electronAPI.getTags(filePath);
+    if (r.success) onTagsChanged(filePath, r.tags);
+
+    expect(onTagsChanged).toHaveBeenCalledTimes(1);
+    expect(onTagsChanged).toHaveBeenCalledWith(filePath, [{ tag_name: 'red', color: '#f00' }]);
+  });
+
+  test('onTagsChanged is called with updated tags after removing a tag', async () => {
+    (window as any).electronAPI.getTags.mockResolvedValue({ success: true, tags: [] });
+    const onTagsChanged = jest.fn();
+
+    await (window as any).electronAPI.removeTag({ filePath, tagName: 'red' });
+    const r = await (window as any).electronAPI.getTags(filePath);
+    if (r.success) onTagsChanged(filePath, r.tags);
+
+    expect(onTagsChanged).toHaveBeenCalledWith(filePath, []);
+  });
+
+  test('onTagsChanged receives correct filePath', async () => {
+    const onTagsChanged = jest.fn();
+    const r = await (window as any).electronAPI.getTags(filePath);
+    if (r.success) onTagsChanged(filePath, r.tags);
+
+    const [calledPath] = onTagsChanged.mock.calls[0];
+    expect(calledPath).toBe(filePath);
+  });
+
+  test('onTagsChanged is not called when getTags fails', async () => {
+    (window as any).electronAPI.getTags.mockResolvedValue({ success: false, tags: [] });
+    const onTagsChanged = jest.fn();
+
+    const r = await (window as any).electronAPI.getTags(filePath);
+    if (r.success) onTagsChanged(filePath, r.tags);
+
+    expect(onTagsChanged).not.toHaveBeenCalled();
+  });
+});
+
+describe('Tags - inline tag dots update immediately (regression)', () => {
+  const filePath = '/Users/test/photo.jpg';
+  const redTag = { tag_name: 'red', color: '#f00' };
+  const blueTag = { tag_name: 'blue', color: '#00f' };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (window as any).electronAPI.addTag.mockResolvedValue({ success: true });
+    (window as any).electronAPI.removeTag.mockResolvedValue({ success: true });
+    (window as any).electronAPI.getTags.mockResolvedValue({ success: true, tags: [redTag] });
+  });
+
+  test('fileTags record is updated optimistically before API call returns', () => {
+    const fileTags: Record<string, any[]> = {};
+
+    const optimisticAdd = (path: string, tag: any) => {
+      fileTags[path] = [...(fileTags[path] || []), tag];
+    };
+
+    optimisticAdd(filePath, redTag);
+    expect(fileTags[filePath]).toHaveLength(1);
+    expect(fileTags[filePath][0].tag_name).toBe('red');
+  });
+
+  test('fileTags record removes tag optimistically', () => {
+    const fileTags: Record<string, any[]> = { [filePath]: [redTag, blueTag] };
+
+    const optimisticRemove = (path: string, tagName: string) => {
+      fileTags[path] = fileTags[path].filter(t => t.tag_name !== tagName);
+    };
+
+    optimisticRemove(filePath, 'red');
+    expect(fileTags[filePath]).toHaveLength(1);
+    expect(fileTags[filePath][0].tag_name).toBe('blue');
+  });
+
+  test('onTagsChanged callback updates parent fileTags record (simulating FilePane setState)', () => {
+    const fileTags: Record<string, any[]> = {};
+    const onTagsChanged = (path: string, tags: any[]) => { fileTags[path] = tags; };
+
+    onTagsChanged(filePath, [redTag]);
+    expect(fileTags[filePath]).toEqual([redTag]);
+
+    onTagsChanged(filePath, [redTag, blueTag]);
+    expect(fileTags[filePath]).toHaveLength(2);
+  });
+
+  test('tag dots are visible immediately after optimistic add (before API resolves)', async () => {
+    const fileTags: Record<string, any[]> = {};
+
+    const optimisticAdd = (path: string, tag: any) => { fileTags[path] = [...(fileTags[path] || []), tag]; };
+
+    let apiResolved = false;
+    const fakeAddTag = () => new Promise(resolve => setTimeout(() => { apiResolved = true; resolve({ success: true }); }, 50));
+
+    optimisticAdd(filePath, redTag);
+    expect(fileTags[filePath]).toHaveLength(1);
+    expect(apiResolved).toBe(false);
+
+    await fakeAddTag();
+    expect(apiResolved).toBe(true);
+    expect(fileTags[filePath]).toHaveLength(1);
+  });
+});

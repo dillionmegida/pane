@@ -48,6 +48,7 @@
     "webpack-dev-server": "^4.15.1"
   },
   "dependencies": {
+    "@floating-ui/react": "^0.27.19",
     "@react-pdf/renderer": "^4.5.1",
     "better-sqlite3": "^9.4.3",
     "chokidar": "^3.5.3",

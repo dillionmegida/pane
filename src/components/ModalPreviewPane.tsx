@@ -65,12 +65,26 @@ const TextContent = styled.pre`
   overflow-y: auto; flex: 1; background: ${p => p.theme.bg.primary};
 `;
 
+const isTextContent = (content: string): boolean => {
+  if (!content || typeof content !== 'string') return false;
+  if (content.includes('\0')) return false;
+  const sample = content.slice(0, 4096);
+  let nonPrintable = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const code = sample.charCodeAt(i);
+    if (code < 9 || (code > 13 && code < 32) || code === 127) nonPrintable++;
+  }
+  return nonPrintable / sample.length < 0.01;
+};
+
 export default function ModalPreviewPane({ file, width, actions = [], onActionClick }: ModalPreviewPaneProps) {
   const [textContent, setTextContent] = useState('');
   const [loadingText, setLoadingText] = useState(false);
+  const [isText, setIsText] = useState(false);
 
   useEffect(() => {
     setTextContent('');
+    setIsText(false);
     if (!file || file.isDirectory) return;
     const ext = file.extension?.toLowerCase() || '';
     const isImgExt = ['jpg','jpeg','png','gif','webp','svg','bmp','ico'].includes(ext);
@@ -81,7 +95,10 @@ export default function ModalPreviewPane({ file, width, actions = [], onActionCl
       setLoadingText(true);
       (window.electronAPI as unknown as { readFile: (p: string) => Promise<{ success: boolean; content: string }> })
         .readFile(file.path).then(r => {
-          if (r.success) setTextContent(r.content.slice(0, 4000));
+          if (r.success && isTextContent(r.content)) {
+            setTextContent(r.content.slice(0, 4000));
+            setIsText(true);
+          }
           setLoadingText(false);
         });
     }
@@ -121,12 +138,16 @@ export default function ModalPreviewPane({ file, width, actions = [], onActionCl
             <CustomAudio src={`file://${file.path}`} />
           </PreviewMedia>
         )}
-        {!isImage && !isVideo && !isAudio && textContent && (
-          <TextContent>{loadingText ? 'Loading...' : textContent}</TextContent>
+        {loadingText && (
+          <PreviewLabel><span style={{ color: '#5a5a6b', fontSize: 11 }}>Loading...</span></PreviewLabel>
         )}
-        {!isImage && !isVideo && !isAudio && !textContent && !loadingText && (
+        {!loadingText && !isImage && !isVideo && !isAudio && isText && (
+          <TextContent>{textContent}</TextContent>
+        )}
+        {!loadingText && !isImage && !isVideo && !isAudio && !isText && (
           <PreviewLabel>
             <FileIconComponent ext={file.extension || ''} size={48} />
+            <div style={{ fontSize: 11, color: '#5a5a6b', marginTop: 8 }}>Preview not available</div>
           </PreviewLabel>
         )}
       </PreviewContent>

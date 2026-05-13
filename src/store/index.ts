@@ -689,7 +689,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   _applyHistoryEntry: async (paneId, historyEntry) => {
-    const { basePath, currentBreadcrumbPath, selectedFiles, previewFilePath } = historyEntry;
+    const { basePath, currentBreadcrumbPath, selectedFiles, previewFilePath, selectedByColumn } = historyEntry;
 
     set(s => ({
       panes: s.panes.map(p => p.id === paneId ? {
@@ -711,33 +711,31 @@ export const useStore = create<StoreState>((set, get) => ({
     const histDirSort = get().getDirSort(basePath);
     const files = sortFiles(result.files, histDirSort, 'asc');
 
+    // columnPaths holds child paths only (base column is rendered separately)
     const columnPaths: string[] = [];
     const filesByPath: Record<string, FileItem[]> = {};
 
-    if (currentBreadcrumbPath && currentBreadcrumbPath.startsWith(basePath)) {
+    if (currentBreadcrumbPath && currentBreadcrumbPath !== basePath && currentBreadcrumbPath.startsWith(basePath)) {
       const fullParts = currentBreadcrumbPath.split('/');
       let current = '';
       for (let i = 0; i < fullParts.length; i++) {
         current += (i === 0 ? '' : '/') + fullParts[i];
-        if (current.length >= basePath.length && current.startsWith(basePath)) {
+        if (current.length > basePath.length && current.startsWith(basePath + '/')) {
           columnPaths.push(current);
         }
       }
 
       for (const colPath of columnPaths) {
-        if (colPath !== basePath) {
-          const colResult = await window.electronAPI.readdir(colPath);
-          if (colResult.success) {
-            const colDirSort = get().getDirSort(colPath);
-            filesByPath[colPath] = sortFiles(colResult.files, colDirSort, 'asc');
-          }
+        const colResult = await window.electronAPI.readdir(colPath);
+        if (colResult.success) {
+          const colDirSort = get().getDirSort(colPath);
+          filesByPath[colPath] = sortFiles(colResult.files, colDirSort, 'asc');
         }
       }
-    } else {
-      columnPaths.push(basePath);
     }
 
-    const focusedIndex = Math.max(0, columnPaths.length - 1);
+    // focusedIndex: 0 = base, 1+ = columnPaths[focusedIndex-1]
+    const focusedIndex = columnPaths.length; // points to last child column
 
     let previewFile: FileItem | null = null;
     if (previewFilePath) {
@@ -770,6 +768,7 @@ export const useStore = create<StoreState>((set, get) => ({
           paths: columnPaths,
           filesByPath,
           focusedIndex,
+          selectedByColumn: selectedByColumn ?? {},
         },
       };
       const newTabs = currentPane.tabs.map((t, i) =>
@@ -815,6 +814,33 @@ export const useStore = create<StoreState>((set, get) => ({
     const newValue = !get().showHidden;
     set({ showHidden: newValue });
     await window.electronAPI.storeSet('showHidden', newValue);
+
+    const { panes, getDirSort } = get();
+    await Promise.all(panes.map(async (pane) => {
+      get().refreshPane(pane.id);
+
+      const colPaths = Object.keys(pane.columnState?.filesByPath || {});
+      if (colPaths.length === 0) return;
+      const results = await Promise.all(
+        colPaths.map(async (colPath) => {
+          const r = await window.electronAPI.readdir(colPath);
+          if (!r.success) return null;
+          const colSort = getDirSort(colPath);
+          return [colPath, sortFiles(r.files, colSort, 'asc')] as [string, FileItem[]];
+        })
+      );
+      const newFilesByPath: Record<string, FileItem[]> = { ...pane.columnState.filesByPath };
+      for (const entry of results) {
+        if (entry) newFilesByPath[entry[0]] = entry[1];
+      }
+      set(s => ({
+        panes: s.panes.map(p =>
+          p.id === pane.id
+            ? { ...p, columnState: { ...p.columnState, filesByPath: newFilesByPath } }
+            : p
+        ),
+      }));
+    }));
   },
 
   // ── Tabs ─────────────────────────────────────────────────────────────────
@@ -1642,13 +1668,7 @@ export function getFileIcon(file: FileItem): string {
 }
 
 export function isPreviewable(file: FileItem): boolean {
-  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'];
-  const textExts = ['txt', 'md', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'json', 'py', 'rb', 'sh', 'yaml', 'yml', 'xml', 'csv', 'log', 'conf', 'go', 'rs', 'java', 'c', 'cpp', 'h'];
-  const videoExts = ['mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv'];
-  const audioExts = ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'];
-  const pdfExts = ['pdf'];
-  const ext = file.extension?.toLowerCase();
-  return imageExts.includes(ext ?? '') || textExts.includes(ext ?? '') || videoExts.includes(ext ?? '') || audioExts.includes(ext ?? '') || pdfExts.includes(ext ?? '');
+  return !file.isDirectory;
 }
 
 // ─── Preview Type Helpers ──────────────────────────────────────────────────────

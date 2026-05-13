@@ -240,15 +240,17 @@ export default function QuickPreviewModal({ file, onClose }: QuickPreviewModalPr
             </PdfContainer>
           )}
 
-          {isText && (
+          {!isImage && !isVideo && !isAudio && !isPdf && loadingText && (
+            <div style={{ padding: '40px', color: '#4A9EFF', textAlign: 'center' }}>Loading...</div>
+          )}
+
+          {isText && !loadingText && (
             <TextWrapper>
-              {loadingText
-                ? <div style={{ padding: '40px', color: '#4A9EFF', textAlign: 'center' }}>Loading text...</div>
-                : <TextContentEl>{textContent}</TextContentEl>}
+              <TextContentEl>{textContent}</TextContentEl>
             </TextWrapper>
           )}
 
-          {!isImage && !isVideo && !isAudio && !isPdf && !isText && (
+          {!isImage && !isVideo && !isAudio && !isPdf && !isText && !loadingText && (
             <UnsupportedState>
               <BigIcon>
                 {file.isDirectory

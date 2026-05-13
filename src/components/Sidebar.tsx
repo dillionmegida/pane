@@ -146,7 +146,6 @@ export default function Sidebar() {
     allTags, loadAllTags,
     openModal,
     getActivePath,
-    toggleSidebar,
     sidebarWidth, setSidebarWidth,
   } = useStore();
 
@@ -304,7 +303,6 @@ export default function Sidebar() {
 
       <SidebarFooter>
         <FooterBtn onClick={() => openModal('settings')} title="Settings">⚙️</FooterBtn>
-        <FooterBtn onClick={toggleSidebar} title="Hide sidebar">◀</FooterBtn>
       </SidebarFooter>
     </SidebarWrap>
   );

@@ -37,6 +37,7 @@ export interface HistoryEntry {
   currentBreadcrumbPath: string;
   selectedFiles: string[];
   previewFilePath: string | null;
+  selectedByColumn?: Record<number, string>;
 }
 
 // ─── Tab ─────────────────────────────────────────────────────────────────────

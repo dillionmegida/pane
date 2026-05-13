@@ -618,3 +618,264 @@ describe('Navigation History – no-op when clicking already-active item', () =>
     expect(getPane().navigationIndex).toBe(0);
   });
 });
+
+describe('Navigation History – _applyHistoryEntry restores child-only paths (regression)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockElectronAPI.readdir.mockImplementation((dirPath: string) =>
+      Promise.resolve({
+        success: true,
+        files: [
+          { name: 'fileA.txt', isDirectory: false, size: 100, modified: new Date().toISOString(), extension: 'txt', path: `${dirPath}/fileA.txt` },
+          { name: 'sub', isDirectory: true, size: 0, modified: new Date().toISOString(), extension: '', path: `${dirPath}/sub` },
+        ],
+      })
+    );
+    resetStore();
+  });
+
+  test('basePath is NOT included in restored columnState.paths', async () => {
+    await act(async () => {
+      await (useStore.getState() as any)._applyHistoryEntry('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github',
+        selectedFiles: [],
+        previewFilePath: null,
+      });
+    });
+    const paths = getPane().columnState.paths;
+    expect(paths).not.toContain('/Desktop');
+    expect(paths).toContain('/Desktop/github');
+  });
+
+  test('restores one child column for one level deep', async () => {
+    await act(async () => {
+      await (useStore.getState() as any)._applyHistoryEntry('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github',
+        selectedFiles: [],
+        previewFilePath: null,
+      });
+    });
+    expect(getPane().columnState.paths).toHaveLength(1);
+    expect(getPane().columnState.paths[0]).toBe('/Desktop/github');
+  });
+
+  test('restores two child columns for two levels deep', async () => {
+    await act(async () => {
+      await (useStore.getState() as any)._applyHistoryEntry('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github/pane',
+        selectedFiles: [],
+        previewFilePath: null,
+      });
+    });
+    const paths = getPane().columnState.paths;
+    expect(paths).toHaveLength(2);
+    expect(paths[0]).toBe('/Desktop/github');
+    expect(paths[1]).toBe('/Desktop/github/pane');
+  });
+
+  test('restores empty paths when currentBreadcrumbPath equals basePath', async () => {
+    await act(async () => {
+      await (useStore.getState() as any)._applyHistoryEntry('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop',
+        selectedFiles: [],
+        previewFilePath: null,
+      });
+    });
+    expect(getPane().columnState.paths).toHaveLength(0);
+  });
+
+  test('focusedIndex equals paths.length after restore', async () => {
+    await act(async () => {
+      await (useStore.getState() as any)._applyHistoryEntry('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github',
+        selectedFiles: [],
+        previewFilePath: null,
+      });
+    });
+    const { paths, focusedIndex } = getPane().columnState;
+    expect(focusedIndex).toBe(paths.length);
+  });
+});
+
+describe('Navigation History - selectedByColumn restored on back/forward (regression)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetStore();
+  });
+
+  test('pushToHistory stores selectedByColumn and _applyHistoryEntry restores it', async () => {
+    act(() => {
+      useStore.getState().pushToHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github',
+        selectedFiles: ['/Desktop/github'],
+        previewFilePath: null,
+        selectedByColumn: { 0: '/Desktop/github' },
+      });
+      useStore.getState().pushToHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github/pane',
+        selectedFiles: ['/Desktop/github/pane'],
+        previewFilePath: null,
+        selectedByColumn: { 0: '/Desktop/github', 1: '/Desktop/github/pane' },
+      });
+    });
+
+    await act(async () => {
+      await useStore.getState().goBackInHistory('left');
+    });
+
+    const pane = getPane();
+    expect(pane.navigationIndex).toBe(0);
+    expect(pane.columnState.selectedByColumn[0]).toBe('/Desktop/github');
+    expect(pane.columnState.selectedByColumn[1]).toBeUndefined();
+  });
+
+  test('goForwardInHistory restores full selectedByColumn', async () => {
+    act(() => {
+      useStore.getState().pushToHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github',
+        selectedFiles: ['/Desktop/github'],
+        previewFilePath: null,
+        selectedByColumn: { 0: '/Desktop/github' },
+      });
+      useStore.getState().pushToHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github/pane',
+        selectedFiles: ['/Desktop/github/pane'],
+        previewFilePath: null,
+        selectedByColumn: { 0: '/Desktop/github', 1: '/Desktop/github/pane' },
+      });
+    });
+
+    act(() => { useStore.getState().goBackInHistory('left'); });
+
+    await act(async () => {
+      await useStore.getState().goForwardInHistory('left');
+    });
+
+    const pane = getPane();
+    expect(pane.navigationIndex).toBe(1);
+    expect(pane.columnState.selectedByColumn[0]).toBe('/Desktop/github');
+    expect(pane.columnState.selectedByColumn[1]).toBe('/Desktop/github/pane');
+  });
+
+  test('history entry without selectedByColumn restores to empty selectedByColumn', async () => {
+    act(() => {
+      useStore.getState().pushToHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop',
+        selectedFiles: [],
+        previewFilePath: null,
+      });
+      useStore.getState().pushToHistory('left', {
+        basePath: '/Desktop',
+        currentBreadcrumbPath: '/Desktop/github',
+        selectedFiles: [],
+        previewFilePath: null,
+      });
+    });
+
+    await act(async () => {
+      await useStore.getState().goBackInHistory('left');
+    });
+
+    const pane = getPane();
+    expect(pane.columnState.selectedByColumn).toEqual({});
+  });
+});
+
+describe('Navigation History - empty space click pushes history entry (regression)', () => {
+  const BASE = '/Users/test';
+
+  const mkPane = (overrides: any = {}) => ({
+    id: 'left', path: BASE, basePath: BASE, files: [],
+    loading: false, error: null, selectedFiles: new Set<string>(),
+    sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
+    tabs: [], activeTab: 0, currentBreadcrumbPath: BASE,
+    columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+    navigationHistory: [], navigationIndex: -1, _isRestoringHistory: false,
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (window as any).electronAPI.readdir.mockResolvedValue({ success: true, files: [] });
+    useStore.setState({ panes: [mkPane()], activePane: 'left' } as any);
+  });
+
+  test('empty click on base column pushes history entry with basePath as breadcrumb', () => {
+    act(() => {
+      useStore.getState().pushNavHistory('left', {
+        basePath: BASE,
+        currentBreadcrumbPath: BASE,
+        selectedFiles: [],
+        previewFilePath: null,
+      });
+    });
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left') as any;
+    expect(pane.navigationHistory).toHaveLength(1);
+    expect(pane.navigationHistory[0].currentBreadcrumbPath).toBe(BASE);
+    expect(pane.navigationHistory[0].selectedFiles).toHaveLength(0);
+    expect(pane.navigationHistory[0].previewFilePath).toBeNull();
+  });
+
+  test('empty click on child column pushes history entry with parent path as breadcrumb', () => {
+    const parentPath = `${BASE}/Documents`;
+    act(() => {
+      useStore.getState().pushNavHistory('left', {
+        basePath: BASE,
+        currentBreadcrumbPath: parentPath,
+        selectedFiles: [],
+        previewFilePath: null,
+      });
+    });
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left') as any;
+    expect(pane.navigationHistory).toHaveLength(1);
+    expect(pane.navigationHistory[0].currentBreadcrumbPath).toBe(parentPath);
+    expect(pane.navigationHistory[0].selectedFiles).toHaveLength(0);
+  });
+
+  test('empty click history entry can be navigated back to', () => {
+    act(() => {
+      useStore.getState().pushNavHistory('left', {
+        basePath: BASE,
+        currentBreadcrumbPath: `${BASE}/Documents`,
+        selectedFiles: [`${BASE}/Documents`],
+        previewFilePath: null,
+      });
+    });
+    act(() => {
+      useStore.getState().pushNavHistory('left', {
+        basePath: BASE,
+        currentBreadcrumbPath: BASE,
+        selectedFiles: [],
+        previewFilePath: null,
+      });
+    });
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left') as any;
+    expect(pane.navigationHistory).toHaveLength(2);
+    expect(pane.navigationIndex).toBe(1);
+    expect(pane.navigationHistory[1].selectedFiles).toHaveLength(0);
+    expect(pane.navigationHistory[0].selectedFiles).toHaveLength(1);
+  });
+
+  test('empty click history entry has null previewFilePath (preview cleared)', () => {
+    act(() => {
+      useStore.getState().pushNavHistory('left', {
+        basePath: BASE,
+        currentBreadcrumbPath: BASE,
+        selectedFiles: [],
+        previewFilePath: null,
+      });
+    });
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left') as any;
+    expect(pane.navigationHistory[0].previewFilePath).toBeNull();
+  });
+});

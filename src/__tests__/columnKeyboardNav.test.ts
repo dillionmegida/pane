@@ -704,3 +704,61 @@ describe('Column Keyboard Nav - Breadcrumb path updates', () => {
     expect(getPane().currentBreadcrumbPath).toBe(`${basePath}/Documents`);
   });
 });
+
+describe('Column Keyboard Nav - Cmd+. toggleHiddenFiles (regression)', () => {
+  const buildCmdDotHandler = (opts: { isActive?: boolean } = {}) => {
+    const { isActive = true } = opts;
+    let toggled = false;
+    const handleKeyDown = (e: { metaKey?: boolean; ctrlKey?: boolean; key: string }) => {
+      if (!isActive) return;
+      if ((e.metaKey || e.ctrlKey) && e.key === '.') {
+        toggled = true;
+      }
+    };
+    return { handleKeyDown, wasToggled: () => toggled };
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (window as any).electronAPI.readdir.mockResolvedValue({ success: true, files: [] });
+    useStore.setState(buildInitialState({ showHidden: false }));
+  });
+
+  test('Cmd+. triggers toggle when pane is active', () => {
+    const { handleKeyDown, wasToggled } = buildCmdDotHandler({ isActive: true });
+    handleKeyDown({ metaKey: true, key: '.' });
+    expect(wasToggled()).toBe(true);
+  });
+
+  test('Ctrl+. triggers toggle (cross-platform)', () => {
+    const { handleKeyDown, wasToggled } = buildCmdDotHandler({ isActive: true });
+    handleKeyDown({ ctrlKey: true, key: '.' });
+    expect(wasToggled()).toBe(true);
+  });
+
+  test('Cmd+. does NOT trigger when pane is inactive', () => {
+    const { handleKeyDown, wasToggled } = buildCmdDotHandler({ isActive: false });
+    handleKeyDown({ metaKey: true, key: '.' });
+    expect(wasToggled()).toBe(false);
+  });
+
+  test('Cmd+, does NOT trigger toggle (wrong key)', () => {
+    const { handleKeyDown, wasToggled } = buildCmdDotHandler({ isActive: true });
+    handleKeyDown({ metaKey: true, key: ',' });
+    expect(wasToggled()).toBe(false);
+  });
+
+  test('plain . without modifier does NOT trigger toggle', () => {
+    const { handleKeyDown, wasToggled } = buildCmdDotHandler({ isActive: true });
+    handleKeyDown({ key: '.' });
+    expect(wasToggled()).toBe(false);
+  });
+
+  test('toggleHiddenFiles store action correctly flips state', async () => {
+    expect(useStore.getState().showHidden).toBe(false);
+    await act(async () => { await useStore.getState().toggleHiddenFiles(); });
+    expect(useStore.getState().showHidden).toBe(true);
+    await act(async () => { await useStore.getState().toggleHiddenFiles(); });
+    expect(useStore.getState().showHidden).toBe(false);
+  });
+});

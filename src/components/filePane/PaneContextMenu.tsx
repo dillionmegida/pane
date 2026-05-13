@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
+import { useFloating, offset, flip, shift, type ReferenceType } from '@floating-ui/react';
 import { useStore } from '../../store';
 import { SORT_TYPES } from '../../helpers/sort';
-import type { FileItem, SortBy } from '../../types';
+import type { FileItem, SortBy, Tag } from '../../types';
 
 const Menu = styled.div`
   position: fixed;
@@ -16,6 +17,40 @@ const Menu = styled.div`
   max-width: 280px;
   font-size: 12px;
   user-select: none;
+`;
+
+const CtxTagRow = styled.div`
+  padding: 5px 10px 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  min-height: 32px;
+`;
+
+const CtxTagDot = styled.div<{ color: string; active: boolean; hovered: boolean }>`
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: ${p => p.color};
+  border: 2px solid ${p => p.active ? 'white' : 'transparent'};
+  box-shadow: ${p => p.active ? `0 0 0 2px ${p.color}` : 'none'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: white;
+  font-weight: 700;
+  transition: transform 0.1s;
+  transform: ${p => p.hovered ? 'scale(1.2)' : 'scale(1)'};
+  cursor: pointer;
+`;
+
+const CtxTagLabel = styled.div`
+  padding: 0 10px 5px;
+  font-size: 10px;
+  color: ${p => p.theme.text.tertiary};
+  min-height: 16px;
 `;
 
 const MenuItem = styled.div<{ danger?: boolean; disabled?: boolean }>`
@@ -100,6 +135,7 @@ interface PaneContextMenuProps {
   onDelete: (files?: string[]) => void;
   onRefresh: () => void;
   onBatchRename: () => void;
+  onTagsChanged?: (filePath: string, tags: Tag[]) => void;
 }
 
 export default function PaneContextMenu({
@@ -116,6 +152,7 @@ export default function PaneContextMenu({
   onDelete,
   onRefresh,
   onBatchRename,
+  onTagsChanged,
 }: PaneContextMenuProps) {
   const {
     addToClipboard,
@@ -127,7 +164,48 @@ export default function PaneContextMenu({
     setDirectorySort,
   } = useStore();
 
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [tagHover, setTagHover] = useState<string | null>(null);
+  const [fileTags, setFileTags] = useState<Set<string>>(new Set());
+
+  const { allTags, loadAllTags } = useStore();
+
+  const virtualEl = useMemo(() => ({
+    getBoundingClientRect: () => DOMRect.fromRect({ x, y, width: 0, height: 0 }),
+  } as ReferenceType), [x, y]);
+
+  const { refs, floatingStyles } = useFloating({
+    placement: 'bottom-start',
+    middleware: [offset(2), flip(), shift({ padding: 8 })],
+    elements: { reference: virtualEl as any },
+  });
+
+  useEffect(() => {
+    loadAllTags();
+    if (file) {
+      window.electronAPI.getTags(file.path).then((r: { success: boolean; tags: Tag[] }) => {
+        if (r.success) setFileTags(new Set(r.tags.map((t: Tag) => t.tag_name)));
+      });
+    }
+  }, [file?.path]);
+
+  const handleTagToggle = async (tag: Tag) => {
+    if (!file) return;
+    const active = fileTags.has(tag.tag_name);
+    if (active) {
+      await window.electronAPI.removeTag({ filePath: file.path, tagName: tag.tag_name });
+      setFileTags(prev => { const n = new Set(prev); n.delete(tag.tag_name); return n; });
+    } else {
+      await window.electronAPI.addTag({ filePath: file.path, tagName: tag.tag_name });
+      setFileTags(prev => new Set([...prev, tag.tag_name]));
+    }
+    window.electronAPI.getTags(file.path).then((r: { success: boolean; tags: Tag[] }) => {
+      if (r.success) {
+        setFileTags(new Set(r.tags.map((t: Tag) => t.tag_name)));
+        onTagsChanged?.(file.path, r.tags);
+      }
+    });
+    loadAllTags();
+  };
 
   const targetDir = file
     ? (file.isDirectory ? file.path : (currentPath || '/'))
@@ -137,7 +215,7 @@ export default function PaneContextMenu({
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (refs.floating.current && !refs.floating.current.contains(e.target as Node)) {
         onClose();
       }
     };
@@ -150,7 +228,7 @@ export default function PaneContextMenu({
       document.removeEventListener('mousedown', handleClick, true);
       document.removeEventListener('keydown', handleKey, true);
     };
-  }, [onClose]);
+  }, [onClose, refs.floating]);
 
   const handleCopy = () => {
     const files = selectedFiles.size > 0 ? [...selectedFiles] : file ? [file.path] : [];
@@ -187,7 +265,7 @@ export default function PaneContextMenu({
     : 'Background';
 
   return (
-    <Menu ref={menuRef} style={{ top: y, left: x }} onClick={e => e.stopPropagation()}>
+    <Menu ref={refs.setFloating} style={floatingStyles} onClick={e => e.stopPropagation()}>
       {!file && (
         <>
           <MenuItem onClick={() => { onNewFolder(); onClose(); }}>
@@ -209,6 +287,14 @@ export default function PaneContextMenu({
             <MenuIcon>🔄</MenuIcon>
             <MenuLabel>Refresh</MenuLabel>
             <Shortcut>⌘R</Shortcut>
+          </MenuItem>
+          <Divider />
+          <MenuItem onClick={() => {
+            openModal('sizeViz', { path: currentPath });
+            onClose();
+          }}>
+            <MenuIcon>📊</MenuIcon>
+            <MenuLabel>Disk Usage…</MenuLabel>
           </MenuItem>
         </>
       )}
@@ -243,16 +329,34 @@ export default function PaneContextMenu({
             <Shortcut>⌘V</Shortcut>
           </MenuItem>
           <Divider />
-          <MenuItem onClick={() => {
-            openModal('tagManager', { filePath: file.path });
-            onClose();
-          }}>
-            <MenuIcon>🏷️</MenuIcon>
-            <MenuLabel>Tags…</MenuLabel>
-          </MenuItem>
+          {allTags.length > 0 && (
+            <>
+              <CtxTagRow>
+                {allTags.map(tag => (
+                  <CtxTagDot
+                    key={tag.tag_name}
+                    color={tag.color}
+                    active={fileTags.has(tag.tag_name)}
+                    hovered={tagHover === tag.tag_name}
+                    onMouseEnter={() => setTagHover(tag.tag_name)}
+                    onMouseLeave={() => setTagHover(null)}
+                    onClick={e => { e.stopPropagation(); handleTagToggle(tag); }}
+                  >
+                    {fileTags.has(tag.tag_name) ? '✓' : ''}
+                  </CtxTagDot>
+                ))}
+              </CtxTagRow>
+              <CtxTagLabel>
+                {tagHover
+                  ? (fileTags.has(tagHover) ? `Remove "${tagHover}"` : `Add "${tagHover}"`)
+                  : 'Tags'}
+              </CtxTagLabel>
+              <Divider />
+            </>
+          )}
           {file.isDirectory && (
             <MenuItem onClick={() => {
-              openModal('sizeVisualizer', { rootPath: file.path });
+              openModal('sizeViz', { path: file.path });
               onClose();
             }}>
               <MenuIcon>📊</MenuIcon>

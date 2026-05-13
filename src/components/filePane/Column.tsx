@@ -17,7 +17,7 @@ const ColumnWrap = styled.div<{ width: string; isFocused: boolean }>`
 const ColumnList = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: 2px 0;
+  padding: 2px 0 48px;
 `;
 
 const ColumnResizer = styled.div`
@@ -45,6 +45,11 @@ interface ColumnProps {
   contextMenuFile: FileItem | null;
   paneId: string;
   fileTags: Record<string, Array<{ tag_name: string; color: string }>>;
+  renamingPath: string | null;
+  renameValue: string;
+  onRenameValueChange: (v: string) => void;
+  onRenameCommit: () => void;
+  onRenameCancel: () => void;
   onItemClick: (e: React.MouseEvent, file: FileItem, columnIndex: number, clickType: string) => void;
   onItemContextMenu: (e: React.MouseEvent, file: FileItem) => void;
   onDrop: (e: React.DragEvent, file: FileItem | null, path?: string) => void;
@@ -72,6 +77,11 @@ export default function Column({
   contextMenuFile,
   paneId,
   fileTags,
+  renamingPath,
+  renameValue,
+  onRenameValueChange,
+  onRenameCommit,
+  onRenameCancel,
   onItemClick,
   onItemContextMenu,
   onDrop,
@@ -120,6 +130,11 @@ export default function Column({
               paneId={paneId}
               fileTags={fileTags}
               columnIndex={columnIndex}
+              isRenaming={renamingPath === file.path}
+              renameValue={renamingPath === file.path ? renameValue : ''}
+              onRenameValueChange={onRenameValueChange}
+              onRenameCommit={onRenameCommit}
+              onRenameCancel={onRenameCancel}
               onItemClick={onItemClick}
               onContextMenu={onItemContextMenu}
               onDrop={onDrop}
