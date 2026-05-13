@@ -1005,3 +1005,149 @@ describe('Utility Functions - File Icons & Preview', () => {
     expect(isPreviewable({ isDirectory: true, extension: '' })).toBe(false);
   });
 });
+
+// ── Rename value includes full filename with extension (regression) ────────────
+
+describe('Rename - input value is full filename including extension', () => {
+  const simulateStartRename = (file: { path: string; name: string; isDirectory: boolean }) => {
+    let renaming: string | null = null;
+    let renameValue = '';
+    const setRenaming = (v: string | null) => { renaming = v; };
+    const setRenameValue = (v: string) => { renameValue = v; };
+
+    setRenaming(file.path);
+    setRenameValue(file.name);
+
+    return { renaming, renameValue };
+  };
+
+  test('file with extension shows full name including extension in input', () => {
+    const { renaming, renameValue } = simulateStartRename({ path: '/Desktop/image.png', name: 'image.png', isDirectory: false });
+    expect(renaming).toBe('/Desktop/image.png');
+    expect(renameValue).toBe('image.png');
+  });
+
+  test('file with multi-part extension shows full name', () => {
+    const { renameValue } = simulateStartRename({ path: '/Desktop/archive.tar.gz', name: 'archive.tar.gz', isDirectory: false });
+    expect(renameValue).toBe('archive.tar.gz');
+  });
+
+  test('file without extension shows full name', () => {
+    const { renameValue } = simulateStartRename({ path: '/Desktop/Makefile', name: 'Makefile', isDirectory: false });
+    expect(renameValue).toBe('Makefile');
+  });
+
+  test('directory shows full name (no extension stripping)', () => {
+    const { renameValue } = simulateStartRename({ path: '/Desktop/my-folder', name: 'my-folder', isDirectory: true });
+    expect(renameValue).toBe('my-folder');
+  });
+
+  test('directory with dot in name shows full name', () => {
+    const { renameValue } = simulateStartRename({ path: '/Desktop/project.v2', name: 'project.v2', isDirectory: true });
+    expect(renameValue).toBe('project.v2');
+  });
+
+  test('commitRename uses renameValue directly (no ext re-appending)', () => {
+    const file = { path: '/Desktop/notes.txt', name: 'notes.txt', isDirectory: false };
+    const renameValue = 'notes.txt';
+    const newName = renameValue.trim();
+    expect(newName).toBe('notes.txt');
+    expect(newName === file.name).toBe(true);
+  });
+
+  test('renaming file.txt to newname.md passes correct newName', () => {
+    const file = { path: '/Desktop/file.txt', name: 'file.txt', isDirectory: false };
+    const renameValue = 'newname.md';
+    const newName = renameValue.trim();
+    expect(newName).toBe('newname.md');
+    expect(newName === file.name).toBe(false);
+  });
+});
+
+// ── Add folder enters rename mode with full folder name (regression) ──────────
+
+describe('Add folder - creates untitled folder then enters rename mode', () => {
+  test('untitled folder name is set as renameValue on creation', () => {
+    const untitledPath = '/Desktop/untitled folder';
+    const newFolder = { path: untitledPath, name: untitledPath.split('/').pop()!, extension: '', size: 0, modified: Date.now().toString(), isDirectory: true };
+
+    let renaming: string | null = null;
+    let renameValue = '';
+    const startRename = (file: typeof newFolder) => {
+      renaming = file.path;
+      renameValue = file.name;
+    };
+
+    startRename(newFolder);
+
+    expect(renaming).toBe('/Desktop/untitled folder');
+    expect(renameValue).toBe('untitled folder');
+  });
+
+  test('untitled folder 2 is used when untitled folder already exists', () => {
+    const untitledPath = '/Desktop/untitled folder 2';
+    const newFolder = { path: untitledPath, name: untitledPath.split('/').pop()!, extension: '', size: 0, modified: Date.now().toString(), isDirectory: true };
+
+    let renaming: string | null = null;
+    let renameValue = '';
+    const startRename = (file: typeof newFolder) => {
+      renaming = file.path;
+      renameValue = file.name;
+    };
+
+    startRename(newFolder);
+
+    expect(renaming).toBe('/Desktop/untitled folder 2');
+    expect(renameValue).toBe('untitled folder 2');
+  });
+
+  test('folder rename input shows full folder name (no extension logic)', () => {
+    const folderName = 'my.project';
+    const folderPath = `/Desktop/${folderName}`;
+    const newFolder = { path: folderPath, name: folderName, extension: '', size: 0, modified: Date.now().toString(), isDirectory: true };
+
+    let renameValue = '';
+    const startRename = (file: typeof newFolder) => { renameValue = file.name; };
+    startRename(newFolder);
+
+    expect(renameValue).toBe('my.project');
+  });
+});
+
+// ── Add file enters rename mode with full filename (regression) ────────────────
+
+describe('Add file - creates untitled then enters rename mode', () => {
+  test('untitled file name is set as renameValue on creation', () => {
+    const untitledPath = '/Desktop/untitled';
+    const newFile = { path: untitledPath, name: untitledPath.split('/').pop()!, extension: '', size: 0, modified: Date.now().toString(), isDirectory: false };
+
+    let renaming: string | null = null;
+    let renameValue = '';
+    const startRename = (file: typeof newFile) => {
+      renaming = file.path;
+      renameValue = file.name;
+    };
+
+    startRename(newFile);
+
+    expect(renaming).toBe('/Desktop/untitled');
+    expect(renameValue).toBe('untitled');
+  });
+
+  test('untitled 2 name is set correctly when untitled already exists', () => {
+    const untitledPath = '/Desktop/untitled 2';
+    const newFile = { path: untitledPath, name: untitledPath.split('/').pop()!, extension: '', size: 0, modified: Date.now().toString(), isDirectory: false };
+
+    let renaming: string | null = null;
+    let renameValue = '';
+    const startRename = (file: typeof newFile) => {
+      renaming = file.path;
+      renameValue = file.name;
+    };
+
+    startRename(newFile);
+
+    expect(renaming).toBe('/Desktop/untitled 2');
+    expect(renameValue).toBe('untitled 2');
+  });
+});

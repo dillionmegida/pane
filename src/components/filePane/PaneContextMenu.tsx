@@ -271,6 +271,7 @@ export default function PaneContextMenu({
           <MenuItem onClick={() => { onNewFolder(); onClose(); }}>
             <MenuIcon>📁</MenuIcon>
             <MenuLabel>New Folder</MenuLabel>
+            <Shortcut>⌘⇧N</Shortcut>
           </MenuItem>
           <MenuItem onClick={() => { onNewFile(); onClose(); }}>
             <MenuIcon>📄</MenuIcon>

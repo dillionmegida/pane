@@ -546,11 +546,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
   // ── Rename ─────────────────────────────────────────────────────────────────
   const startRename = (file: FileItem) => {
     setRenaming(file.path);
-    const nameParts = file.name.split('.');
-    const baseName = file.isDirectory || nameParts.length === 1
-      ? file.name
-      : nameParts.slice(0, -1).join('.');
-    setRenameValue(baseName);
+    setRenameValue(file.name);
   };
 
   const commitRename = async () => {
@@ -559,9 +555,8 @@ export default function FilePane({ paneId }: FilePaneProps) {
       || Object.values(columnState?.filesByPath || {}).flat().find(f => f.path === renaming);
     if (!file) { setRenaming(null); return; }
 
-    const ext = file.name.includes('.') && !file.isDirectory ? '.' + file.name.split('.').pop() : '';
-    const newName = renameValue + ext;
-    if (newName === file.name) { setRenaming(null); return; }
+    const newName = renameValue.trim();
+    if (!newName || newName === file.name) { setRenaming(null); return; }
 
     const dir = file.path.substring(0, file.path.lastIndexOf('/'));
     const newPath = `${dir}/${newName}`;
@@ -578,7 +573,29 @@ export default function FilePane({ paneId }: FilePaneProps) {
     }
   };
 
-  // ── New item ───────────────────────────────────────────────────────────────
+  // ── New folder (create + rename) ────────────────────────────────────────
+  const createFolder = async () => {
+    const dir = pane.currentBreadcrumbPath || pane.path;
+    let untitledPath = `${dir}/untitled folder`;
+    let counter = 1;
+    while (true) {
+      const statResult = await window.electronAPI.stat(untitledPath);
+      if (!statResult.success) break;
+      untitledPath = `${dir}/untitled folder ${counter++}`;
+    }
+    await window.electronAPI.mkdir(untitledPath);
+    if (viewMode === 'column') {
+      const result = await readDirSorted(dir, paneId);
+      if (result.success) {
+        updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: result.files } });
+      }
+    }
+    refreshPane(paneId);
+    const newFolder: FileItem = { path: untitledPath, name: untitledPath.split('/').pop()!, extension: '', size: 0, modified: Date.now().toString(), isDirectory: true };
+    startRename(newFolder);
+  };
+
+  // ── New item (legacy inline input for list view folder) ────────────────────
   const commitNewItem = async () => {
     const name = newItemName.trim();
     if (!name) { setNewItemMode(null); setNewItemName(''); return; }
@@ -635,6 +652,12 @@ export default function FilePane({ paneId }: FilePaneProps) {
       if ((e.metaKey || e.ctrlKey) && e.key === '.') {
         e.preventDefault();
         toggleHiddenFiles();
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'N') {
+        e.preventDefault();
+        createFolder();
         return;
       }
 
@@ -1073,8 +1096,27 @@ export default function FilePane({ paneId }: FilePaneProps) {
           selectedFiles={selectedFiles}
           onClose={() => setContextMenu(null)}
           onRename={() => contextMenu.file && startRename(contextMenu.file)}
-          onNewFolder={() => { setNewItemMode('folder'); setNewItemName(''); }}
-          onNewFile={() => { setNewItemMode('file'); setNewItemName(''); }}
+          onNewFolder={createFolder}
+          onNewFile={async () => {
+            const dir = pane.currentBreadcrumbPath || pane.path;
+            let untitledPath = `${dir}/untitled`;
+            let counter = 1;
+            while (true) {
+              const statResult = await window.electronAPI.stat(untitledPath);
+              if (!statResult.success) break;
+              untitledPath = `${dir}/untitled ${counter++}`;
+            }
+            await window.electronAPI.writeFile(untitledPath, '');
+            if (viewMode === 'column') {
+              const result = await readDirSorted(dir, paneId);
+              if (result.success) {
+                updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: result.files } });
+              }
+            }
+            refreshPane(paneId);
+            const newFile: FileItem = { path: untitledPath, name: untitledPath.split('/').pop()!, extension: '', size: 0, modified: Date.now().toString(), isDirectory: false };
+            startRename(newFile);
+          }}
           onDelete={handleDelete}
           onRefresh={() => refreshPane(paneId)}
           onBatchRename={() => openModal('batchRename', { files: [...selectedFiles] })}
