@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
 import styled from 'styled-components';
-import { useStore, formatSize, formatDate, PREVIEW_TYPES } from '../store/index';
+import { useStore, formatSize, formatDate, PREVIEW_TYPES, isTextContent } from '../store/index';
 import CustomVideo from './CustomVideo';
 import CustomAudio from './CustomAudio';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -249,10 +249,10 @@ export default function PreviewPane() {
   const [loading, setLoading] = useState(false);
 
   const isImage = PREVIEW_TYPES.imageExts.includes(previewFile?.extension);
-  const isText = PREVIEW_TYPES.textExts.includes(previewFile?.extension);
   const isVideo = PREVIEW_TYPES.videoExts.includes(previewFile?.extension);
   const isAudio = PREVIEW_TYPES.audioExts.includes(previewFile?.extension);
   const isPdf = previewFile?.extension === 'pdf';
+  const [isText, setIsText] = useState(false);
 
   useEffect(() => {
     // Stop any playing media when file changes
@@ -264,13 +264,16 @@ export default function PreviewPane() {
     setEditMode(false);
     setEditContent('');
     setPdfData(null);
+    setIsText(false);
     
-    if (previewFile && isText && previewFile.size < 2 * 1024 * 1024) {
+    // Try to read file content for text detection (if not image/video/audio/pdf and under size limit)
+    if (previewFile && !isImage && !isVideo && !isAudio && !isPdf && previewFile.size < 2 * 1024 * 1024) {
       setLoading(true);
       window.electronAPI.readFile(previewFile.path).then(r => {
-        if (r.success) {
+        if (r.success && isTextContent(r.content)) {
           setTextContent(r.content);
           setEditContent(r.content);
+          setIsText(true);
         }
         setLoading(false);
       });
@@ -292,7 +295,7 @@ export default function PreviewPane() {
         })
         .catch(err => console.error('PDF load error:', err));
     }
-  }, [previewFile?.path, isText, isPdf, previewFile?.size]);
+  }, [previewFile?.path, isImage, isVideo, isAudio, isPdf, previewFile?.size]);
 
   const saveEdits = async () => {
     if (!previewFile) return;

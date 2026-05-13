@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { formatSize, formatDate, PREVIEW_TYPES, getPreviewType, useStore } from '../store';
+import { formatSize, formatDate, PREVIEW_TYPES, getPreviewType, useStore, isTextContent } from '../store';
 import CustomVideo from './CustomVideo';
 import CustomAudio from './CustomAudio';
 import { FileIcon as FileIconComponent } from './FileIcons';
@@ -221,24 +221,21 @@ export default function ModalPreviewPane({
       return;
     }
 
-    if (type === 'unknown') {
-      setPreviewContent('Preview not available for this file type');
-      setPreviewType('text');
-      return;
-    }
-
     if (file.size > 2 * 1024 * 1024) {
       setPreviewContent('File too large for preview');
       setPreviewType('text');
       return;
     }
 
+    // Try content-based text detection for unknown types
     setLoadingPreview(true);
     setPreviewType('text');
     try {
       const r = await window.electronAPI.readFile(file.path);
-      if (r.success) {
+      if (r.success && isTextContent(r.content)) {
         setPreviewContent(r.content.slice(0, 1000) + (r.content.length > 1000 ? '\n\n... (truncated)' : ''));
+      } else if (r.success) {
+        setPreviewContent('Preview not available for this file type');
       } else {
         setPreviewContent('Failed to load preview');
       }

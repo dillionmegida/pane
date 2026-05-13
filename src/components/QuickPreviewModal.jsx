@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import ReactDOM from 'react-dom';
 import styled, { keyframes } from 'styled-components';
-import { formatSize, formatDate, PREVIEW_TYPES } from '../store';
+import { formatSize, formatDate, PREVIEW_TYPES, isTextContent } from '../store';
 import CustomVideo from './CustomVideo';
 import CustomAudio from './CustomAudio';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -230,7 +230,7 @@ const VideoWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  
+
   > div {
     width: 100%;
     height: 100%;
@@ -240,6 +240,26 @@ const VideoWrapper = styled.div`
   }
 `;
 
+const TextWrapper = styled.div`
+  width: 100%;
+  max-width: 900px;
+  max-height: 100%;
+  overflow: auto;
+  background: ${p => p.theme.bg.elevated};
+  border-radius: ${p => p.theme.radius.md};
+  padding: 16px;
+`;
+
+const TextContent = styled.pre`
+  font-family: ${p => p.theme.font.mono};
+  font-size: 12px;
+  line-height: 1.6;
+  color: ${p => p.theme.text.primary};
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+`;
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function QuickPreviewModal({ file, onClose }) {
   const mediaRef = useRef(null);
@@ -247,19 +267,22 @@ export default function QuickPreviewModal({ file, onClose }) {
   const [pageNumber, setPageNumber] = useState(1);
   const [pdfError, setPdfError] = useState(null);
   const [pdfData, setPdfData] = useState(null);
+  const [textContent, setTextContent] = useState('');
+  const [loadingText, setLoadingText] = useState(false);
 
   const ext = file?.extension || '';
   const isImage = PREVIEW_TYPES.imageExts.includes(ext);
   const isVideo = PREVIEW_TYPES.videoExts.includes(ext);
   const isAudio = PREVIEW_TYPES.audioExts.includes(ext);
   const isPdf = ext === 'pdf';
+  const [isText, setIsText] = useState(false);
 
   // Load PDF as binary data
   useEffect(() => {
     if (!isPdf || !file?.path) return;
     setPdfData(null);
     setPdfError(null);
-    
+
     window.electronAPI.readFile(file.path, 'binary')
       .then(result => {
         if (result.success && result.content) {
@@ -280,6 +303,43 @@ export default function QuickPreviewModal({ file, onClose }) {
         setPdfError('Failed to read PDF file');
       });
   }, [isPdf, file?.path]);
+
+  // Load text content for non-media files
+  useEffect(() => {
+    if (!file?.path || isImage || isVideo || isAudio || isPdf) {
+      setTextContent('');
+      setIsText(false);
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setTextContent('File too large for preview');
+      setIsText(false);
+      return;
+    }
+
+    setLoadingText(true);
+    setTextContent('');
+    setIsText(false);
+
+    window.electronAPI.readFile(file.path)
+      .then(result => {
+        if (result.success && isTextContent(result.content)) {
+          setTextContent(result.content.slice(0, 8000) + (result.content.length > 8000 ? '\n\n... (truncated)' : ''));
+          setIsText(true);
+        } else if (result.success) {
+          setTextContent('Preview not available for this file type');
+        } else {
+          setTextContent('Failed to load preview');
+        }
+        setLoadingText(false);
+      })
+      .catch(err => {
+        console.error('Text read error:', err);
+        setTextContent('Failed to load preview');
+        setLoadingText(false);
+      });
+  }, [file?.path, isImage, isVideo, isAudio, isPdf, file?.size]);
 
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages);
@@ -413,7 +473,17 @@ export default function QuickPreviewModal({ file, onClose }) {
             </PdfContainer>
           )}
 
-          {!isImage && !isVideo && !isAudio && !isPdf && (
+          {isText && (
+            <TextWrapper>
+              {loadingText ? (
+                <div style={{ padding: '40px', color: '#4A9EFF', textAlign: 'center' }}>Loading text...</div>
+              ) : (
+                <TextContent>{textContent}</TextContent>
+              )}
+            </TextWrapper>
+          )}
+
+          {!isImage && !isVideo && !isAudio && !isPdf && !isText && (
             <UnsupportedState>
               <BigIcon>
                 {file.isDirectory ? (

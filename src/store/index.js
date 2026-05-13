@@ -1570,3 +1570,30 @@ export function filterHiddenFiles(files, showHidden) {
   if (showHidden) return files;
   return files.filter(f => !f.name.startsWith('.'));
 }
+
+// ─── Content-Based Text Detection ─────────────────────────────────────────────
+export function isTextContent(content) {
+  if (!content || typeof content !== 'string') return false;
+  
+  // Check for null bytes (strong indicator of binary)
+  if (content.includes('\0')) return false;
+  
+  // Sample first 4KB for efficiency
+  const sampleSize = Math.min(content.length, 4096);
+  const sample = content.slice(0, sampleSize);
+  
+  // Count non-printable characters (excluding common whitespace)
+  let nonPrintable = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const code = sample.charCodeAt(i);
+    // Allow: tabs (9), newlines (10-13), space (32), printable ASCII (33-126)
+    // and extended ASCII (128-255) for UTF-8 compatibility
+    if (code < 9 || (code > 13 && code < 32) || code === 127) {
+      nonPrintable++;
+    }
+  }
+  
+  // If more than 1% non-printable, likely binary
+  const ratio = nonPrintable / sample.length;
+  return ratio < 0.01;
+}
