@@ -964,6 +964,7 @@ export default function FilePane({ paneId }) {
   // Local column view UI state (widths, resizing) - not persisted to store
   const [columnWidths, setColumnWidths] = useState({});
   const [resizingColumn, setResizingColumn] = useState(null);
+  const resizeStartRef = useRef(null);
   const columnsContainerRef = useRef(null);
 
   // Derived from store column state for convenience (must be before tag effects)
@@ -1062,13 +1063,12 @@ export default function FilePane({ paneId }) {
 
   // Handle column resize
   useEffect(() => {
-    if (resizingColumn === null) return;
+    if (resizingColumn === null || !resizeStartRef.current) return;
 
     const handleMouseMove = (e) => {
-      if (!columnsContainerRef.current) return;
-      const container = columnsContainerRef.current;
-      const rect = container.getBoundingClientRect();
-      const newWidth = e.clientX - rect.left - (resizingColumn * 200); // Approximate position
+      const { startX, startWidth } = resizeStartRef.current;
+      const zoom = useStore.getState().zoom || 1;
+      const newWidth = startWidth + (e.clientX - startX) / zoom;
       
       if (newWidth >= 150 && newWidth <= 600) {
         setColumnWidths(prev => ({
@@ -1079,6 +1079,7 @@ export default function FilePane({ paneId }) {
     };
 
     const handleMouseUp = () => {
+      resizeStartRef.current = null;
       setResizingColumn(null);
     };
 
@@ -2122,7 +2123,10 @@ export default function FilePane({ paneId }) {
                       </ColumnItem>
                     ))}
                   </ColumnList>
-                  <ColumnResizer onMouseDown={() => setResizingColumn(idx)} />
+                  <ColumnResizer onMouseDown={(e) => {
+                    resizeStartRef.current = { startX: e.clientX, startWidth: columnWidths[idx] || 200 };
+                    setResizingColumn(idx);
+                  }} />
                 </Column>
               );
             })}
