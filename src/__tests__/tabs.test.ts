@@ -31,7 +31,7 @@ const makePane = (id: string, overrides: Record<string, any> = {}): any => {
     path: overrides.path || '/',
     basePath,
     currentBreadcrumbPath: overrides.currentBreadcrumbPath || basePath,
-    label: basePath === '/' ? '/' : basePath.split('/').pop(),
+    label: (overrides.currentBreadcrumbPath || basePath) === '/' ? '/' : (overrides.currentBreadcrumbPath || basePath).split('/').pop(),
     files: overrides.files || [],
     viewMode: overrides.viewMode || 'column',
     sortBy: overrides.sortBy || 'name',
@@ -490,6 +490,163 @@ describe('Tabs - Label Updates', () => {
 
     const pane = result.current.panes.find((p: any) => p.id === 'left');
     expect(pane.tabs[0].label).toBe('/');
+  });
+});
+
+describe('Tabs - Label derived from active directory / preview file / basePath', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (window as any).electronAPI.readdir.mockResolvedValue({ success: true, files: [] });
+    (window as any).electronAPI.watcherStart.mockImplementation(() => {});
+    (window as any).electronAPI.storeSet.mockResolvedValue(undefined);
+
+    useStore.setState({
+      panes: [
+        makePane('left', { path: '/Users/john/Documents', basePath: '/Users/john/Documents' }),
+      ],
+      activePane: 'left',
+      homeDir: '/Users/john',
+      initialized: true,
+    } as any);
+  });
+
+  test('tab label reflects currentBreadcrumbPath (deep column navigation)', () => {
+    // Simulate column view drilling into Documents/Projects/App
+    useStore.setState({
+      panes: [{
+        ...useStore.getState().panes[0],
+        currentBreadcrumbPath: '/Users/john/Documents/Projects/App',
+        basePath: '/Users/john/Documents',
+      }],
+    });
+
+    // Trigger a snapshot by switching view mode (which calls snapshotTab)
+    act(() => {
+      useStore.getState().setViewMode('left', 'list');
+    });
+
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left');
+    // Label should be "App" — the deepest directory in currentBreadcrumbPath
+    expect(pane!.tabs[pane!.activeTab].label).toBe('App');
+  });
+
+  test('tab label uses currentBreadcrumbPath over basePath via setCurrentBreadcrumbPath + snapshot', async () => {
+    // Set currentBreadcrumbPath to a deeper path
+    act(() => {
+      useStore.getState().setCurrentBreadcrumbPath('left', '/Users/john/Documents/Reports');
+    });
+
+    // Snapshot the tab (e.g. by setting view mode, which triggers snapshotTab)
+    act(() => {
+      useStore.getState().setViewMode('left', 'column');
+    });
+
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left');
+    expect(pane!.tabs[pane!.activeTab].label).toBe('Reports');
+  });
+
+  test('tab label uses previewFile directory when no breadcrumb differs', async () => {
+    const previewFile = {
+      path: '/Users/john/Photos/vacation.png', name: 'vacation.png',
+      isDirectory: false, size: 5000, modified: '2024-01-01', extension: 'png',
+    };
+
+    // Set previewFile globally and snapshot via setViewMode
+    useStore.setState({ previewFile, showPreview: true });
+
+    // Clear breadcrumb to undefined to force fallback to previewFile dir
+    useStore.setState({
+      panes: useStore.getState().panes.map((p: any) => ({
+        ...p,
+        currentBreadcrumbPath: undefined,
+        basePath: '/Users/john',
+      })),
+    });
+
+    act(() => {
+      useStore.getState().setViewMode('left', 'column');
+    });
+
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left');
+    // With no breadcrumb, label falls back to previewFile's parent dir "Photos"
+    expect(pane!.tabs[pane!.activeTab].label).toBe('Photos');
+  });
+
+  test('tab label falls back to basePath when no breadcrumb or preview', () => {
+    useStore.setState({
+      previewFile: null,
+      panes: useStore.getState().panes.map((p: any) => ({
+        ...p,
+        currentBreadcrumbPath: undefined,
+        basePath: '/Users/john/Music',
+      })),
+    });
+
+    act(() => {
+      useStore.getState().setViewMode('left', 'column');
+    });
+
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left');
+    expect(pane!.tabs[pane!.activeTab].label).toBe('Music');
+  });
+
+  test('tab label updates when navigating deeper in column view via setColumnState', () => {
+    // Navigate to a deep breadcrumb path
+    act(() => {
+      useStore.getState().setCurrentBreadcrumbPath('left', '/Users/john/Documents/Work/2024');
+    });
+
+    // setColumnState also calls snapshotTab
+    act(() => {
+      useStore.getState().setColumnState('left', {
+        paths: ['/Users/john/Documents/Work', '/Users/john/Documents/Work/2024'],
+        filesByPath: {},
+        selectedByColumn: {},
+        focusedIndex: 1,
+      });
+    });
+
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left');
+    expect(pane!.tabs[pane!.activeTab].label).toBe('2024');
+  });
+
+  test('tab label is / for root breadcrumb path', () => {
+    useStore.setState({
+      panes: useStore.getState().panes.map((p: any) => ({
+        ...p,
+        currentBreadcrumbPath: '/',
+        basePath: '/',
+      })),
+    });
+
+    act(() => {
+      useStore.getState().setViewMode('left', 'column');
+    });
+
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left');
+    expect(pane!.tabs[pane!.activeTab].label).toBe('/');
+  });
+
+  test('switching tabs preserves label from when tab was snapshotted', async () => {
+    // Add a second tab
+    await act(async () => {
+      useStore.getState().addTab('left', '/Users/john/Downloads');
+    });
+
+    // Tab 1 was at Documents, tab 2 is at Downloads
+    // Switch breadcrumb on tab 2
+    act(() => {
+      useStore.getState().setCurrentBreadcrumbPath('left', '/Users/john/Downloads/Archives');
+    });
+
+    // Switch to tab 0 — this snapshots tab 1 with breadcrumb "Archives"
+    act(() => {
+      useStore.getState().switchTab('left', 0);
+    });
+
+    const pane = useStore.getState().panes.find((p: any) => p.id === 'left');
+    // Tab 1 (index 1) should have been snapshotted with "Archives" label
+    expect(pane!.tabs[1].label).toBe('Archives');
   });
 });
 

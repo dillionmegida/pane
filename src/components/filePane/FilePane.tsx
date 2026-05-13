@@ -47,8 +47,8 @@ const Tab = styled.div<{ active: boolean }>`
   transition: all 0.1s;
   white-space: nowrap;
   overflow: hidden;
-  max-width: 140px;
-  flex-shrink: 0;
+  flex: 1 1 0;
+  min-width: 60px;
   &:hover { background: ${p => p.theme.bg.hover}; color: ${p => p.theme.text.primary}; }
 `;
 
@@ -1069,7 +1069,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
             active={i === activeTab}
             onClick={e => { e.stopPropagation(); switchTab(paneId, i); }}
           >
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{tab.label}</span>
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{tab.label}</span>
             {tabs.length > 1 && (
               <TabClose onClick={e => { e.stopPropagation(); closeTab(paneId, i); }}>✕</TabClose>
             )}

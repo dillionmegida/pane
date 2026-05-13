@@ -15,12 +15,17 @@ const DEFAULT_COLUMN_STATE: ColumnState = {
   focusedIndex: 0,
 };
 
+const getTabLabel = (breadcrumb: string | undefined, previewFile: FileItem | null, basePath: string): string => {
+  const labelPath = breadcrumb || (previewFile?.path ? previewFile.path.substring(0, previewFile.path.lastIndexOf('/')) : null) || basePath;
+  return labelPath === '/' ? '/' : labelPath.split('/').pop() ?? labelPath;
+};
+
 const createTabState = (tabPath: string): Tab => ({
   id: `tab-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   path: tabPath,
   basePath: tabPath,
   currentBreadcrumbPath: tabPath,
-  label: tabPath === '/' ? '/' : tabPath.split('/').pop() ?? tabPath,
+  label: getTabLabel(tabPath, null, tabPath),
   files: [],
   selectedFiles: new Set(),
   activeBookmarkId: null,
@@ -43,7 +48,7 @@ const snapshotTab = (pane: Pane, globalPreviewFile: FileItem | null): Tab => {
     path: pane.path || '/',
     basePath: base,
     currentBreadcrumbPath: pane.currentBreadcrumbPath || base,
-    label: base === '/' ? '/' : base.split('/').pop() ?? base,
+    label: getTabLabel(pane.currentBreadcrumbPath, globalPreviewFile, base),
     files: pane.files || [],
     selectedFiles: new Set(pane.selectedFiles || []),
     activeBookmarkId: pane.activeBookmarkId || null,
