@@ -705,22 +705,9 @@ export default function FilePane({ paneId }: FilePaneProps) {
         return;
       }
 
-      if (e.key === 'Escape') {
-        setSelection(paneId, []);
-        setContextMenu(null);
-        closePreview();
-        return;
-      }
-
       if (e.key === 'Enter' && selectedFiles.size === 1) {
         const file = files.find(f => selectedFiles.has(f.path));
         if (file) activateFile(file);
-        return;
-      }
-
-      if (e.key === 'Backspace' && !e.metaKey) {
-        const parentDir = (pane.basePath || pane.path).split('/').slice(0, -1).join('/') || '/';
-        navigate(parentDir);
         return;
       }
 
