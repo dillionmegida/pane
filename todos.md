@@ -117,14 +117,6 @@ at the same time, don't resize the horizontal width yet...so if i open 7 columns
 
 * i should be able to drag a folder to the bookmarks section in left sidebar (there should be a visual indication when i'm dragging in the bookmarks tab)
 
-* i select sort in the context menu and the context menu doesn't close...it should close.
+* reveal functionality is broken as well
 
-* when i right click on directory, i see the "sort" section appear twice
-
-* when i right click on a file, i see the "sort" section...i shoulnd't see it for files
-
-* when i collapse the sections in the left sidebar, persist the collapsed state
-
-* the scroll bar width in the columns is too big...reduce it
-
-* while i'm dragging, ensure that i can't hover on any item and that the cursor doesn't change from the dragging state
+* add support for in a file tree, being able to type to search for a file...so it debounces..and waits until i'm done so if i type "hello" it waits until i stop typing for a bit and then searches, and auto selects the first result

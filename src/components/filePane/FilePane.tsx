@@ -260,6 +260,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
     toggleHiddenFiles,
     activeModal,
     showSearch,
+    getColumnPaths,
   } = store;
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: FileItem | null } | null>(null);
@@ -457,7 +458,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
       return;
     }
 
-    if (selectedFiles.size === 1 && selectedFiles.has(file.path)) {
+    if (clickType !== 'keyboard' && selectedFiles.size === 1 && selectedFiles.has(file.path)) {
       startRename(file);
       return;
     }
@@ -486,7 +487,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
           paths: newPaths,
           filesByPath: newFbp,
           selectedByColumn: { ...(columnState.selectedByColumn || {}), [columnIndex]: file.path },
-          focusedIndex: columnIndex + 1,
+          focusedIndex: columnIndex,
         });
         setCurrentBreadcrumbPath(paneId, file.path);
         setPreviewFile(null);
@@ -721,44 +722,55 @@ export default function FilePane({ paneId }: FilePaneProps) {
         return;
       }
 
-      // focusedIndex 0 = base column (pane.basePath), 1+ = paths[focusedIndex-1]
       const focusedIdx = columnState.focusedIndex ?? 0;
       const base = pane.basePath || pane.path;
-      const focusedColPath = focusedIdx === 0 ? base : (columnState.paths?.[focusedIdx - 1] ?? '');
+      const columnPaths = getColumnPaths(paneId);
+      const focusedColPath = columnPaths[focusedIdx] ?? base;
       const displayFiles = viewMode === 'column'
-        ? (focusedIdx === 0 ? files : (columnState.filesByPath?.[focusedColPath] || []))
+        ? (columnState.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? files : []))
         : files;
 
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         if (displayFiles.length === 0) return;
-        const selArr = [...selectedFiles];
-        const curPath = selArr[selArr.length - 1];
+        const curPath = [...selectedFiles].pop();
         const curIdx = displayFiles.findIndex(f => f.path === curPath);
-        const nextIdx = e.key === 'ArrowDown'
-          ? Math.min(displayFiles.length - 1, curIdx + 1)
-          : Math.max(0, curIdx - 1);
+        let nextIdx: number;
+        if (e.key === 'ArrowDown') {
+          nextIdx = curIdx < 0 || curIdx >= displayFiles.length - 1 ? 0 : curIdx + 1;
+        } else {
+          nextIdx = curIdx <= 0 ? displayFiles.length - 1 : curIdx - 1;
+        }
         const nextFile = displayFiles[nextIdx];
-        if (nextFile) setSelection(paneId, [nextFile.path]);
+        if (!nextFile) return;
+        handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, nextFile, focusedIdx, 'keyboard');
         return;
       }
 
       if (e.key === 'ArrowRight' && viewMode === 'column') {
         e.preventDefault();
-        const focIdx = columnState.focusedIndex ?? 0;
-        const selectedInCol = columnState.selectedByColumn?.[focIdx];
-        const colFiles = focIdx === 0 ? files : (columnState.filesByPath?.[columnState.paths?.[focIdx - 1] ?? ''] || []);
-        const sel = colFiles.find(f => f.path === selectedInCol);
-        if (sel?.isDirectory) {
-          handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, sel, focIdx, 'normal');
-        }
+        const selPath = [...selectedFiles].pop();
+        const sel = displayFiles.find(f => f.path === selPath);
+        if (!sel?.isDirectory) return;
+        const childFiles = columnState.filesByPath?.[sel.path] || [];
+        if (!childFiles.length) return;
+        const firstChild = childFiles[0];
+        handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, firstChild, focusedIdx + 1, 'keyboard');
         return;
       }
 
       if (e.key === 'ArrowLeft' && viewMode === 'column') {
         e.preventDefault();
-        const newFocused = Math.max(0, (columnState.focusedIndex ?? 1) - 1);
-        updateColumnState(paneId, { focusedIndex: newFocused });
+        if (focusedIdx <= 0) return;
+        const newFocusedIdx = focusedIdx - 1;
+        // Find what was selected in the target column, fall back to the column's path
+        const targetSelPath = columnState.selectedByColumn?.[newFocusedIdx] ?? columnPaths[newFocusedIdx];
+        if (!targetSelPath) return;
+        const targetColPath = columnPaths[newFocusedIdx] ?? base;
+        const targetColFiles = columnState.filesByPath?.[targetColPath] ?? (newFocusedIdx === 0 ? files : []);
+        const targetFile = targetColFiles.find((f: FileItem) => f.path === targetSelPath);
+        if (!targetFile) return;
+        handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, targetFile, newFocusedIdx, 'keyboard');
         return;
       }
 
@@ -771,7 +783,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isActive, paneId, selectedFiles, files, viewMode, columnState, pane, toggleHiddenFiles]);
+  }, [isActive, paneId, selectedFiles, files, viewMode, columnState, pane, toggleHiddenFiles, getColumnPaths]);
 
   // ── Spacebar quick preview ────────────────────────────────────────────────
   useEffect(() => {

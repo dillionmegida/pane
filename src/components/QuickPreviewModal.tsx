@@ -20,7 +20,10 @@ const isTextContent = (content: string): boolean => {
   return true;
 };
 
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString();
 
 const getVideoMime = (filePath: string): string => {
   const ext = (filePath || '').split('.').pop()?.toLowerCase() || '';
@@ -153,13 +156,16 @@ export default function QuickPreviewModal({ file, onClose }: QuickPreviewModalPr
 
   useEffect(() => {
     if (!isPdf || !file?.path) return;
-    setPdfData(null); setPdfError(null);
-    (window.electronAPI as unknown as ReadFileAPI)
-      .readFile(file.path, 'binary')
+    setPdfError(null); setPdfData(null);
+    setNumPages(null);
+    setPageNumber(1);
+    (window.electronAPI as unknown as { readBinaryFile: (p: string) => Promise<{ success: boolean; data: string }> })
+      .readBinaryFile(file.path)
       .then(result => {
-        if (result.success && result.content) {
-          const bytes = new Uint8Array(result.content.length);
-          for (let i = 0; i < result.content.length; i++) bytes[i] = result.content.charCodeAt(i);
+        if (result.success && result.data) {
+          const raw = atob(result.data);
+          const bytes = new Uint8Array(raw.length);
+          for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
           setPdfData(bytes);
         } else { setPdfError('Failed to load PDF file'); }
       })
@@ -251,7 +257,7 @@ export default function QuickPreviewModal({ file, onClose }: QuickPreviewModalPr
                     <Document
                       file={{ data: pdfData }}
                       onLoadSuccess={({ numPages: n }) => { setNumPages(n); setPageNumber(1); setPdfError(null); }}
-                      onLoadError={() => setPdfError('Failed to load PDF')}
+                      onLoadError={(err) => { console.error('PDF load error:', err); setPdfError('Failed to load PDF'); }}
                       loading={<PdfLoadingMsg>Loading PDF...</PdfLoadingMsg>}
                     >
                       <Page pageNumber={pageNumber} width={Math.min(900, window.innerWidth * 0.75)} />

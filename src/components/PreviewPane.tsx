@@ -8,7 +8,10 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString();
 
 const Pane = styled.div<{ width: number }>`
   width: ${p => p.width}px;
@@ -315,8 +318,24 @@ export default function PreviewPane() {
     setTextContent('');
     setEditMode(false);
     setEditContent('');
-    setPdfData(null);
     setIsText(false);
+    setPdfNumPages(null);
+    setPdfPage(1);
+    setPdfData(null);
+
+    if (previewFile && isPdf) {
+      (window.electronAPI as unknown as { readBinaryFile: (p: string) => Promise<{ success: boolean; data: string }> })
+        .readBinaryFile(previewFile.path)
+        .then(result => {
+          if (result.success && result.data) {
+            const raw = atob(result.data);
+            const bytes = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+            setPdfData(bytes);
+          }
+        })
+        .catch(err => console.error('PDF load error:', err));
+    }
 
     if (previewFile && !isImage && !isVideo && !isAudio && !isPdf && previewFile.size < 2 * 1024 * 1024) {
       setLoading(true);
@@ -331,21 +350,6 @@ export default function PreviewPane() {
         });
     }
 
-    if (previewFile && isPdf) {
-      (window.electronAPI as unknown as { readFile: (p: string, enc?: string) => Promise<{ success: boolean; content: string }> })
-        .readFile(previewFile.path, 'binary')
-        .then(result => {
-          if (result.success && result.content) {
-            const binaryStr = result.content;
-            const bytes = new Uint8Array(binaryStr.length);
-            for (let i = 0; i < binaryStr.length; i++) {
-              bytes[i] = binaryStr.charCodeAt(i);
-            }
-            setPdfData(bytes);
-          }
-        })
-        .catch(err => console.error('PDF load error:', err));
-    }
   }, [previewFile?.path, isImage, isVideo, isAudio, isPdf, previewFile?.size]);
 
   const saveEdits = async () => {
@@ -421,6 +425,7 @@ export default function PreviewPane() {
               <Document
                 file={{ data: pdfData }}
                 onLoadSuccess={({ numPages }) => { setPdfNumPages(numPages); setPdfPage(1); }}
+                onLoadError={(err) => console.error('PDF render error:', err)}
                 loading={<PdfLoading>Loading...</PdfLoading>}
               >
                 <Page pageNumber={pdfPage} width={Math.min(280, previewWidth - 40)} />

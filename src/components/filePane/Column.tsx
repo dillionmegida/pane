@@ -12,6 +12,8 @@ const ColumnWrap = styled.div<{ width: string; isFocused: boolean }>`
   border-right: 1px solid ${p => p.theme.border.subtle};
   flex-shrink: 0;
   position: relative;
+  background: ${p => p.isFocused ? `${p.theme.bg.hover}66` : 'transparent'};
+  transition: background 0.1s;
 `;
 
 const ColumnList = styled.div`
@@ -126,7 +128,8 @@ export default function Column({
             <ColumnItem
               key={file.path}
               file={file}
-              isSelected={isSelected || isDerived}
+              isSelected={isSelected}
+              isDerived={isDerived}
               isDragOver={isDragOver}
               isContextMenuSelected={isContextMenu}
               selectedFiles={selectedFiles}

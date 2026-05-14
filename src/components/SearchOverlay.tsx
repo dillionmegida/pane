@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import styled from 'styled-components';
 import { useStore, formatSize, formatDate, PREVIEW_TYPES, getPreviewType } from '../store';
 import ModalPreviewPane from './ModalPreviewPane';
@@ -315,13 +315,113 @@ const EmptyMsg = styled.div`
   font-size: 0.75rem;
 `;
 
+const ContentFileHeader = styled.div<{ collapsed?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: ${p => p.theme.bg.secondary};
+  border-bottom: 1px solid ${p => p.theme.border.subtle};
+  cursor: pointer;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  &:hover { background: ${p => p.theme.bg.hover}; }
+`;
+
+const ContentFileIcon = styled.span`
+  font-size: 0.8125rem;
+  flex-shrink: 0;
+`;
+
+const ContentFileName = styled.span`
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: ${p => p.theme.text.primary};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const ContentFilePath = styled.span`
+  font-size: 0.5625rem;
+  color: ${p => p.theme.text.tertiary};
+  font-family: ${p => p.theme.font.mono};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+`;
+
+const ContentMatchCount = styled.span`
+  font-size: 0.5625rem;
+  color: ${p => p.theme.text.tertiary};
+  background: ${p => p.theme.bg.hover};
+  padding: 1px 6px;
+  border-radius: 8px;
+  flex-shrink: 0;
+`;
+
+const CollapseArrow = styled.span<{ collapsed?: boolean }>`
+  font-size: 0.625rem;
+  color: ${p => p.theme.text.tertiary};
+  transition: transform 0.15s;
+  transform: rotate(${p => p.collapsed ? '-90deg' : '0deg'});
+  flex-shrink: 0;
+`;
+
+const ContentMatchRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding: 3px 16px 3px 36px;
+  cursor: pointer;
+  font-family: ${p => p.theme.font.mono};
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  border-left: 2px solid transparent;
+  transition: background 0.07s;
+  &:hover { background: ${p => p.theme.bg.hover}; }
+  &.selected {
+    background: ${p => p.theme.accent.blue}15;
+    border-left-color: ${p => p.theme.accent.blue};
+  }
+`;
+
+const LineNumber = styled.span`
+  color: ${p => p.theme.text.tertiary};
+  min-width: 40px;
+  text-align: right;
+  padding-right: 10px;
+  flex-shrink: 0;
+  user-select: none;
+  font-size: 0.625rem;
+`;
+
+const MatchedLineText = styled.span`
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: ${p => p.theme.text.secondary};
+`;
+
+const MatchHighlight = styled.span`
+  background: ${p => p.theme.accent.blue}30;
+  color: ${p => p.theme.accent.blue};
+  border-radius: 2px;
+  padding: 0 1px;
+`;
+
 export default function SearchOverlay(): React.ReactElement {
-  const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode, setSelection, getActivePath, getBreadcrumbs, homeDir } = useStore() as any;
+  const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode, setSelection, getActivePath, getBreadcrumbs, homeDir, searchInitContentMode } = useStore() as any;
   const pane = panes.find((p: any) => p.id === activePane);
 
   const [query, setQuery] = useState('');
   const [useRegex, setUseRegex] = useState(false);
-  const [contentSearch, setContentSearch] = useState(false);
+  const [contentSearch, setContentSearch] = useState(!!searchInitContentMode);
   const [rootSearch, setRootSearch] = useState(false);
   const [excludedDirs, setExcludedDirs] = useState(['node_modules', '.git', 'venv', '.venv', '__pycache__', '.pytest_cache']);
   const [showExcludeInput, setShowExcludeInput] = useState(false);
@@ -337,6 +437,7 @@ export default function SearchOverlay(): React.ReactElement {
   const [contentLoading, setContentLoading] = useState(false);
   const [contentComplete, setContentComplete] = useState(false);
   const contentSearchIdRef = useRef<number | null>(null);
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
 
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -347,6 +448,62 @@ export default function SearchOverlay(): React.ReactElement {
   const results: any[] = contentSearch ? contentResults : scanResults;
   const loading: boolean = contentSearch ? contentLoading : isScanning;
   const searchComplete: boolean = contentSearch ? contentComplete : hasSearched && !isScanning;
+
+  // Group content results by file for display
+  const contentFileGroups = useMemo(() => {
+    if (!contentSearch) return [];
+    const groups: { filePath: string; name: string; extension: string; matches: any[] }[] = [];
+    const groupMap = new Map<string, typeof groups[0]>();
+    for (const r of contentResults) {
+      let group = groupMap.get(r.path);
+      if (!group) {
+        group = { filePath: r.path, name: r.name, extension: r.extension, matches: [] };
+        groupMap.set(r.path, group);
+        groups.push(group);
+      }
+      group.matches.push(r);
+    }
+    return groups;
+  }, [contentSearch, contentResults]);
+
+  // Build a flat list of selectable items for keyboard nav in content mode
+  const contentFlatList = useMemo(() => {
+    if (!contentSearch) return [];
+    const flat: any[] = [];
+    for (const group of contentFileGroups) {
+      if (collapsedFiles.has(group.filePath)) continue;
+      for (const match of group.matches) {
+        flat.push(match);
+      }
+    }
+    return flat;
+  }, [contentSearch, contentFileGroups, collapsedFiles]);
+
+  // Highlight query matches within a line of text
+  const highlightMatch = useCallback((text: string, q: string, isRegex: boolean): React.ReactNode => {
+    if (!q) return text;
+    try {
+      const pattern = isRegex ? q : q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const splitRegex = new RegExp(`(${pattern})`, 'gi');
+      const testRegex = new RegExp(`^${pattern}$`, 'i');
+      const parts = text.split(splitRegex);
+      if (parts.length <= 1) return text;
+      return parts.map((part, i) =>
+        testRegex.test(part) ? <MatchHighlight key={i}>{part}</MatchHighlight> : part
+      );
+    } catch {
+      return text;
+    }
+  }, []);
+
+  const toggleFileCollapse = useCallback((filePath: string) => {
+    setCollapsedFiles(prev => {
+      const next = new Set(prev);
+      if (next.has(filePath)) next.delete(filePath);
+      else next.add(filePath);
+      return next;
+    });
+  }, []);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -426,6 +583,7 @@ export default function SearchOverlay(): React.ReactElement {
       setContentResults([]);
       setContentLoading(false);
       setContentComplete(false);
+      setCollapsedFiles(new Set());
       return;
     }
     setSelectedIdx(0);
@@ -445,9 +603,10 @@ export default function SearchOverlay(): React.ReactElement {
       setContentLoading(true);
       setContentComplete(false);
       setSelectedIdx(0);
+      setCollapsedFiles(new Set());
       await (window as any).electronAPI.search({
         rootPath: searchRoot, query,
-        options: { useRegex, contentSearch: true, maxResults: 300, excludeDirs: excludedDirs },
+        options: { useRegex, contentSearch: true, maxResults: 1000, excludeDirs: excludedDirs },
         searchId: contentSearchIdRef.current,
       });
     } else {
@@ -502,20 +661,22 @@ export default function SearchOverlay(): React.ReactElement {
     toggleSearch();
   };
 
+  const navList = contentSearch ? contentFlatList : results;
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') { toggleSearch(); return; }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      const newIdx = Math.min(selectedIdx + 1, results.length - 1);
-      setSelectedIdx(newIdx); setSelectedItem(results[newIdx]);
+      const newIdx = Math.min(selectedIdx + 1, navList.length - 1);
+      setSelectedIdx(newIdx); setSelectedItem(navList[newIdx]);
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault();
       const newIdx = Math.max(selectedIdx - 1, 0);
-      setSelectedIdx(newIdx); setSelectedItem(results[newIdx]);
+      setSelectedIdx(newIdx); setSelectedItem(navList[newIdx]);
     }
-    if (e.key === 'Enter' && results[selectedIdx]) { e.preventDefault(); openResult(results[selectedIdx]); }
-    if (e.key === 'r' && e.metaKey && results[selectedIdx]) { e.preventDefault(); revealInColumns(results[selectedIdx].path); }
+    if (e.key === 'Enter' && navList[selectedIdx]) { e.preventDefault(); openResult(navList[selectedIdx]); }
+    if (e.key === 'r' && e.metaKey && navList[selectedIdx]) { e.preventDefault(); revealInColumns(navList[selectedIdx].path); }
   };
 
   return (
@@ -549,6 +710,9 @@ export default function SearchOverlay(): React.ReactElement {
               Searching...
               {!contentSearch && isScanning && (
                 <StopBtn onClick={abortScan} title="Stop search">■</StopBtn>
+              )}
+              {contentSearch && contentLoading && (
+                <StopBtn onClick={() => { (window as any).electronAPI.searchCancel?.(); setContentLoading(false); setContentComplete(true); contentSearchIdRef.current = null; }} title="Stop search">■</StopBtn>
               )}
             </SearchingLabel>
           )}
@@ -591,31 +755,68 @@ export default function SearchOverlay(): React.ReactElement {
         <MainContent ref={mainContentRef}>
           <ResultsPane>
             <Results>
-              {results.map((file: any, i: number) => (
-                <ResultItem
-                  key={file.path}
-                  className={i === selectedIdx ? 'selected' : ''}
-                  onClick={() => { setSelectedIdx(i); setSelectedItem(file); }}
-                  onDoubleClick={() => revealInColumns(file.path)}
-                >
-                  <ResultIcon>
-                    {file.isDirectory ? (
-                      file.name?.endsWith('.app') ? <FileIconComponent ext="app" size={16} /> : '📁'
-                    ) : (
-                      <FileIconComponent ext={file.extension} size={16} />
-                    )}
-                  </ResultIcon>
-                  <ResultInfo>
-                    <ResultName>{file.name}</ResultName>
-                    <ResultPath>{file.path}</ResultPath>
-                  </ResultInfo>
-                  <ResultMeta>
-                    <div>{file.isDirectory ? 'folder' : file.extension}</div>
-                    <div>{formatSize(file.size)}</div>
-                    <div>{formatDate(file.modified)}</div>
-                  </ResultMeta>
-                </ResultItem>
-              ))}
+              {contentSearch ? (
+                <>
+                  {contentFileGroups.map((group) => {
+                    const isCollapsed = collapsedFiles.has(group.filePath);
+                    return (
+                      <div key={group.filePath}>
+                        <ContentFileHeader onClick={() => toggleFileCollapse(group.filePath)}>
+                          <CollapseArrow collapsed={isCollapsed}>▼</CollapseArrow>
+                          <ContentFileIcon>
+                            <FileIconComponent ext={group.extension} size={14} />
+                          </ContentFileIcon>
+                          <ContentFileName>{group.name}</ContentFileName>
+                          <ContentFilePath>{group.filePath}</ContentFilePath>
+                          <ContentMatchCount>{group.matches.length}</ContentMatchCount>
+                        </ContentFileHeader>
+                        {!isCollapsed && group.matches.map((match: any) => {
+                          const flatIdx = contentFlatList.indexOf(match);
+                          return (
+                            <ContentMatchRow
+                              key={`${match.path}:${match.lineNumber}`}
+                              className={flatIdx === selectedIdx ? 'selected' : ''}
+                              onClick={() => { setSelectedIdx(flatIdx); setSelectedItem(match); }}
+                              onDoubleClick={() => revealInColumns(match.path)}
+                            >
+                              <LineNumber>{match.lineNumber}</LineNumber>
+                              <MatchedLineText>{highlightMatch(match.matchedLine, query, useRegex)}</MatchedLineText>
+                            </ContentMatchRow>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </>
+              ) : (
+                <>
+                  {results.map((file: any, i: number) => (
+                    <ResultItem
+                      key={file.path}
+                      className={i === selectedIdx ? 'selected' : ''}
+                      onClick={() => { setSelectedIdx(i); setSelectedItem(file); }}
+                      onDoubleClick={() => revealInColumns(file.path)}
+                    >
+                      <ResultIcon>
+                        {file.isDirectory ? (
+                          file.name?.endsWith('.app') ? <FileIconComponent ext="app" size={16} /> : '📁'
+                        ) : (
+                          <FileIconComponent ext={file.extension} size={16} />
+                        )}
+                      </ResultIcon>
+                      <ResultInfo>
+                        <ResultName>{file.name}</ResultName>
+                        <ResultPath>{file.path}</ResultPath>
+                      </ResultInfo>
+                      <ResultMeta>
+                        <div>{file.isDirectory ? 'folder' : file.extension}</div>
+                        <div>{formatSize(file.size)}</div>
+                        <div>{formatDate(file.modified)}</div>
+                      </ResultMeta>
+                    </ResultItem>
+                  ))}
+                </>
+              )}
               {!loading && !searchComplete && query && results.length === 0 && (
                 <EmptyMsg>Type to search...</EmptyMsg>
               )}
@@ -624,7 +825,13 @@ export default function SearchOverlay(): React.ReactElement {
               )}
             </Results>
             <StatusBar>
-              <span>{results.length} results{loading && !contentSearch ? ' (scanning...)' : ''}</span>
+              <span>
+                {contentSearch
+                  ? `${contentResults.length} matches in ${contentFileGroups.length} files`
+                  : `${results.length} results`
+                }
+                {loading ? ' (searching...)' : ''}
+              </span>
               <span>📁 {rootSearch ? (homeDir || '/') : (getActivePath(activePane) || '/')}</span>
             </StatusBar>
           </ResultsPane>

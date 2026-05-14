@@ -279,6 +279,15 @@ ipcMain.handle('fs:readFile', async (event, filePath, encoding = 'utf8') => {
   }
 });
 
+ipcMain.handle('fs:readBinaryFile', async (event, filePath) => {
+  try {
+    const buffer = fs.readFileSync(filePath);
+    return { success: true, data: buffer.toString('base64') };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('fs:writeFile', async (event, filePath, content) => {
   try {
     fs.writeFileSync(filePath, content, 'utf8');
@@ -379,105 +388,276 @@ ipcMain.handle('fs:getDrives', async () => {
 
 // ─── IPC: Search ─────────────────────────────────────────────────────────────
 let activeSearch = null;
+let activeGrepProcess = null;
+
+const SEARCH_DEFAULT_EXCLUDES = ['node_modules', '.git', '.svn', '.hg', 'bower_components', '.vscode', '.idea', 'dist', 'build', 'target', 'bin', 'obj', 'packages', '.next', '.nuxt', 'coverage', '.cache', 'tmp', 'temp', 'venv', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.tox', 'site-packages', '.eggs', '*.egg-info', 'vendor', 'Pods'];
 
 ipcMain.handle('fs:search', async (event, { rootPath, query, options = {}, searchId }) => {
-  const results = [];
   const { useRegex, caseSensitive, contentSearch, maxResults = 500, excludeDirs = [] } = options;
 
-  // If no searchId provided, generate one
   const activeSearchId = searchId || Date.now();
   activeSearch = activeSearchId;
+  const allExcludes = [...new Set([...SEARCH_DEFAULT_EXCLUDES, ...excludeDirs])];
 
-  // Expanded default exclude patterns for root directory searches
-  const defaultExcludes = ['node_modules', '.git', '.svn', '.hg', 'bower_components', '.vscode', '.idea', 'dist', 'build', 'target', 'bin', 'obj', 'packages', '.next', '.nuxt', 'coverage', '.cache', 'tmp', 'temp', 'venv', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.tox', 'site-packages', '.eggs', '*.egg-info', 'vendor', 'Pods'];
-  const allExcludes = [...new Set([...defaultExcludes, ...excludeDirs])];
-
-  try {
-    // Use find command for much faster search (async version)
-    const { exec } = require('child_process');
-    
-    // Build find command with proper escaping - use */pattern/* to match at any depth
-    const escapedPath = rootPath.replace(/'/g, "'\"'\"'");
-    const excludePatterns = allExcludes.map(dir => `-not -path "*/${dir}/*" -not -path "*/${dir}"`).join(' ');
-    
-    let findCommand;
-    if (useRegex) {
-      findCommand = `find '${escapedPath}' ${excludePatterns} -regextype posix-extended -regex ".*${query}.*" 2>/dev/null | head -n ${maxResults}`;
-    } else {
-      findCommand = `find '${escapedPath}' ${excludePatterns} -iname "${searchPattern}" 2>/dev/null | head -n ${maxResults}`;
-    }
-    
-    // Use async exec to avoid blocking
-    exec(findCommand, { encoding: 'utf8' }, (error, stdout, stderr) => {
-      if (activeSearch !== activeSearchId) return; // Search was cancelled
-
-      if (error) {
-        // Fallback to manual search if find command fails
-        fallbackSearch(event, rootPath, query, options, activeSearchId, results);
-        return;
-      }
-
-      const foundPaths = stdout.trim().split('\n').filter(Boolean);
-
-      // Process results in batches for streaming
-      (async () => {
-        for (const filePath of foundPaths) {
-          if (activeSearch !== activeSearchId) break;
-
-          try {
-            const stat = await fs.promises.stat(filePath);
-            const name = filePath.split('/').pop();
-            const isDirectory = stat.isDirectory();
-            const result = {
-              name,
-              path: filePath,
-              isDirectory,
-              size: stat.size,
-              modified: stat.mtime.toISOString(),
-              extension: isDirectory ? '' : (name.includes('.') ? name.split('.').pop().toLowerCase() : ''),
-            };
-
-            results.push(result);
-
-            // Send incremental result to renderer
-            if (activeSearch === activeSearchId) {
-              event.sender.send('search:progress', { result, total: results.length, searchId: activeSearchId });
-            }
-          } catch (e) {
-            // Skip files we can't stat
-          }
-        }
-
-        // Send final results
-        if (activeSearch === activeSearchId) {
-          event.sender.send('search:complete', { results, searchId: activeSearchId });
-        }
-      })();
+  if (contentSearch) {
+    // ── Content search using grep, streamed line-by-line ──────────────────
+    contentSearchWithGrep(event, rootPath, query, {
+      useRegex, caseSensitive, maxResults, allExcludes, searchId: activeSearchId,
     });
-  } catch (e) {
-    // Fallback to manual search if find command fails
-    await fallbackSearch(event, rootPath, query, options, activeSearchId, results);
+  } else {
+    // ── Filename search (existing behavior) ──────────────────────────────
+    filenameSearch(event, rootPath, query, {
+      useRegex, caseSensitive, maxResults, allExcludes, searchId: activeSearchId,
+    });
   }
 });
 
-async function fallbackSearch(event, rootPath, query, options, searchId, results) {
-  const { useRegex, caseSensitive, contentSearch, maxResults = 500, excludeDirs = [] } = options;
-  const defaultExcludes = ['node_modules', '.git', '.svn', '.hg', 'bower_components', '.vscode', '.idea', 'dist', 'build', 'target', 'bin', 'obj', 'packages', '.next', '.nuxt', 'coverage', '.cache', 'tmp', 'temp', 'venv', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.tox', 'site-packages', '.eggs', '*.egg-info', 'vendor', 'Pods'];
-  const allExcludes = [...new Set([...defaultExcludes, ...excludeDirs])];
+// ── Content search: spawns grep and streams matches ────────────────────────
+function contentSearchWithGrep(event, rootPath, query, opts) {
+  const { spawn } = require('child_process');
+  const { useRegex, caseSensitive, maxResults, allExcludes, searchId } = opts;
+  // Kill any previous grep process
+  if (activeGrepProcess) {
+    try { activeGrepProcess.kill(); } catch (_) {}
+    activeGrepProcess = null;
+  }
+
+  // Build grep args:
+  //   -r   recursive
+  //   -n   line numbers
+  //   -I   skip binary files
+  //   -H   always print filename
+  //   --color=never   no ANSI codes
+  const args = ['-rnIH', '--color=never'];
+
+  if (!useRegex) args.push('-F');        // fixed-string mode
+  if (!caseSensitive) args.push('-i');   // case insensitive
+
+  // Exclude directories
+  for (const dir of allExcludes) {
+    args.push(`--exclude-dir=${dir}`);
+  }
+
+  // Max count per file to prevent huge outputs from single files
+  args.push('-m', '50');
+
+  args.push('--', query, rootPath);
+
+  const grep = spawn('grep', args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, LC_ALL: 'C' },
+  });
+  activeGrepProcess = grep;
+
+  let totalResults = 0;
+  let buffer = '';
+  const seenFiles = new Map(); // filePath → stat info cache
+
+  const processLine = async (line) => {
+    if (activeSearch !== searchId) return;
+    if (totalResults >= maxResults) {
+      try { grep.kill(); } catch (_) {}
+      return;
+    }
+
+    // grep output format: /path/to/file:lineNo:matchedLine
+    // We need to handle paths that may contain colons (rare on macOS but possible)
+    // Strategy: find first `:digits:` pattern after rootPath
+    const afterRoot = line.substring(rootPath.length);
+    const colonMatch = afterRoot.match(/^(.*?):(\d+):(.*)$/);
+    if (!colonMatch) return;
+
+    const filePath = rootPath + colonMatch[1];
+    const lineNumber = parseInt(colonMatch[2], 10);
+    const matchedLine = colonMatch[3];
+
+    // Get or cache file stat
+    let fileStat = seenFiles.get(filePath);
+    if (!fileStat) {
+      try {
+        const stat = await fs.promises.stat(filePath);
+        const name = path.basename(filePath);
+        fileStat = {
+          name,
+          path: filePath,
+          isDirectory: false,
+          size: stat.size,
+          modified: stat.mtime.toISOString(),
+          extension: name.includes('.') ? name.split('.').pop().toLowerCase() : '',
+        };
+        seenFiles.set(filePath, fileStat);
+      } catch (_) {
+        return; // skip files we can't stat
+      }
+    }
+
+    totalResults++;
+
+    const result = {
+      ...fileStat,
+      lineNumber,
+      matchedLine: matchedLine.substring(0, 500), // truncate very long lines
+      isContentMatch: true,
+    };
+
+    if (activeSearch === searchId) {
+      event.sender.send('search:progress', { result, total: totalResults, searchId });
+    }
+  };
+
+  // Process stdout line-by-line as data arrives
+  grep.stdout.on('data', (chunk) => {
+    if (activeSearch !== searchId) {
+      try { grep.kill(); } catch (_) {}
+      return;
+    }
+
+    buffer += chunk.toString('utf8');
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // keep incomplete line in buffer
+
+    for (const line of lines) {
+      if (line.trim()) processLine(line);
+    }
+  });
+
+  grep.stderr.on('data', () => {
+    // ignore stderr (permission errors etc.)
+  });
+
+  grep.on('close', () => {
+    activeGrepProcess = null;
+    // Process any remaining buffer
+    if (buffer.trim() && activeSearch === searchId) {
+      processLine(buffer);
+    }
+    // Small delay to let final processLine calls finish (they're async)
+    setTimeout(() => {
+      if (activeSearch === searchId) {
+        event.sender.send('search:complete', { searchId });
+      }
+    }, 100);
+  });
+
+  grep.on('error', () => {
+    activeGrepProcess = null;
+    // Fallback: use the manual directory walker for content search
+    fallbackContentSearch(event, rootPath, query, opts);
+  });
+}
+
+// ── Fallback content search (no grep available) ────────────────────────────
+async function fallbackContentSearch(event, rootPath, query, opts) {
+  const { useRegex, caseSensitive, maxResults, allExcludes, searchId } = opts;
+  let totalResults = 0;
+
+  const textExtensions = new Set([
+    'txt', 'md', 'js', 'jsx', 'ts', 'tsx', 'json', 'css', 'scss', 'less', 'html', 'htm',
+    'xml', 'svg', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'sh', 'bash', 'zsh',
+    'py', 'rb', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'go', 'rs', 'swift', 'kt',
+    'sql', 'graphql', 'vue', 'svelte', 'astro', 'php', 'pl', 'r', 'lua', 'ex', 'exs',
+    'erl', 'hs', 'ml', 'clj', 'el', 'vim', 'fish', 'ps1', 'bat', 'cmd', 'makefile',
+    'dockerfile', 'env', 'gitignore', 'editorconfig', 'prettierrc', 'eslintrc', 'babelrc',
+    'log', 'csv', 'tsv', 'rst', 'tex', 'org',
+  ]);
+
+  function isTextFile(name) {
+    const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+    if (textExtensions.has(ext)) return true;
+    // Files without extensions that are commonly text (Makefile, Dockerfile, etc.)
+    const baseLower = name.toLowerCase();
+    return ['makefile', 'dockerfile', 'gemfile', 'rakefile', 'procfile', 'readme', 'license', 'changelog'].includes(baseLower);
+  }
+
+  let regex;
+  try {
+    regex = useRegex
+      ? new RegExp(query, caseSensitive ? 'g' : 'gi')
+      : new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'g' : 'gi');
+  } catch (_) {
+    if (activeSearch === searchId) event.sender.send('search:complete', { searchId });
+    return;
+  }
+
+  async function searchDir(dirPath, depth) {
+    if (activeSearch !== searchId || totalResults >= maxResults || depth > 10) return;
+    let entries;
+    try { entries = await fs.promises.readdir(dirPath, { withFileTypes: true }); } catch (_) { return; }
+
+    for (const entry of entries) {
+      if (activeSearch !== searchId || totalResults >= maxResults) return;
+      if (entry.name.startsWith('.') && entry.name !== '..') continue;
+      const fullPath = path.join(dirPath, entry.name);
+
+      if (entry.isDirectory()) {
+        if (allExcludes.includes(entry.name)) continue;
+        await searchDir(fullPath, depth + 1);
+      } else if (isTextFile(entry.name)) {
+        try {
+          const stat = await fs.promises.stat(fullPath);
+          // Skip files > 2MB
+          if (stat.size > 2 * 1024 * 1024) continue;
+
+          const content = await fs.promises.readFile(fullPath, 'utf8');
+          const lines = content.split('\n');
+          const name = entry.name;
+          const fileStat = {
+            name,
+            path: fullPath,
+            isDirectory: false,
+            size: stat.size,
+            modified: stat.mtime.toISOString(),
+            extension: name.includes('.') ? name.split('.').pop().toLowerCase() : '',
+          };
+
+          let fileMatchCount = 0;
+          for (let i = 0; i < lines.length && totalResults < maxResults && fileMatchCount < 50; i++) {
+            regex.lastIndex = 0;
+            if (regex.test(lines[i])) {
+              totalResults++;
+              fileMatchCount++;
+              const result = {
+                ...fileStat,
+                lineNumber: i + 1,
+                matchedLine: lines[i].substring(0, 500),
+                isContentMatch: true,
+              };
+              if (activeSearch === searchId) {
+                event.sender.send('search:progress', { result, total: totalResults, searchId });
+              }
+            }
+          }
+        } catch (_) {
+          // skip unreadable files
+        }
+      }
+    }
+  }
+
+  await searchDir(rootPath, 0);
+  if (activeSearch === searchId) {
+    event.sender.send('search:complete', { searchId });
+  }
+}
+
+// ── Filename search ────────────────────────────────────────────────────────
+function filenameSearch(event, rootPath, query, opts) {
+  const { useRegex, caseSensitive, maxResults, allExcludes, searchId } = opts;
+  const results = [];
 
   async function searchDir(dirPath, depth = 0) {
     if (activeSearch !== searchId) return;
     if (depth > 8 || results.length >= maxResults) return;
-    
+
     try {
       const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
-      
+
       for (const entry of entries) {
         if (activeSearch !== searchId) return;
-        
+
         if (entry.name.startsWith('.') && !entry.name.startsWith('..')) continue;
         if (entry.isDirectory() && allExcludes.includes(entry.name)) continue;
-        
+
         const fullPath = path.join(dirPath, entry.name);
         let matches = false;
 
@@ -500,7 +680,7 @@ async function fallbackSearch(event, rootPath, query, options, searchId, results
               extension: path.extname(entry.name).slice(1).toLowerCase(),
             };
             results.push(result);
-            
+
             if (activeSearch === searchId) {
               event.sender.send('search:progress', { result, total: results.length, searchId });
             }
@@ -518,15 +698,19 @@ async function fallbackSearch(event, rootPath, query, options, searchId, results
     }
   }
 
-  await searchDir(rootPath);
-  
-  if (activeSearch === searchId) {
-    event.sender.send('search:complete', { results, searchId });
-  }
+  searchDir(rootPath).then(() => {
+    if (activeSearch === searchId) {
+      event.sender.send('search:complete', { results, searchId });
+    }
+  });
 }
 
 ipcMain.handle('fs:searchCancel', () => {
   activeSearch = null;
+  if (activeGrepProcess) {
+    try { activeGrepProcess.kill(); } catch (_) {}
+    activeGrepProcess = null;
+  }
   return { success: true };
 });
 
@@ -928,14 +1112,29 @@ ipcMain.handle('watcher:start', async (event, watchPath) => {
       ignored: /(^|[\/\\])\../,
       persistent: true,
       ignoreInitial: true,
-      depth: 1,
+      depth: 99,
     });
 
-    watcher.on('add', p => mainWindow?.webContents.send('watcher:change', { type: 'add', path: p, dir: watchPath }));
-    watcher.on('unlink', p => mainWindow?.webContents.send('watcher:change', { type: 'unlink', path: p, dir: watchPath }));
-    watcher.on('addDir', p => mainWindow?.webContents.send('watcher:change', { type: 'addDir', path: p, dir: watchPath }));
-    watcher.on('unlinkDir', p => mainWindow?.webContents.send('watcher:change', { type: 'unlinkDir', path: p, dir: watchPath }));
-    watcher.on('change', p => mainWindow?.webContents.send('watcher:change', { type: 'change', path: p, dir: watchPath }));
+    watcher.on('add', p => {
+      console.log('Watcher add event:', p, 'in dir:', watchPath);
+      mainWindow?.webContents.send('watcher:change', { type: 'add', path: p, dir: watchPath });
+    });
+    watcher.on('unlink', p => {
+      console.log('Watcher unlink event:', p, 'in dir:', watchPath);
+      mainWindow?.webContents.send('watcher:change', { type: 'unlink', path: p, dir: watchPath });
+    });
+    watcher.on('addDir', p => {
+      console.log('Watcher addDir event:', p, 'in dir:', watchPath);
+      mainWindow?.webContents.send('watcher:change', { type: 'addDir', path: p, dir: watchPath });
+    });
+    watcher.on('unlinkDir', p => {
+      console.log('Watcher unlinkDir event:', p, 'in dir:', watchPath);
+      mainWindow?.webContents.send('watcher:change', { type: 'unlinkDir', path: p, dir: watchPath });
+    });
+    watcher.on('change', p => {
+      console.log('Watcher change event:', p, 'in dir:', watchPath);
+      mainWindow?.webContents.send('watcher:change', { type: 'change', path: p, dir: watchPath });
+    });
 
     chokidarWatchers.set(watchPath, watcher);
     return { success: true };

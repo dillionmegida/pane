@@ -227,7 +227,8 @@ interface StoreState {
   searchQuery: string;
   searchResults: FileItem[];
   searchLoading: boolean;
-  toggleSearch: () => void;
+  searchInitContentMode: boolean;
+  toggleSearch: (opts?: { contentMode?: boolean }) => void;
 
   showHidden: boolean;
 
@@ -534,6 +535,7 @@ export const useStore = create<StoreState>((set, get) => ({
         return { ...updated, tabs: allTabs };
       }),
     }));
+    get().saveSession();
   },
 
   setSortBy: (paneId, sortBy, sortOrder) => set(s => ({
@@ -1184,7 +1186,13 @@ export const useStore = create<StoreState>((set, get) => ({
   searchQuery: '',
   searchResults: [],
   searchLoading: false,
-  toggleSearch: () => set(s => ({ showSearch: !s.showSearch, searchQuery: '', searchResults: [] })),
+  searchInitContentMode: false,
+  toggleSearch: (opts) => set(s => ({
+    showSearch: !s.showSearch,
+    searchQuery: '',
+    searchResults: [],
+    searchInitContentMode: !s.showSearch ? (opts?.contentMode ?? false) : false,
+  })),
 
   showHidden: false,
 
@@ -1602,9 +1610,17 @@ export const useStore = create<StoreState>((set, get) => ({
     }
 
     window.electronAPI.onWatcherChange((change) => {
+      console.log('Watcher change received:', change);
       const { panes, refreshPane } = get();
+      const normalizePath = (path: string) => path.replace(/\/$/, '');
       panes.forEach(p => {
-        if (p.path === change.dir) refreshPane(p.id);
+        const currentTab = p.tabs[p.activeTab];
+        const tabPath = currentTab?.path || p.path;
+        console.log(`Pane ${p.id}: tabPath="${tabPath}" vs change.dir="${change.dir}"`);
+        if (normalizePath(tabPath) === normalizePath(change.dir)) {
+          console.log(`Match! Refreshing pane ${p.id}`);
+          refreshPane(p.id);
+        }
       });
     });
 

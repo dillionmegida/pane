@@ -106,8 +106,11 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
         e.preventDefault(); useStore.getState().toggleSidebar();
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'f') {
         e.preventDefault(); useStore.getState().toggleSearch();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault(); useStore.getState().toggleSearch({ contentMode: true });
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 't') {
         e.preventDefault();

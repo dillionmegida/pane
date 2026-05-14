@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readdir: (path) => ipcRenderer.invoke('fs:readdir', path),
   stat: (path) => ipcRenderer.invoke('fs:stat', path),
   readFile: (path, encoding) => ipcRenderer.invoke('fs:readFile', path, encoding),
+  readBinaryFile: (path) => ipcRenderer.invoke('fs:readBinaryFile', path),
   writeFile: (path, content) => ipcRenderer.invoke('fs:writeFile', path, content),
   mkdir: (path) => ipcRenderer.invoke('fs:mkdir', path),
   rename: (oldPath, newPath) => ipcRenderer.invoke('fs:rename', oldPath, newPath),

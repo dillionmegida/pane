@@ -47,52 +47,60 @@ const buildInitialState = (overrides: Record<string, any> = {}): any => ({
 function simulateArrowDown(_: any, paneId = 'left'): void {
   const s = useStore.getState();
   const pane = s.panes.find((p: any) => p.id === paneId);
-  const { focusedIndex } = pane.columnState;
+  const { focusedIndex, columnState } = pane as any;
   const columnPaths = s.getColumnPaths(paneId);
-  const columnKey = columnPaths[focusedIndex];
-  const list = focusedIndex === 0 ? pane.files : (pane.columnState.filesByPath[columnKey] || []);
+  const focusedColPath = columnPaths[focusedIndex] ?? (pane.basePath || pane.path);
+  const list = columnState.filesByPath?.[focusedColPath] ?? (focusedIndex === 0 ? pane.files : []);
   if (!list.length) return;
-  const cur = list.findIndex((f: any) => pane.selectedFiles.has(f.path));
-  const idx = (cur >= list.length - 1 || cur < 0) ? 0 : cur + 1;
+  const curPath = [...pane.selectedFiles].pop();
+  const cur = list.findIndex((f: any) => f.path === curPath);
+  const idx = cur < 0 || cur >= list.length - 1 ? 0 : cur + 1;
   const f = list[idx];
   s.setSelection(paneId, [f.path]);
+  s.updateColumnState(paneId, { selectedByColumn: { ...(columnState.selectedByColumn || {}), [focusedIndex]: f.path } });
   if (f.isDirectory) { s.setCurrentBreadcrumbPath(paneId, f.path); s.setPreviewFile(null); }
-  else { s.setPreviewFile(f); s.setCurrentBreadcrumbPath(paneId, f.path.split('/').slice(0, -1).join('/') || '/'); }
+  else { s.setCurrentBreadcrumbPath(paneId, f.path.split('/').slice(0, -1).join('/') || '/'); s.setPreviewFile(f); }
 }
 
 function simulateArrowUp(_: any, paneId = 'left'): void {
   const s = useStore.getState();
   const pane = s.panes.find((p: any) => p.id === paneId);
-  const { focusedIndex } = pane.columnState;
+  const { focusedIndex, columnState } = pane as any;
   const columnPaths = s.getColumnPaths(paneId);
-  const columnKey = columnPaths[focusedIndex];
-  const list = focusedIndex === 0 ? pane.files : (pane.columnState.filesByPath[columnKey] || []);
+  const focusedColPath = columnPaths[focusedIndex] ?? (pane.basePath || pane.path);
+  const list = columnState.filesByPath?.[focusedColPath] ?? (focusedIndex === 0 ? pane.files : []);
   if (!list.length) return;
-  const cur = list.findIndex((f: any) => pane.selectedFiles.has(f.path));
+  const curPath = [...pane.selectedFiles].pop();
+  const cur = list.findIndex((f: any) => f.path === curPath);
   const idx = cur <= 0 ? list.length - 1 : cur - 1;
   const f = list[idx];
   s.setSelection(paneId, [f.path]);
+  s.updateColumnState(paneId, { selectedByColumn: { ...(columnState.selectedByColumn || {}), [focusedIndex]: f.path } });
   if (f.isDirectory) { s.setCurrentBreadcrumbPath(paneId, f.path); s.setPreviewFile(null); }
-  else { s.setPreviewFile(f); s.setCurrentBreadcrumbPath(paneId, f.path.split('/').slice(0, -1).join('/') || '/'); }
+  else { s.setCurrentBreadcrumbPath(paneId, f.path.split('/').slice(0, -1).join('/') || '/'); s.setPreviewFile(f); }
 }
 
 function simulateArrowRight(_: any, paneId = 'left'): void {
   const s = useStore.getState();
   const pane = s.panes.find((p: any) => p.id === paneId);
-  const { focusedIndex } = pane.columnState;
+  const { focusedIndex, columnState } = pane as any;
   const columnPaths = s.getColumnPaths(paneId);
-  const columnKey = columnPaths[focusedIndex];
-  const list = focusedIndex === 0 ? pane.files : (pane.columnState.filesByPath[columnKey] || []);
-  const cur = list.findIndex((f: any) => pane.selectedFiles.has(f.path));
-  if (cur < 0) return;
-  const sel = list[cur];
+  const focusedColPath = columnPaths[focusedIndex] ?? (pane.basePath || pane.path);
+  const list = columnState.filesByPath?.[focusedColPath] ?? (focusedIndex === 0 ? pane.files : []);
+  const selPath = [...pane.selectedFiles].pop();
+  const sel = list.find((f: any) => f.path === selPath);
   if (!sel?.isDirectory) return;
-  const next = pane.columnState.filesByPath[sel.path] || [];
-  if (!next.length) return;
-  s.updateColumnState(paneId, { focusedIndex: focusedIndex + 1 });
-  s.setSelection(paneId, [next[0].path]);
-  if (next[0].isDirectory) { s.setCurrentBreadcrumbPath(paneId, next[0].path); s.setPreviewFile(null); }
-  else { s.setPreviewFile(next[0]); s.setCurrentBreadcrumbPath(paneId, next[0].path.split('/').slice(0, -1).join('/') || '/'); }
+  const childFiles = columnState.filesByPath?.[sel.path] || [];
+  if (!childFiles.length) return;
+  const newFocusedIdx = focusedIndex + 1;
+  s.updateColumnState(paneId, {
+    focusedIndex: newFocusedIdx,
+    selectedByColumn: { ...(columnState.selectedByColumn || {}), [focusedIndex]: sel.path },
+  });
+  const firstChild = childFiles[0];
+  s.setSelection(paneId, [firstChild.path]);
+  if (firstChild.isDirectory) { s.setCurrentBreadcrumbPath(paneId, firstChild.path); s.setPreviewFile(null); }
+  else { s.setCurrentBreadcrumbPath(paneId, firstChild.path.split('/').slice(0, -1).join('/') || '/'); s.setPreviewFile(firstChild); }
 }
 
 function simulateArrowLeft(_: any, paneId = 'left'): void {
@@ -102,9 +110,12 @@ function simulateArrowLeft(_: any, paneId = 'left'): void {
   if (focusedIndex <= 0) return;
   const columnPaths = s.getColumnPaths(paneId);
   const selectedDirPath = columnPaths[focusedIndex];
-  if (columnPaths.length > focusedIndex + 1) s.setCurrentBreadcrumbPath(paneId, columnPaths[focusedIndex]);
-  s.updateColumnState(paneId, { focusedIndex: focusedIndex - 1 });
-  if (selectedDirPath) s.setSelection(paneId, [selectedDirPath]);
+  const newFocusedIdx = focusedIndex - 1;
+  s.updateColumnState(paneId, { focusedIndex: newFocusedIdx });
+  if (selectedDirPath) {
+    s.setSelection(paneId, [selectedDirPath]);
+    s.setCurrentBreadcrumbPath(paneId, selectedDirPath);
+  }
   s.setPreviewFile(null);
 }
 
@@ -760,5 +771,259 @@ describe('Column Keyboard Nav - Cmd+. toggleHiddenFiles (regression)', () => {
     expect(useStore.getState().showHidden).toBe(true);
     await act(async () => { await useStore.getState().toggleHiddenFiles(); });
     expect(useStore.getState().showHidden).toBe(false);
+  });
+});
+
+describe('Column Keyboard Nav - Integration Tests (Real Event Flow)', () => {
+  // Mock readDirSorted to simulate directory loading
+  const mockReadDirSorted = jest.fn();
+  
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockReadDirSorted.mockImplementation(async (path: string) => {
+      if (path === rootFiles[0].path) return { success: true, files: documentsFiles };
+      if (path === documentsFiles[0].path) return { success: true, files: projectsFiles };
+      return { success: true, files: [] };
+    });
+    
+    // Replace the global readDirSorted
+    (global as any).readDirSorted = mockReadDirSorted;
+    
+    useStore.setState(buildInitialState({
+      selectedFiles: new Set([rootFiles[0].path]),
+      currentBreadcrumbPath: rootFiles[0].path,
+      columnState: { 
+        paths: [rootFiles[0].path], 
+        filesByPath: { [rootFiles[0].path]: documentsFiles },
+        selectedByColumn: { 0: rootFiles[0].path },
+        focusedIndex: 0,
+      },
+    }));
+  });
+
+  test('ArrowDown navigates within focused column and loads directory contents', async () => {
+    const pane = getPane();
+    expect(pane.columnState.focusedIndex).toBe(0);
+    expect(pane.selectedFiles.has(rootFiles[0].path)).toBe(true);
+    
+    // Simulate ArrowDown - should move to next item in column 0
+    await act(async () => {
+      simulateArrowDown(getStore());
+    });
+    
+    expect(getPane().selectedFiles.has(rootFiles[1].path)).toBe(true);
+    expect(getPane().columnState.focusedIndex).toBe(0); // Focus stays in column 0
+  });
+
+  test('ArrowDown on directory loads its contents into next column', async () => {
+    // Start with Documents (directory) selected
+    useStore.setState(buildInitialState({
+      selectedFiles: new Set([rootFiles[0].path]),
+      currentBreadcrumbPath: basePath,
+      columnState: { paths: [], filesByPath: {}, selectedByColumn: { 0: rootFiles[0].path }, focusedIndex: 0 },
+    }));
+    
+    await act(async () => {
+      simulateArrowDown(getStore());
+    });
+    
+    const pane = getPane();
+    // Should have loaded Documents directory contents
+    expect(pane.columnState.filesByPath[rootFiles[0].path]).toBeDefined();
+    expect(pane.currentBreadcrumbPath).toBe(rootFiles[1].path);
+  });
+
+  test('ArrowRight moves focus to next column and selects first item', async () => {
+    // Setup: Documents selected in col 0, its contents loaded in col 1
+    useStore.setState(buildInitialState({
+      selectedFiles: new Set([rootFiles[0].path]),
+      currentBreadcrumbPath: rootFiles[0].path,
+      columnState: {
+        paths: [rootFiles[0].path],
+        filesByPath: { [rootFiles[0].path]: documentsFiles },
+        selectedByColumn: { 0: rootFiles[0].path },
+        focusedIndex: 0,
+      },
+    }));
+    
+    await act(async () => {
+      simulateArrowRight(getStore());
+    });
+    
+    const pane = getPane();
+    expect(pane.columnState.focusedIndex).toBe(1); // Focus moved to column 1
+    expect(pane.selectedFiles.has(documentsFiles[0].path)).toBe(true); // First item selected
+  });
+
+  test('ArrowLeft moves back and trims columns correctly', async () => {
+    // Setup: 3 columns deep
+    useStore.setState(buildInitialState({
+      selectedFiles: new Set([projectsFiles[0].path]),
+      currentBreadcrumbPath: projectsFiles[0].path,
+      columnState: {
+        paths: [rootFiles[0].path, documentsFiles[0].path, projectsFiles[0].path],
+        filesByPath: {
+          [rootFiles[0].path]: documentsFiles,
+          [documentsFiles[0].path]: projectsFiles,
+          [projectsFiles[0].path]: [],
+        },
+        selectedByColumn: { 0: rootFiles[0].path, 1: documentsFiles[0].path, 2: projectsFiles[0].path },
+        focusedIndex: 2,
+      },
+    }));
+    
+    await act(async () => {
+      simulateArrowLeft(getStore());
+    });
+    
+    const pane = getPane();
+    expect(pane.columnState.focusedIndex).toBe(1); // Back to column 1
+    expect(pane.selectedFiles.has(documentsFiles[0].path)).toBe(true); // Projects dir selected
+    // Column 3 should be trimmed - breadcrumb should only go to Projects
+    expect(pane.currentBreadcrumbPath).toBe(documentsFiles[0].path);
+  });
+
+  test('Clicking directory keeps focus in that column for arrow navigation', async () => {
+    // Simulate clicking Documents in column 0
+    useStore.setState(buildInitialState({
+      selectedFiles: new Set([rootFiles[0].path]),
+      currentBreadcrumbPath: basePath,
+      columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+    }));
+    
+    // After click, focusedIndex should be 0 (the column where Documents was clicked)
+    await act(async () => {
+      const s = useStore.getState();
+      s.setSelection('left', [rootFiles[0].path]);
+      s.updateColumnState('left', { focusedIndex: 0, selectedByColumn: { 0: rootFiles[0].path } });
+    });
+    
+    expect(getPane().columnState.focusedIndex).toBe(0);
+    
+    // Now ArrowDown should navigate within column 0
+    await act(async () => {
+      simulateArrowDown(getStore());
+    });
+    
+    expect(getPane().columnState.focusedIndex).toBe(0); // Still in column 0
+  });
+
+  test('ArrowUp/Down wrapping works correctly', async () => {
+    useStore.setState(buildInitialState({
+      selectedFiles: new Set([rootFiles[rootFiles.length - 1].path]),
+      currentBreadcrumbPath: basePath,
+      columnState: { paths: [], filesByPath: {}, selectedByColumn: { 0: rootFiles[rootFiles.length - 1].path }, focusedIndex: 0 },
+    }));
+    
+    // ArrowDown from last item should wrap to first
+    await act(async () => {
+      simulateArrowDown(getStore());
+    });
+    
+    expect(getPane().selectedFiles.has(rootFiles[0].path)).toBe(true);
+    
+    // ArrowUp from first item should wrap to last
+    await act(async () => {
+      simulateArrowUp(getStore());
+    });
+    
+    expect(getPane().selectedFiles.has(rootFiles[rootFiles.length - 1].path)).toBe(true);
+  });
+
+  test('Navigating to file shows preview, navigating to directory clears it', async () => {
+    useStore.setState(buildInitialState({
+      selectedFiles: new Set([rootFiles[0].path]), // Documents (directory)
+      currentBreadcrumbPath: rootFiles[0].path,
+      columnState: { paths: [], filesByPath: {}, selectedByColumn: { 0: rootFiles[0].path }, focusedIndex: 0 },
+    }));
+    
+    expect(getPane().previewFile).toBeNull();
+    
+    // ArrowDown to Downloads (directory) - preview should stay null
+    await act(async () => {
+      simulateArrowDown(getStore());
+    });
+    expect(getStore().previewFile).toBeNull();
+    
+    // ArrowDown to Pictures (directory) - preview should stay null
+    await act(async () => {
+      simulateArrowDown(getStore());
+    });
+    expect(getStore().previewFile).toBeNull();
+    
+    // ArrowDown to notes.txt (file) - preview should be set
+    await act(async () => {
+      simulateArrowDown(getStore());
+    });
+    expect(getStore().previewFile?.path).toBe(rootFiles[3].path);
+  });
+
+  test('Multi-column navigation: Down → Right → Down → Left maintains state correctly', async () => {
+    useStore.setState(buildInitialState({
+      selectedFiles: new Set([rootFiles[0].path]),
+      currentBreadcrumbPath: basePath,
+      columnState: {
+        paths: [],
+        filesByPath: { [rootFiles[0].path]: documentsFiles },
+        selectedByColumn: { 0: rootFiles[0].path },
+        focusedIndex: 0,
+      },
+    }));
+    
+    // Down (to Downloads)
+    await act(async () => { simulateArrowDown(getStore()); });
+    expect(getPane().selectedFiles.has(rootFiles[1].path)).toBe(true);
+    expect(getPane().columnState.focusedIndex).toBe(0);
+    
+    // Right (into Downloads - but it's a directory, so need to load it first)
+    // For this test, let's go back to Documents which has contents loaded
+    await act(async () => { simulateArrowUp(getStore()); });
+    
+    // Right (into Documents column)
+    await act(async () => { simulateArrowRight(getStore()); });
+    expect(getPane().columnState.focusedIndex).toBe(1);
+    expect(getPane().selectedFiles.has(documentsFiles[0].path)).toBe(true);
+    
+    // Down (to Archive in column 1)
+    await act(async () => { simulateArrowDown(getStore()); });
+    expect(getPane().selectedFiles.has(documentsFiles[1].path)).toBe(true);
+    expect(getPane().columnState.focusedIndex).toBe(1);
+    
+    // Left (back to Documents in column 0)
+    await act(async () => { simulateArrowLeft(getStore()); });
+    expect(getPane().columnState.focusedIndex).toBe(0);
+    expect(getPane().selectedFiles.has(rootFiles[0].path)).toBe(true);
+  });
+
+  test('Column trimming: clicking item in column 2 trims column 4+', async () => {
+    // Setup: 4 columns deep
+    useStore.setState(buildInitialState({
+      selectedFiles: new Set([projectsFiles[0].path]),
+      currentBreadcrumbPath: projectsFiles[0].path,
+      columnState: {
+        paths: [rootFiles[0].path, documentsFiles[0].path, projectsFiles[0].path],
+        filesByPath: {
+          [rootFiles[0].path]: documentsFiles,
+          [documentsFiles[0].path]: projectsFiles,
+          [projectsFiles[0].path]: [mkFile('test.js', projectsFiles[0].path, 'js')],
+        },
+        selectedByColumn: { 0: rootFiles[0].path, 1: documentsFiles[0].path, 2: projectsFiles[0].path },
+        focusedIndex: 3,
+      },
+    }));
+    
+    const columnPathsBefore = getStore().getColumnPaths('left');
+    expect(columnPathsBefore.length).toBeGreaterThan(2);
+    
+    // Navigate back to column 1 (documentsFiles[0])
+    await act(async () => {
+      simulateArrowLeft(getStore());
+      simulateArrowLeft(getStore());
+    });
+    
+    expect(getPane().columnState.focusedIndex).toBe(1);
+    // Breadcrumb should be trimmed to show only up to column 2
+    const columnPathsAfter = getStore().getColumnPaths('left');
+    expect(columnPathsAfter.length).toBeLessThanOrEqual(3);
   });
 });
