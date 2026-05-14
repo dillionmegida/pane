@@ -155,7 +155,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    // if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
+    if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
   });
 
   mainWindow.on('resize', () => {
@@ -1115,26 +1115,11 @@ ipcMain.handle('watcher:start', async (event, watchPath) => {
       depth: 99,
     });
 
-    watcher.on('add', p => {
-      console.log('Watcher add event:', p, 'in dir:', watchPath);
-      mainWindow?.webContents.send('watcher:change', { type: 'add', path: p, dir: watchPath });
-    });
-    watcher.on('unlink', p => {
-      console.log('Watcher unlink event:', p, 'in dir:', watchPath);
-      mainWindow?.webContents.send('watcher:change', { type: 'unlink', path: p, dir: watchPath });
-    });
-    watcher.on('addDir', p => {
-      console.log('Watcher addDir event:', p, 'in dir:', watchPath);
-      mainWindow?.webContents.send('watcher:change', { type: 'addDir', path: p, dir: watchPath });
-    });
-    watcher.on('unlinkDir', p => {
-      console.log('Watcher unlinkDir event:', p, 'in dir:', watchPath);
-      mainWindow?.webContents.send('watcher:change', { type: 'unlinkDir', path: p, dir: watchPath });
-    });
-    watcher.on('change', p => {
-      console.log('Watcher change event:', p, 'in dir:', watchPath);
-      mainWindow?.webContents.send('watcher:change', { type: 'change', path: p, dir: watchPath });
-    });
+    watcher.on('add', p => mainWindow?.webContents.send('watcher:change', { type: 'add', path: p, dir: watchPath }));
+    watcher.on('unlink', p => mainWindow?.webContents.send('watcher:change', { type: 'unlink', path: p, dir: watchPath }));
+    watcher.on('addDir', p => mainWindow?.webContents.send('watcher:change', { type: 'addDir', path: p, dir: watchPath }));
+    watcher.on('unlinkDir', p => mainWindow?.webContents.send('watcher:change', { type: 'unlinkDir', path: p, dir: watchPath }));
+    watcher.on('change', p => mainWindow?.webContents.send('watcher:change', { type: 'change', path: p, dir: watchPath }));
 
     chokidarWatchers.set(watchPath, watcher);
     return { success: true };

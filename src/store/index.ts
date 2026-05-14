@@ -557,6 +557,7 @@ export const useStore = create<StoreState>((set, get) => ({
         return { ...updated, tabs: newTabs };
       }),
     }));
+    window.electronAPI.watcherStart(path);
     get().saveSession();
   },
 
@@ -812,8 +813,20 @@ export const useStore = create<StoreState>((set, get) => ({
 
     const refreshDirSort = get().getDirSort(pane.path);
     const files = sortFiles(result.files, refreshDirSort, 'asc');
+
+    // Also refresh column state filesByPath if in column view
+    const updatedColumnState = pane.viewMode === 'column' && pane.columnState?.filesByPath
+      ? {
+          ...pane.columnState,
+          filesByPath: {
+            ...pane.columnState.filesByPath,
+            [pane.path]: files,
+          },
+        }
+      : pane.columnState;
+
     set(s => ({
-      panes: s.panes.map(p => p.id === paneId ? { ...p, files, loading: false } : p),
+      panes: s.panes.map(p => p.id === paneId ? { ...p, files, loading: false, columnState: updatedColumnState } : p),
     }));
   },
 
@@ -1610,15 +1623,40 @@ export const useStore = create<StoreState>((set, get) => ({
     }
 
     window.electronAPI.onWatcherChange((change) => {
-      console.log('Watcher change received:', change);
-      const { panes, refreshPane } = get();
+      const { panes, refreshPane, setSelection, setPreviewFile, updateColumnState, closePreview } = get();
       const normalizePath = (path: string) => path.replace(/\/$/, '');
+
+      // Handle file/directory deletion - deselect if selected
+      if (change.type === 'unlink' || change.type === 'unlinkDir') {
+        panes.forEach(p => {
+          if (p.selectedFiles.has(change.path)) {
+            setSelection(p.id, []);
+
+            // If it's a file being previewed, close preview
+            const previewFile = get().previewFile;
+            if (previewFile && previewFile.path === change.path && !previewFile.isDirectory) {
+              closePreview();
+            }
+
+            // If it's a directory in column view, trim columns
+            if (p.viewMode === 'column' && p.columnState?.paths) {
+              const dirIndex = p.columnState.paths.indexOf(change.path);
+              if (dirIndex !== -1) {
+                updateColumnState(p.id, {
+                  paths: p.columnState.paths.slice(0, dirIndex),
+                  focusedIndex: dirIndex - 1,
+                });
+              }
+            }
+          }
+        });
+      }
+
+      // Refresh panes watching the changed directory
       panes.forEach(p => {
         const currentTab = p.tabs[p.activeTab];
         const tabPath = currentTab?.path || p.path;
-        console.log(`Pane ${p.id}: tabPath="${tabPath}" vs change.dir="${change.dir}"`);
         if (normalizePath(tabPath) === normalizePath(change.dir)) {
-          console.log(`Match! Refreshing pane ${p.id}`);
           refreshPane(p.id);
         }
       });

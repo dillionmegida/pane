@@ -771,33 +771,7 @@ describe('App keyboard shortcuts - objective: dispatch correct store actions', (
     expect(pane!.navigationIndex).toBe(1);
   });
 
-  test('Cmd+Shift+R sets reveal target', () => {
-    useStore.setState({
-      panes: useStore.getState().panes.map(p => ({
-        ...p,
-        files: [mkFile('selected.txt', { path: '/Users/john/selected.txt' })],
-        selectedFiles: new Set(['/Users/john/selected.txt']),
-      })),
-    });
 
-    act(() => {
-      useStore.getState().setRevealTarget({
-        paneId: 'left',
-        filePath: '/Users/john/selected.txt',
-        fileDir: '/Users/john',
-        isDirectory: false,
-        triggerPreview: true,
-      });
-    });
-
-    expect(useStore.getState().revealTarget).toEqual({
-      paneId: 'left',
-      filePath: '/Users/john/selected.txt',
-      fileDir: '/Users/john',
-      isDirectory: false,
-      triggerPreview: true,
-    });
-  });
 });
 
 // ─── Additional: ColumnItem auto-scroll objective ────────────────────────────

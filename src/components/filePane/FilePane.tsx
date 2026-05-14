@@ -255,6 +255,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
     previewFile,
     revealTarget,
     clearRevealTarget,
+    revealFileInTree,
     showHidden,
     openModal,
     toggleHiddenFiles,
@@ -315,8 +316,9 @@ export default function FilePane({ paneId }: FilePaneProps) {
   // ── Reveal target (from search/tag browser) ───────────────────────────────
   useEffect(() => {
     if (!revealTarget || revealTarget.paneId !== paneId) return;
+    revealFileInTree(revealTarget.paneId, revealTarget.filePath, revealTarget.fileDir, revealTarget.isDirectory);
     clearRevealTarget();
-  }, [revealTarget]);
+  }, [revealTarget, revealFileInTree]);
 
   // ── Load tags for visible files ────────────────────────────────────────────
   useEffect(() => {
