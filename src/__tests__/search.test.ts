@@ -221,7 +221,7 @@ describe('Search Results Navigation', () => {
 
     const leftPane = useStore.getState().panes.find((p: any) => p.id === 'left');
     expect(leftPane!.basePath).toBe('/Users/dillion/Desktop');
-    expect(leftPane!.columnState.paths).toContain('/Users/dillion/Desktop');
+    expect(leftPane!.columnState.paths).not.toContain('/Users/dillion/Desktop');
     expect(leftPane!.columnState.paths).toContain('/Users/dillion/Desktop/directory');
   });
 
@@ -256,7 +256,6 @@ describe('Search Results Navigation', () => {
     const leftPane = useStore.getState().panes.find((p: any) => p.id === 'left');
     expect(leftPane!.basePath).toBe('/Users/dillion/Desktop');
     expect(leftPane!.columnState.paths).toEqual([
-      '/Users/dillion/Desktop',
       '/Users/dillion/Desktop/a',
       '/Users/dillion/Desktop/a/b',
       '/Users/dillion/Desktop/a/b/c',

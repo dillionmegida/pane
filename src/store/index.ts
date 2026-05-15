@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import path from 'path-browserify';
 import { sortFiles, DEFAULT_SORT } from '../helpers/sort';
+import { buildColumnState } from '../helpers/columnState';
 import type {
   FileItem, Pane, Tab, ColumnState, HistoryEntry,
   Bookmark, RevealTarget, LogEntry, Tag,
@@ -719,31 +720,10 @@ export const useStore = create<StoreState>((set, get) => ({
     const histDirSort = get().getDirSort(basePath);
     const files = sortFiles(result.files, histDirSort, 'asc');
 
-    // columnPaths holds child paths only (base column is rendered separately)
-    const columnPaths: string[] = [];
-    const filesByPath: Record<string, FileItem[]> = {};
-
-    if (currentBreadcrumbPath && currentBreadcrumbPath !== basePath && currentBreadcrumbPath.startsWith(basePath)) {
-      const fullParts = currentBreadcrumbPath.split('/');
-      let current = '';
-      for (let i = 0; i < fullParts.length; i++) {
-        current += (i === 0 ? '' : '/') + fullParts[i];
-        if (current.length > basePath.length && current.startsWith(basePath + '/')) {
-          columnPaths.push(current);
-        }
-      }
-
-      for (const colPath of columnPaths) {
-        const colResult = await window.electronAPI.readdir(colPath);
-        if (colResult.success) {
-          const colDirSort = get().getDirSort(colPath);
-          filesByPath[colPath] = sortFiles(colResult.files, colDirSort, 'asc');
-        }
-      }
-    }
-
-    // focusedIndex: 0 = base, 1+ = columnPaths[focusedIndex-1]
-    const focusedIndex = columnPaths.length; // points to last child column
+    const { paths: columnPaths, filesByPath, selectedByColumn: builtSelectedByColumn, focusedIndex } = await buildColumnState(basePath, currentBreadcrumbPath, {
+      readdir: window.electronAPI.readdir,
+      getDirSort: get().getDirSort,
+    });
 
     let previewFile: FileItem | null = null;
     if (previewFilePath) {
@@ -776,7 +756,7 @@ export const useStore = create<StoreState>((set, get) => ({
           paths: columnPaths,
           filesByPath,
           focusedIndex,
-          selectedByColumn: selectedByColumn ?? {},
+          selectedByColumn: selectedByColumn ?? builtSelectedByColumn,
         },
       };
       const newTabs = currentPane.tabs.map((t, i) =>
@@ -1124,27 +1104,16 @@ export const useStore = create<StoreState>((set, get) => ({
     await state.navigateTo(paneId, revealBase, { skipHistory: true });
 
     if (fileDir !== revealBase) {
-      const relativePath = fileDir.replace(revealBase, '').replace(/^\//, '');
-      const segments = relativePath.split('/').filter(Boolean);
-
-      let currentPath = revealBase;
-      const columnPaths = [revealBase];
-      const filesByPath: Record<string, FileItem[]> = {};
-
-      for (const segment of segments) {
-        currentPath = `${currentPath}/${segment}`;
-        columnPaths.push(currentPath);
-
-        const result = await window.electronAPI.readdir(currentPath);
-        if (result.success) {
-          filesByPath[currentPath] = result.files;
-        }
-      }
+      const { paths: columnPaths, filesByPath, selectedByColumn, focusedIndex } = await buildColumnState(revealBase, fileDir, {
+        readdir: window.electronAPI.readdir,
+        getDirSort: get().getDirSort,
+      });
 
       state.updateColumnState(paneId, {
         paths: columnPaths,
         filesByPath,
-        focusedIndex: columnPaths.length - 1
+        selectedByColumn,
+        focusedIndex
       });
 
       state.setCurrentBreadcrumbPath(paneId, fileDir);

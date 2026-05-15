@@ -142,7 +142,7 @@ describe('Reveal Functionality', () => {
     const pane = useStore.getState().panes.find(p => p.id === 'left');
     expect(pane!.basePath).toBe('/Users/john');
     expect(pane!.currentBreadcrumbPath).toBe('/Users/john/Documents');
-    expect(pane!.columnState.paths).toEqual(['/Users/john', '/Users/john/Documents']);
+    expect(pane!.columnState.paths).toEqual(['/Users/john/Documents']);
 
     // Verify the file is selected
     expect(pane!.selectedFiles.has('/Users/john/Documents/file.txt')).toBe(true);
