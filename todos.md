@@ -120,3 +120,4 @@ at the same time, don't resize the horizontal width yet...so if i open 7 columns
 * reveal functionality is broken as well
 
 * add support for in a file tree, being able to type to search for a file...so it debounces..and waits until i'm done so if i type "hello" it waits until i stop typing for a bit and then searches, and auto selects the first result
+* shift cmd selection broken

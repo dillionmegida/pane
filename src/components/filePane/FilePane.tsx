@@ -10,7 +10,8 @@ import InlineTagPicker from './InlineTagPicker';
 import PreviewPane from '../PreviewPane';
 import QuickPreviewModal from '../QuickPreviewModal';
 import { PREVIEW_TYPES } from '../../store';
-import type { FileItem, ColumnState, Tag, SortBy, ViewMode } from '../../types';
+import type { FileItem, Tag, ViewMode } from '../../types';
+import { KEYBOARD_SEARCH_IN_FILE_TREE_DEBOUNCE_TIME } from '../../constants';
 
 // ─── Styled ───────────────────────────────────────────────────────────────────
 
@@ -276,9 +277,19 @@ export default function FilePane({ paneId }: FilePaneProps) {
   const [columnWidths, setColumnWidths] = useState<number[]>([]);
   const [fileTags, setFileTags] = useState<Record<string, Tag[]>>({});
   const [tagPickerState, setTagPickerState] = useState<{ filePath: string; position: { x: number; y: number } } | null>(null);
+  const [typingBuffer, setTypingBuffer] = useState('');
+  const [folderSizes, setFolderSizes] = useState<Record<string, number>>({});
   const columnViewRef = useRef<HTMLDivElement>(null);
   const newItemInputRef = useRef<HTMLInputElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingBufferRef = useRef('');
+  const selectedFilesRef = useRef<Set<string>>(new Set());
+  const paneRefForSearch = useRef<any>(null);
+  const columnStateRef = useRef<any>(null);
+  const viewModeRef = useRef<ViewMode>('list');
+  const filesRef = useRef<FileItem[]>([]);
+  const getColumnPathsRef = useRef<any>(() => []);
 
   if (!pane) return null;
 
@@ -295,6 +306,15 @@ export default function FilePane({ paneId }: FilePaneProps) {
 
   const files = showHidden ? rawFiles : rawFiles.filter(f => !f.name.startsWith('.'));
 
+  // Update refs when values change
+  typingBufferRef.current = typingBuffer;
+  selectedFilesRef.current = selectedFiles;
+  paneRefForSearch.current = pane;
+  columnStateRef.current = columnState;
+  viewModeRef.current = viewMode;
+  filesRef.current = files;
+  getColumnPathsRef.current = getColumnPaths;
+
   const breadcrumbs = getBreadcrumbs(paneId);
   const isActive = activePane === paneId;
 
@@ -310,6 +330,12 @@ export default function FilePane({ paneId }: FilePaneProps) {
   useEffect(() => {
     if (viewMode === 'column' && columnViewRef.current) {
       columnViewRef.current.scrollLeft = columnViewRef.current.scrollWidth;
+    }
+    // Clear typing buffer on navigation or view change
+    setTypingBuffer('');
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
     }
   }, [columnState?.paths?.join(','), viewMode, showPreview, previewFile?.path]);
 
@@ -340,6 +366,23 @@ export default function FilePane({ paneId }: FilePaneProps) {
     };
     loadBatch();
   }, [files.length, columnState?.paths?.join(','), viewMode]);
+
+  // ── Calculate folder size when a folder is selected ───────────────────────
+  useEffect(() => {
+    if (selectedFiles.size !== 1) return;
+
+    const selectedPath = Array.from(selectedFiles)[0];
+    const selectedFile = files.find(f => f.path === selectedPath)
+      || Object.values(columnState?.filesByPath || {}).flat().find(f => f.path === selectedPath);
+
+    if (selectedFile?.isDirectory && !folderSizes[selectedPath]) {
+      window.electronAPI.folderSize(selectedPath).then(r => {
+        if (r.success) {
+          setFolderSizes(prev => ({ ...prev, [selectedPath]: r.tree.size }));
+        }
+      });
+    }
+  }, [selectedFiles, files, columnState?.filesByPath]);
 
   // ── Focus pane on click ────────────────────────────────────────────────────
   const handlePaneClick = () => {
@@ -682,6 +725,15 @@ export default function FilePane({ paneId }: FilePaneProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
+      // Type-to-search: capture alphanumeric keystrokes, space, dot, underscore, and hyphen
+      if (e.key.length === 1 && /[a-zA-Z0-9 ._\-]/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        const newBuffer = typingBufferRef.current + e.key.toLowerCase();
+        typingBufferRef.current = newBuffer;
+        setTypingBuffer(newBuffer);
+        return;
+      }
+
       if ((e.metaKey || e.ctrlKey) && e.key === '.') {
         e.preventDefault();
         toggleHiddenFiles();
@@ -723,7 +775,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
         e.preventDefault();
         if (displayFiles.length === 0) return;
         const curPath = [...selectedFiles].pop();
-        const curIdx = displayFiles.findIndex(f => f.path === curPath);
+        const curIdx = displayFiles.findIndex((f: FileItem) => f.path === curPath);
         let nextIdx: number;
         if (e.key === 'ArrowDown') {
           nextIdx = curIdx < 0 || curIdx >= displayFiles.length - 1 ? 0 : curIdx + 1;
@@ -739,7 +791,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
       if (e.key === 'ArrowRight' && viewMode === 'column') {
         e.preventDefault();
         const selPath = [...selectedFiles].pop();
-        const sel = displayFiles.find(f => f.path === selPath);
+        const sel = displayFiles.find((f: FileItem) => f.path === selPath);
         if (!sel?.isDirectory) return;
         const childFiles = columnState.filesByPath?.[sel.path] || [];
         if (!childFiles.length) return;
@@ -771,8 +823,61 @@ export default function FilePane({ paneId }: FilePaneProps) {
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isActive, paneId, selectedFiles, files, viewMode, columnState, pane, toggleHiddenFiles, getColumnPaths]);
+
+  // ── Type-to-search debounce ─────────────────────────────────────────────────
+  useEffect(() => {
+    const buffer = typingBufferRef.current;
+    if (!buffer) return;
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      const currentViewMode = viewModeRef.current;
+      const currentColumnState = columnStateRef.current;
+      const currentPane = paneRefForSearch.current;
+      const currentFiles = filesRef.current;
+      const currentGetColumnPaths = getColumnPathsRef.current;
+
+      // Determine which files to search based on view mode
+      let searchFiles: FileItem[] = [];
+      if (currentViewMode === 'column') {
+        const focusedIdx = currentColumnState?.focusedIndex ?? 0;
+        const base = currentPane?.basePath || currentPane?.path || '';
+        const columnPaths = currentGetColumnPaths(paneId);
+        const focusedColPath = columnPaths[focusedIdx] ?? base;
+        searchFiles = currentColumnState?.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? currentFiles : []);
+      } else {
+        searchFiles = currentFiles;
+      }
+
+      // Find first match
+      const match = searchFiles.find(f => f.name.toLowerCase().startsWith(buffer));
+      if (match) {
+        if (currentViewMode === 'column') {
+          const focusedIdx = currentColumnState?.focusedIndex ?? 0;
+          handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, match, focusedIdx, 'keyboard');
+        } else {
+          setSelection(paneId, [match.path]);
+        }
+      }
+      // Clear buffer after search attempt
+      typingBufferRef.current = '';
+      setTypingBuffer('');
+    }, KEYBOARD_SEARCH_IN_FILE_TREE_DEBOUNCE_TIME);
+
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [typingBuffer, paneId]);
 
   // ── Spacebar quick preview ────────────────────────────────────────────────
   useEffect(() => {
@@ -1137,10 +1242,11 @@ export default function FilePane({ paneId }: FilePaneProps) {
       {/* Status bar */}
       <StatusBar>
         <span>{totalFiles} item{totalFiles !== 1 ? 's' : ''}{selCount > 0 ? `, ${selCount} selected` : ''}</span>
-        {selCount === 1 && (() => {
+        {typingBuffer && <span style={{ color: '#4A9EFF', marginLeft: '10px' }}>Searching: {typingBuffer}</span>}
+        {!typingBuffer && selCount === 1 && (() => {
           const f = files.find(fi => selectedFiles.has(fi.path))
             || Object.values(columnState?.filesByPath || {}).flat().find(fi => selectedFiles.has(fi.path));
-          return f ? <span>{f.isDirectory ? 'Folder' : formatSize(f.size)}</span> : null;
+          return f ? <span>{f.isDirectory ? (folderSizes[f.path] !== undefined ? formatSize(folderSizes[f.path]) : 'Calculating...') : formatSize(f.size)}</span> : null;
         })()}
       </StatusBar>
 

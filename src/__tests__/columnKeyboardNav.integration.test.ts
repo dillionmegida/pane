@@ -97,6 +97,7 @@ const mockElectronAPI = {
   readdir: jest.fn(),
   watcherStart: jest.fn(),
   getTags: jest.fn().mockResolvedValue({ success: true, tags: [] }),
+  folderSize: jest.fn().mockResolvedValue({ success: true, tree: { size: 1024 } }),
 };
 
 Object.defineProperty(window, 'electronAPI', {
