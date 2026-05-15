@@ -276,6 +276,39 @@ describe('Column Keyboard Nav Integration Tests - Real Keyboard Handler', () => 
     });
   });
 
+  describe('Cmd+Arrow navigation', () => {
+    test('Cmd+ArrowUp jumps to first item', async () => {
+      useStore.setState(buildInitialState({ 
+        selectedFiles: new Set([rootFiles[3].path]), 
+        currentBreadcrumbPath: basePath   
+      }));
+      renderFilePane();
+      
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 'ArrowUp', metaKey: true });
+      });
+      
+      expect(getPane().selectedFiles.has(rootFiles[0].path)).toBe(true);
+      expect(getPane().selectedFiles.has(rootFiles[3].path)).toBe(false);
+    });
+
+    test('Cmd+ArrowDown jumps to last item', async () => {
+      useStore.setState(buildInitialState({ 
+        selectedFiles: new Set([rootFiles[0].path]), 
+        currentBreadcrumbPath: basePath 
+      }));
+      renderFilePane();
+      
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 'ArrowDown', metaKey: true });
+      });
+      
+      const last = rootFiles[rootFiles.length - 1];
+      expect(getPane().selectedFiles.has(last.path)).toBe(true);
+      expect(getPane().selectedFiles.has(rootFiles[0].path)).toBe(false);
+    });
+  });
+
   describe('ArrowLeft', () => {
     test('ArrowLeft moves back to previous column', async () => {
       useStore.setState(buildInitialState({

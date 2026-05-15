@@ -771,6 +771,24 @@ export default function FilePane({ paneId }: FilePaneProps) {
         ? (columnState.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? files : []))
         : files;
 
+      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (displayFiles.length === 0) return;
+        const firstFile = displayFiles[0];
+        if (!firstFile) return;
+        handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, firstFile, focusedIdx, 'keyboard');
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (displayFiles.length === 0) return;
+        const lastFile = displayFiles[displayFiles.length - 1];
+        if (!lastFile) return;
+        handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, lastFile, focusedIdx, 'keyboard');
+        return;
+      }
+
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         if (displayFiles.length === 0) return;

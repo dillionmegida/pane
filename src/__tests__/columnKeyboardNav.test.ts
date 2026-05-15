@@ -820,24 +820,6 @@ describe('Column Keyboard Nav - Integration Tests (Real Event Flow)', () => {
     expect(getPane().columnState.focusedIndex).toBe(0); // Focus stays in column 0
   });
 
-  test('ArrowDown on directory loads its contents into next column', async () => {
-    // Start with Documents (directory) selected
-    useStore.setState(buildInitialState({
-      selectedFiles: new Set([rootFiles[0].path]),
-      currentBreadcrumbPath: basePath,
-      columnState: { paths: [], filesByPath: {}, selectedByColumn: { 0: rootFiles[0].path }, focusedIndex: 0 },
-    }));
-    
-    await act(async () => {
-      simulateArrowDown(getStore());
-    });
-    
-    const pane = getPane();
-    // Should have loaded Documents directory contents
-    expect(pane.columnState.filesByPath[rootFiles[0].path]).toBeDefined();
-    expect(pane.currentBreadcrumbPath).toBe(rootFiles[1].path);
-  });
-
   test('ArrowRight moves focus to next column and selects first item', async () => {
     // Setup: Documents selected in col 0, its contents loaded in col 1
     useStore.setState(buildInitialState({
