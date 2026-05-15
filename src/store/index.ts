@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import path from 'path-browserify';
 import { sortFiles, DEFAULT_SORT } from '../helpers/sort';
 import { buildColumnState } from '../helpers/columnState';
+import { revealFileInTree as revealFileInTreeUtil } from '../helpers/revealFileInTree';
 import type {
   FileItem, Pane, Tab, ColumnState, HistoryEntry,
   Bookmark, RevealTarget, LogEntry, Tag,
@@ -1089,54 +1090,17 @@ export const useStore = create<StoreState>((set, get) => ({
 
   revealFileInTree: async (paneId, filePath, fileDir, isDirectory = false) => {
     const state = get();
-    const currentPane = state.panes.find(p => p.id === paneId);
-    if (!currentPane) return;
-
-    const existingBase = currentPane.basePath;
-
-    const isUnderBase = existingBase && (
-      fileDir === existingBase ||
-      fileDir.startsWith(path.resolve(existingBase) + '/')
-    );
-
-    const revealBase = isUnderBase ? existingBase : fileDir;
-
-    await state.navigateTo(paneId, revealBase, { skipHistory: true });
-
-    if (fileDir !== revealBase) {
-      const { paths: columnPaths, filesByPath, selectedByColumn, focusedIndex } = await buildColumnState(revealBase, fileDir, {
-        readdir: window.electronAPI.readdir,
-        getDirSort: get().getDirSort,
-      });
-
-      state.updateColumnState(paneId, {
-        paths: columnPaths,
-        filesByPath,
-        selectedByColumn,
-        focusedIndex
-      });
-
-      state.setCurrentBreadcrumbPath(paneId, fileDir);
-    }
-
-    state.setSelection(paneId, [filePath]);
-
-    let previewFilePath: string | null = null;
-    if (!isDirectory) {
-      const file = await window.electronAPI.stat(filePath);
-      if (file.success && file.stat) {
-        const name = filePath.split('/').pop() ?? '';
-        const ext = name.includes('.') ? name.split('.').pop()?.toLowerCase() ?? '' : '';
-        set({ previewFile: { ...file.stat, path: filePath, name, extension: ext, isDirectory: false } });
-        previewFilePath = filePath;
-      }
-    }
-
-    state.pushNavHistory(paneId, {
-      basePath: revealBase,
-      currentBreadcrumbPath: fileDir,
-      selectedFiles: [filePath],
-      previewFilePath,
+    await revealFileInTreeUtil(paneId, filePath, fileDir, isDirectory, {
+      getPane: (id) => state.panes.find(p => p.id === id),
+      navigateTo: state.navigateTo,
+      updateColumnState: state.updateColumnState,
+      setCurrentBreadcrumbPath: state.setCurrentBreadcrumbPath,
+      setSelection: state.setSelection,
+      setPreview: (previewFile, showPreview) => set({ previewFile, showPreview }),
+      pushNavHistory: state.pushNavHistory,
+      getDirSort: state.getDirSort,
+      readdir: window.electronAPI.readdir,
+      stat: window.electronAPI.stat,
     });
   },
 

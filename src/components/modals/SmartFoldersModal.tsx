@@ -17,7 +17,7 @@ const FilterItem = styled.div<{ active?: boolean }>`
   background: ${p => p.active ? p.theme.bg.selection : 'transparent'};
   border-left: ${p => p.active ? `2px solid ${p.theme.text.accent}` : '2px solid transparent'};
 `;
-const Divider = styled.div`width: 4px; background: ${p => p.theme.border.normal}; cursor: col-resize; user-select: none;`;
+const Divider = styled.div`width: 1px; background: ${p => p.theme.border.normal}; cursor: col-resize; user-select: none;`;
 const ContentArea = styled.div`flex: 1; overflow: auto; padding: 12px; border-right: 1px solid ${p => p.theme.border.normal};`;
 const FilterInfo = styled.div`font-size: 11px; color: ${p => p.theme.text.tertiary}; margin-left: 12px; flex: 1;`;
 const Options = styled.div`display: flex; gap: 6px; margin-bottom: 8px; align-items: center;`;
@@ -119,7 +119,7 @@ interface SmartFoldersModalProps {
 }
 
 export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
-  const { panes, activePane, navigateTo } = useStore();
+  const { panes, activePane, setRevealTarget, setViewMode, zoom } = useStore();
   const currentPane = panes.find(p => p.id === activePane);
 
   const [selectedFilterType, setSelectedFilterType] = useState(data?.id || 'large');
@@ -129,6 +129,8 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
   const [rightPaneWidthPx, setRightPaneWidthPx] = useState(300);
   const [isResizingLeftPane, setIsResizingLeftPane] = useState(false);
   const [isResizingRightPane, setIsResizingRightPane] = useState(false);
+  const [resizeStartX, setResizeStartX] = useState(0);
+  const [resizeStartWidth, setResizeStartWidth] = useState(0);
   const [showExclusionInput, setShowExclusionInput] = useState(false);
   const [excludedDirectories, setExcludedDirectories] = useState<string[]>(DEFAULT_EXCLUDED_DIRECTORIES);
   const [exclusionInputValue, setExclusionInputValue] = useState('');
@@ -159,31 +161,45 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
 
   useEffect(() => {
     if (!isResizingLeftPane) return;
+    document.body.style.cursor = 'col-resize';
     const handleMouseMove = (e: MouseEvent) => {
-      if (!modalContainerRef.current) return;
-      const rect = modalContainerRef.current.getBoundingClientRect();
-      const newW = e.clientX - rect.left;
+      const delta = (e.clientX - resizeStartX) / zoom;
+      const newW = resizeStartWidth + delta;
       if (newW >= 100 && newW <= 300) setLeftPaneWidthPx(newW);
     };
-    const handleMouseUp = () => setIsResizingLeftPane(false);
+    const handleMouseUp = () => {
+      document.body.style.cursor = '';
+      setIsResizingLeftPane(false);
+    };
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    return () => { document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mouseup', handleMouseUp); };
-  }, [isResizingLeftPane]);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+    };
+  }, [isResizingLeftPane, resizeStartX, resizeStartWidth, zoom]);
 
   useEffect(() => {
     if (!isResizingRightPane) return;
+    document.body.style.cursor = 'col-resize';
     const handleMouseMove = (e: MouseEvent) => {
-      if (!modalContainerRef.current) return;
-      const rect = modalContainerRef.current.getBoundingClientRect();
-      const newW = rect.right - e.clientX;
+      const delta = (resizeStartX - e.clientX) / zoom;
+      const newW = resizeStartWidth + delta;
       if (newW >= 200 && newW <= 600) setRightPaneWidthPx(newW);
     };
-    const handleMouseUp = () => setIsResizingRightPane(false);
+    const handleMouseUp = () => {
+      document.body.style.cursor = '';
+      setIsResizingRightPane(false);
+    };
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    return () => { document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mouseup', handleMouseUp); };
-  }, [isResizingRightPane]);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+    };
+  }, [isResizingRightPane, resizeStartX, resizeStartWidth, zoom]);
 
   useEffect(() => {
     if (!isScanning && hasScannedOnce) {
@@ -230,9 +246,14 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
   }, [selectedFilterType, currentDirectoryPath, parsedSizeMB, excludedDirectories]);
 
   const handleFileAction = async (actionKey: string, file: FileItem) => {
-    if (actionKey === 'open') {
-      if (file.isDirectory) navigateTo(activePane, file.path);
-      else await window.electronAPI.openPath(file.path);
+    if (actionKey === 'reveal') {
+      const isDirectory = file.isDirectory;
+      const parentDir = file.path.includes('/') ? file.path.substring(0, file.path.lastIndexOf('/')) : '/';
+      const paneId = activePane;
+      if (panes.find(p => p.id === paneId)?.viewMode !== 'column') {
+        setViewMode(paneId, 'column');
+      }
+      setRevealTarget({ paneId, filePath: file.path, fileDir: parentDir, isDirectory, triggerPreview: !isDirectory });
       onClose();
     } else if (actionKey === 'delete') {
       const r = await window.electronAPI.delete(file.path);
@@ -274,7 +295,7 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
                 </FilterItem>
               ))}
             </LeftPane>
-            <Divider onMouseDown={() => setIsResizingLeftPane(true)} />
+            <Divider onMouseDown={(e) => { setResizeStartX(e.clientX); setResizeStartWidth(leftPaneWidthPx); setIsResizingLeftPane(true); }} />
             <ContentArea>
               <Options>
                 <OptBtnWrapper active={excludedDirectories.length > 0} onClick={() => setShowExclusionInput(p => !p)}>
@@ -348,11 +369,11 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
                 </ResultRow>
               ))}
             </ContentArea>
-            <Divider onMouseDown={() => setIsResizingRightPane(true)} />
+            <Divider onMouseDown={(e) => { setResizeStartX(e.clientX); setResizeStartWidth(rightPaneWidthPx); setIsResizingRightPane(true); }} />
             <ModalPreviewPane
               file={selectedFile}
               width={`${rightPaneWidthPx}px`}
-              actions={[{ key: 'open', label: 'Open' }, { key: 'delete', label: 'Delete' }]}
+              actions={[{ key: 'reveal', label: 'Reveal' }, { key: 'delete', label: 'Delete' }]}
               onActionClick={handleFileAction}
             />
           </ModalContent>

@@ -31,20 +31,28 @@ const PreviewPane = styled.div<{ width?: string }>`
   border-left: 1px solid ${p => p.theme.border.normal};
   position: relative; height: 100%; flex-shrink: 0;
 `;
-const PreviewWrapper = styled.div`overflow-y: auto;`;
-const PreviewHeader = styled.div`padding: 16px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${p => p.theme.border.subtle};`;
+const PreviewWrapper = styled.div`flex: 1; overflow-y: auto; display: flex; flex-direction: column;`;
+const PreviewHeader = styled.div`padding: 16px; padding-bottom: 12px; border-bottom: 1px solid ${p => p.theme.border.subtle}; flex-shrink: 0;`;
 const PreviewTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: ${p => p.theme.text.primary}; margin-bottom: 8px; word-break: break-all;`;
 const PreviewDetail = styled.div`
   font-size: 0.6875rem; margin-bottom: 4px; display: flex; gap: 6px;
   strong { color: ${p => p.theme.text.secondary}; }
   span { font-family: ${p => p.theme.font.mono}; }
 `;
-const PreviewContent = styled.div`flex: 1; display: flex; flex-direction: column; border-top: 1px solid ${p => p.theme.border.normal};`;
+const PreviewContent = styled.div`flex: 1; display: flex; flex-direction: column; overflow: hidden;`;
 const PreviewLabel = styled.div`
-  font-size: 0.75rem; font-weight: 600; color: ${p => p.theme.text.secondary}; padding: 16px;
+  font-size: 0.75rem; font-weight: 600; color: ${p => p.theme.text.secondary};
   span { display: inline-block; border: 1px solid ${p => p.theme.border.normal}; padding: 2px 5px; }
 `;
-const PreviewMedia = styled.div`img, video { width: 100%; } audio { width: 100%; }`;
+const PreviewMedia = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  img, video { width: 100%; max-height: 100%; object-fit: contain; }
+  audio { width: 100%; }
+`;
 const ActionBar = styled.div`
   display: flex; gap: 6px; padding: 10px 16px; border-top: 1px solid ${p => p.theme.border.subtle};
 `;
@@ -131,37 +139,37 @@ export default function ModalPreviewPane({ file, width, actions = [], onActionCl
           {file.modified && <PreviewDetail><strong>Modified</strong><span>{formatDate(file.modified)}</span></PreviewDetail>}
           {file.extension && <PreviewDetail><strong>Kind</strong><span>{file.extension.toUpperCase()}</span></PreviewDetail>}
         </PreviewHeader>
-      </PreviewWrapper>
 
-      <PreviewContent>
-        {isImage && (
-          <PreviewMedia>
-            <img src={`file://${file.path}`} alt={file.name} />
-          </PreviewMedia>
-        )}
-        {isVideo && (
-          <PreviewMedia>
-            <CustomVideo src={`file://${file.path}`} maxHeight="200px" />
-          </PreviewMedia>
-        )}
-        {isAudio && (
-          <PreviewMedia>
-            <CustomAudio src={`file://${file.path}`} />
-          </PreviewMedia>
-        )}
-        {loadingText && (
-          <PreviewLabel><LoadingLabel>Loading...</LoadingLabel></PreviewLabel>
-        )}
-        {!loadingText && !isImage && !isVideo && !isAudio && isText && (
-          <TextContent>{textContent}</TextContent>
-        )}
-        {!loadingText && !isImage && !isVideo && !isAudio && !isText && (
-          <PreviewLabel>
-            <FileIconComponent ext={file.extension || ''} size={48} />
-            <NoPreviewLabel>Preview not available</NoPreviewLabel>
-          </PreviewLabel>
-        )}
-      </PreviewContent>
+        <PreviewContent>
+          {isImage && (
+            <PreviewMedia>
+              <img src={`file://${file.path}`} alt={file.name} />
+            </PreviewMedia>
+          )}
+          {isVideo && (
+            <PreviewMedia>
+              <CustomVideo src={`file://${file.path}`} maxHeight="200px" />
+            </PreviewMedia>
+          )}
+          {isAudio && (
+            <PreviewMedia>
+              <CustomAudio src={`file://${file.path}`} />
+            </PreviewMedia>
+          )}
+          {loadingText && (
+            <PreviewLabel><LoadingLabel>Loading...</LoadingLabel></PreviewLabel>
+          )}
+          {!loadingText && !isImage && !isVideo && !isAudio && isText && (
+            <TextContent>{textContent}</TextContent>
+          )}
+          {!loadingText && !isImage && !isVideo && !isAudio && !isText && (
+            <PreviewLabel>
+              <FileIconComponent ext={file.extension || ''} size={48} />
+              <NoPreviewLabel>Preview not available</NoPreviewLabel>
+            </PreviewLabel>
+          )}
+        </PreviewContent>
+      </PreviewWrapper>
 
       {actions.length > 0 && file && (
         <ActionBar>
