@@ -478,15 +478,9 @@ export default function FilePane({ paneId }: FilePaneProps) {
       const curIdx = files.findIndex(f => f.path === file.path);
       const [lo, hi] = lastIdx < curIdx ? [lastIdx, curIdx] : [curIdx, lastIdx];
       setSelection(paneId, files.slice(lo, hi + 1).map(f => f.path));
-    } else if (selectedFiles.size === 1 && selectedFiles.has(file.path)) {
-      startRename(file);
     } else {
       setSelection(paneId, [file.path]);
     }
-  };
-
-  const handleFileDoubleClick = (file: FileItem) => {
-    activateFile(file);
   };
 
   // ── Column item click ──────────────────────────────────────────────────────
@@ -503,10 +497,6 @@ export default function FilePane({ paneId }: FilePaneProps) {
       return;
     }
 
-    if (clickType !== 'keyboard' && selectedFiles.size === 1 && selectedFiles.has(file.path)) {
-      startRename(file);
-      return;
-    }
     setSelection(paneId, [file.path]);
     updateColumnState(paneId, {
       selectedByColumn: { ...(columnState.selectedByColumn || {}), [columnIndex]: file.path },
@@ -1029,7 +1019,6 @@ export default function FilePane({ paneId }: FilePaneProps) {
               onRenameCommit={commitRename}
               onRenameCancel={() => setRenaming(null)}
               onClick={e => handleFileClick(e, file)}
-              onDoubleClick={() => handleFileDoubleClick(file)}
               onContextMenu={e => handleContextMenu(e, file)}
               onDrop={(e, f) => handleDrop(e, f)}
               setSelection={setSelection}
@@ -1056,7 +1045,6 @@ export default function FilePane({ paneId }: FilePaneProps) {
           paneId={paneId}
           fileTags={fileTags}
           onClick={e => handleFileClick(e, file)}
-          onDoubleClick={() => handleFileDoubleClick(file)}
           onContextMenu={e => handleContextMenu(e, file)}
           onDrop={(e, f) => handleDrop(e, f)}
           setSelection={setSelection}
