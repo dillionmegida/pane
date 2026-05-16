@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { useStore } from '../../store';
 import { getTagColors } from '../../theme';
 import { Overlay, ModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn, Input, Label, Row } from './ModalPrimitives';
+import { revealInColumns } from '../../helpers/revealInColumns';
 import type { Tag } from '../../types';
 
 const ColorRow = styled.div`
@@ -132,7 +133,7 @@ interface TagManagerModalProps {
 }
 
 export function TagManagerModal({ data, onClose }: TagManagerModalProps) {
-  const { loadAllTags, currentTheme } = useStore();
+  const { loadAllTags, currentTheme, setViewMode, panes, activePane } = useStore();
   const TAG_COLORS = getTagColors(currentTheme);
   const file = data?.file;
 
@@ -181,6 +182,11 @@ export function TagManagerModal({ data, onClose }: TagManagerModalProps) {
     }
   };
 
+  const handleReveal = async () => {
+    if (!file) return;
+    await revealInColumns(file.path, activePane, onClose);
+  };
+
   const COLOR_NAMES: Record<string, string> = {
     [TAG_COLORS[0]]: 'Blue', [TAG_COLORS[1]]: 'Purple', [TAG_COLORS[2]]: 'Green',
     [TAG_COLORS[3]]: 'Orange', [TAG_COLORS[4]]: 'Red', [TAG_COLORS[5]]: 'Yellow',
@@ -191,7 +197,7 @@ export function TagManagerModal({ data, onClose }: TagManagerModalProps) {
     <Overlay onClick={onClose}>
       <TagModalBox width="340px" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
         <ModalHeader>
-          <ModalTitle>🏷️ Tags{file ? ` — ${file.name}` : ''}</ModalTitle>
+          <ModalTitle onDoubleClick={file ? handleReveal : undefined} style={{ cursor: file ? 'pointer' : 'default' }}>🏷️ Tags{file ? ` — ${file.name}` : ''}</ModalTitle>
           <CloseBtn onClick={onClose}>✕</CloseBtn>
         </ModalHeader>
         <ModalBody>
@@ -237,6 +243,7 @@ export function TagManagerModal({ data, onClose }: TagManagerModalProps) {
           )}
         </ModalBody>
         <ModalFooter>
+          {file && <Btn onClick={handleReveal}>📂 Reveal</Btn>}
           <Btn primary onClick={onClose}>Done</Btn>
         </ModalFooter>
       </TagModalBox>

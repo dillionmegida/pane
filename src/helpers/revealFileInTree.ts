@@ -1,5 +1,6 @@
-import path from 'path-browserify';
+import path from 'path';
 import { buildColumnState } from './columnState';
+import { getDir } from './fileHelpers';
 import type { FileItem, SortBy } from '../types';
 
 export interface RevealFileInTreeDeps {
@@ -32,22 +33,27 @@ export async function revealFileInTree(
   isDirectory = false,
   deps: RevealFileInTreeDeps
 ): Promise<void> {
+  // Derive fileDir from filePath if not provided
+  const derivedFileDir = fileDir || getDir(filePath);
   const currentPane = deps.getPane(paneId);
   if (!currentPane) return;
 
   const existingBase = currentPane.basePath;
 
   const isUnderBase = existingBase && (
-    fileDir === existingBase ||
-    fileDir.startsWith(path.resolve(existingBase) + '/')
+    derivedFileDir === existingBase ||
+    derivedFileDir.startsWith(path.resolve(existingBase) + '/')
   );
 
-  const revealBase = isUnderBase ? existingBase : fileDir;
+  const revealBase = isUnderBase ? existingBase : derivedFileDir;
 
   await deps.navigateTo(paneId, revealBase, { skipHistory: true });
 
-  if (fileDir !== revealBase) {
-    const { paths: columnPaths, filesByPath, selectedByColumn, focusedIndex } = await buildColumnState(revealBase, fileDir, {
+  // For directories, build column state to include the directory as a column
+  // For files in base directory, clear column state to avoid stale columns
+  if (derivedFileDir !== revealBase || isDirectory) {
+    const targetPath = isDirectory ? filePath : derivedFileDir;
+    const { paths: columnPaths, filesByPath, selectedByColumn, focusedIndex } = await buildColumnState(revealBase, targetPath, {
       readdir: deps.readdir,
       getDirSort: deps.getDirSort,
     });
@@ -59,7 +65,16 @@ export async function revealFileInTree(
       focusedIndex
     });
 
-    deps.setCurrentBreadcrumbPath(paneId, fileDir);
+    deps.setCurrentBreadcrumbPath(paneId, targetPath);
+  } else {
+    // Clear column state when revealing a file directly in the base directory
+    deps.updateColumnState(paneId, {
+      paths: [revealBase],
+      filesByPath: {},
+      selectedByColumn: {},
+      focusedIndex: 0
+    });
+    deps.setCurrentBreadcrumbPath(paneId, revealBase);
   }
 
   deps.setSelection(paneId, [filePath]);
@@ -73,11 +88,14 @@ export async function revealFileInTree(
       deps.setPreview({ ...file.stat, path: filePath, name, extension: ext, isDirectory: false }, true);
       previewFilePath = filePath;
     }
+  } else {
+    // Close preview pane when revealing a directory
+    deps.setPreview(null, false);
   }
 
   deps.pushNavHistory(paneId, {
     basePath: revealBase,
-    currentBreadcrumbPath: fileDir,
+    currentBreadcrumbPath: derivedFileDir,
     selectedFiles: [filePath],
     previewFilePath,
   });

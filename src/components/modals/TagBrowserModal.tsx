@@ -4,6 +4,7 @@ import { useStore, formatSize, formatDate } from '../../store';
 import ModalPreviewPane from '../ModalPreviewPane';
 import { getTagColors } from '../../theme';
 import { FileIcon as FileIconComponent } from '../FileIcons';
+import { revealInColumns } from '../../helpers/revealInColumns';
 import type { FileItem } from '../../types';
 
 const Overlay = styled.div`
@@ -147,17 +148,9 @@ export function TagBrowserModal({ data, onClose }: TagBrowserModalProps) {
     };
   }, [isResizing]);
 
-  const revealInColumns = (fileOrPath: TagBrowserFile | string) => {
+  const handleReveal = async (fileOrPath: TagBrowserFile | string) => {
     const filePath = typeof fileOrPath === 'string' ? fileOrPath : fileOrPath.path;
-    const targetFile = files.find(f => f.path === filePath);
-    const isDirectory = targetFile?.isDirectory ?? false;
-    const parentDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '/';
-    const paneId = useStore.getState().activePane;
-    if (useStore.getState().panes.find(p => p.id === paneId)?.viewMode !== 'column') {
-      useStore.getState().setViewMode(paneId, 'column');
-    }
-    useStore.getState().setRevealTarget({ paneId, filePath, fileDir: parentDir, isDirectory, triggerPreview: !isDirectory });
-    onClose();
+    await revealInColumns(filePath, undefined, onClose);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -173,7 +166,7 @@ export function TagBrowserModal({ data, onClose }: TagBrowserModalProps) {
       setSelectedIdx(newIdx); setSelectedItem(files[newIdx]);
     }
     if (e.key === 'Enter' && files[selectedIdx]) {
-      e.preventDefault(); revealInColumns(files[selectedIdx]);
+      e.preventDefault(); handleReveal(files[selectedIdx]);
     }
   };
 
@@ -215,7 +208,7 @@ export function TagBrowserModal({ data, onClose }: TagBrowserModalProps) {
                     key={file.path}
                     className={i === selectedIdx ? 'selected' : ''}
                     onClick={() => { setSelectedIdx(i); setSelectedItem(file); }}
-                    onDoubleClick={() => revealInColumns(file.path)}
+                    onDoubleClick={() => handleReveal(file.path)}
                   >
                     <FileIconWrap>
                       {file.isDirectory ? '📁' : <FileIconComponent ext={file.extension || ''} size={16} />}
@@ -246,7 +239,7 @@ export function TagBrowserModal({ data, onClose }: TagBrowserModalProps) {
             width={`${previewWidth}px`}
             actions={[{ key: 'reveal', label: '📂 Reveal' }]}
             onActionClick={(actionKey: string, file: FileItem) => {
-              if (actionKey === 'reveal') revealInColumns(file.path);
+              if (actionKey === 'reveal') handleReveal(file.path);
             }}
           />
         </Body>

@@ -420,7 +420,14 @@ export const useStore = create<StoreState>((set, get) => ({
 
     set(s => {
       const currentPane = s.panes.find(p => p.id === paneId)!;
-      const updatedPane = { ...currentPane, path: dirPath, files, loading: false, selectedFiles: new Set<string>() };
+      const updatedPane = { 
+        ...currentPane, 
+        path: dirPath, 
+        files, 
+        loading: false, 
+        selectedFiles: new Set<string>(),
+        columnState: { ...DEFAULT_COLUMN_STATE }
+      };
       const newTabs = currentPane.tabs.map((t, i) =>
         i === currentPane.activeTab ? snapshotTab(updatedPane, null) : t
       );
@@ -1085,12 +1092,27 @@ export const useStore = create<StoreState>((set, get) => ({
 
   // ── Column View Reveal ───────────────────────────────────────────────────
   revealTarget: null,
-  setRevealTarget: (target) => set({ revealTarget: target }),
+  setRevealTarget: async (target) => {
+    // Determine isDirectory if not provided
+    let isDirectory = target.isDirectory;
+    if (isDirectory === undefined) {
+      const stat = await window.electronAPI.stat(target.filePath);
+      if (stat.success && stat.stat) {
+        // Check mode property - directory has S_IFDIR bit (0o040000 = 16384)
+        isDirectory = ((stat.stat as any).mode & 16384) === 16384;
+      } else {
+        isDirectory = target.filePath.endsWith('/');
+      }
+    }
+    // Set triggerPreview based on isDirectory if not provided
+    const triggerPreview = target.triggerPreview !== undefined ? target.triggerPreview : !isDirectory;
+    set({ revealTarget: { ...target, isDirectory, triggerPreview } });
+  },
   clearRevealTarget: () => set({ revealTarget: null }),
 
   revealFileInTree: async (paneId, filePath, fileDir, isDirectory = false) => {
     const state = get();
-    await revealFileInTreeUtil(paneId, filePath, fileDir, isDirectory, {
+    await revealFileInTreeUtil(paneId, filePath, fileDir || '', isDirectory, {
       getPane: (id) => state.panes.find(p => p.id === id),
       navigateTo: state.navigateTo,
       updateColumnState: state.updateColumnState,

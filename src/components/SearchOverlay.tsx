@@ -4,6 +4,7 @@ import { useStore, formatSize, formatDate, PREVIEW_TYPES, getPreviewType } from 
 import ModalPreviewPane from './ModalPreviewPane';
 import { useConcurrentDirectoryScanner } from '../hooks/useDirectoryScanner';
 import { FileIcon as FileIconComponent } from './FileIcons';
+import { revealInColumns } from '../helpers/revealInColumns';
 
 const ResizableDivider = styled.div`
   width: 4px;
@@ -628,7 +629,7 @@ export default function SearchOverlay(): React.ReactElement {
   const [confirmDelete, setConfirmDelete] = useState<any>(null);
 
   const handlePreviewAction = async (actionKey: string, file: any) => {
-    if (actionKey === 'reveal') revealInColumns(file.path);
+    if (actionKey === 'reveal') handleRevealInColumns(file.path);
     else if (actionKey === 'delete') setConfirmDelete(file);
   };
 
@@ -650,15 +651,8 @@ export default function SearchOverlay(): React.ReactElement {
     toggleSearch();
   };
 
-  const revealInColumns = async (filePath: string) => {
-    const parentDir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '/';
-    if (pane.viewMode !== 'column') setViewMode(activePane, 'column');
-    const targetItem = results.find((r: any) => r.path === filePath) || selectedItem;
-    const isDirectory = targetItem ? targetItem.isDirectory : filePath.endsWith('/');
-    useStore.getState().setRevealTarget({
-      paneId: activePane, filePath, fileDir: parentDir, isDirectory, triggerPreview: !isDirectory,
-    });
-    toggleSearch();
+  const handleRevealInColumns = async (filePath: string) => {
+    await revealInColumns(filePath, activePane, toggleSearch);
   };
 
   const navList = contentSearch ? contentFlatList : results;
@@ -676,7 +670,7 @@ export default function SearchOverlay(): React.ReactElement {
       setSelectedIdx(newIdx); setSelectedItem(navList[newIdx]);
     }
     if (e.key === 'Enter' && navList[selectedIdx]) { e.preventDefault(); openResult(navList[selectedIdx]); }
-    if (e.key === 'r' && e.metaKey && navList[selectedIdx]) { e.preventDefault(); revealInColumns(navList[selectedIdx].path); }
+    if (e.key === 'r' && e.metaKey && navList[selectedIdx]) { e.preventDefault(); handleRevealInColumns(navList[selectedIdx].path); }
   };
 
   return (
@@ -777,7 +771,7 @@ export default function SearchOverlay(): React.ReactElement {
                               key={`${match.path}:${match.lineNumber}`}
                               className={flatIdx === selectedIdx ? 'selected' : ''}
                               onClick={() => { setSelectedIdx(flatIdx); setSelectedItem(match); }}
-                              onDoubleClick={() => revealInColumns(match.path)}
+                              onDoubleClick={() => handleRevealInColumns(match.path)}
                             >
                               <LineNumber>{match.lineNumber}</LineNumber>
                               <MatchedLineText>{highlightMatch(match.matchedLine, query, useRegex)}</MatchedLineText>
@@ -795,7 +789,7 @@ export default function SearchOverlay(): React.ReactElement {
                       key={file.path}
                       className={i === selectedIdx ? 'selected' : ''}
                       onClick={() => { setSelectedIdx(i); setSelectedItem(file); }}
-                      onDoubleClick={() => revealInColumns(file.path)}
+                      onDoubleClick={() => handleRevealInColumns(file.path)}
                     >
                       <ResultIcon>
                         {file.isDirectory ? (

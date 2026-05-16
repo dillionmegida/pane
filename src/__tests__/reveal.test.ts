@@ -70,7 +70,6 @@ describe('Reveal Functionality', () => {
       useStore.getState().setRevealTarget({
         paneId: 'left',
         filePath: '/Users/john/selected.txt',
-        fileDir: '/Users/john',
         isDirectory: false,
         triggerPreview: true,
       });
@@ -79,7 +78,6 @@ describe('Reveal Functionality', () => {
     expect(useStore.getState().revealTarget).toEqual({
       paneId: 'left',
       filePath: '/Users/john/selected.txt',
-      fileDir: '/Users/john',
       isDirectory: false,
       triggerPreview: true,
     });
@@ -113,7 +111,6 @@ describe('Reveal Functionality', () => {
       useStore.getState().setRevealTarget({
         paneId: 'left',
         filePath: '/Users/john/Documents/file.txt',
-        fileDir: '/Users/john/Documents',
         isDirectory: false,
         triggerPreview: true,
       });
@@ -127,7 +124,7 @@ describe('Reveal Functionality', () => {
         await useStore.getState().revealFileInTree(
           revealTarget.paneId,
           revealTarget.filePath,
-          revealTarget.fileDir,
+          '', // fileDir will be derived
           revealTarget.isDirectory
         );
       });
@@ -152,6 +149,154 @@ describe('Reveal Functionality', () => {
     expect(useStore.getState().showPreview).toBe(true);
 
     // Verify revealTarget was cleared (FilePane useEffect does this)
+    expect(useStore.getState().revealTarget).toBeNull();
+  });
+
+  test('reveal to base directory clears stale column state', async () => {
+    (window as any).electronAPI.readdir.mockResolvedValue({
+      success: true,
+      files: [mkFile('file.txt', { path: '/Users/john/file.txt' })],
+    });
+    (window as any).electronAPI.stat.mockResolvedValue({
+      success: true,
+      stat: { size: 1024, modified: Date.now(), isDirectory: false },
+    });
+    (window as any).electronAPI.watcherStart.mockImplementation(() => {});
+    (window as any).electronAPI.storeSet.mockResolvedValue(undefined);
+
+    act(() => {
+      // Simulate a pane with existing deep column state from previous reveal
+      useStore.setState({
+        panes: useStore.getState().panes.map(p => ({
+          ...p,
+          basePath: '/Users/john',
+          path: '/Users/john',
+          currentBreadcrumbPath: '/Users/john/Documents/deep/path',
+          viewMode: 'column',
+          columnState: {
+            paths: ['/Users/john', '/Users/john/Documents', '/Users/john/Documents/deep', '/Users/john/Documents/deep/path'],
+            filesByPath: {
+              '/Users/john/Documents': [mkFile('doc.txt', { path: '/Users/john/Documents/doc.txt' })],
+              '/Users/john/Documents/deep': [mkFile('deep.txt', { path: '/Users/john/Documents/deep/deep.txt' })],
+            },
+            selectedByColumn: {
+              '/Users/john/Documents/deep/path': '/Users/john/Documents/deep/path/old.png',
+            },
+            focusedIndex: 3,
+          },
+        })),
+      });
+
+    })
+
+
+    // Reveal a file directly in the base directory
+    act(() => {
+      const basePath = useStore.getState().panes.find(p => p.id === 'left')!.basePath;
+      useStore.getState().setRevealTarget({
+        paneId: 'left',
+        filePath: `${basePath}/file1.txt`,
+        isDirectory: false,
+        triggerPreview: true,
+      });
+    });
+
+    const revealTarget = useStore.getState().revealTarget;
+    if (revealTarget && revealTarget.paneId === 'left') {
+      await act(async () => {
+        await useStore.getState().revealFileInTree(
+          revealTarget.paneId,
+          revealTarget.filePath,
+          '', // fileDir will be derived
+          revealTarget.isDirectory
+        );
+      });
+      if (revealTarget.triggerPreview) {
+        useStore.setState({ showPreview: true });
+      }
+      useStore.getState().clearRevealTarget();
+    }
+
+    // Verify the pane navigated to base directory
+    const pane = useStore.getState().panes.find(p => p.id === 'left');
+    expect(pane!.basePath).toBe('/Users/john');
+    expect(pane!.currentBreadcrumbPath).toBe('/Users/john');
+
+    // Verify column state is cleared (only base path remains, no stale columns)
+    expect(pane!.columnState.paths).toEqual(['/Users/john']);
+    expect(pane!.columnState.filesByPath).toEqual({});
+    expect(pane!.columnState.selectedByColumn).toEqual({});
+    expect(pane!.columnState.focusedIndex).toBe(0);
+
+    // Verify the file is selected
+    expect(pane!.selectedFiles.has('/Users/john/file1.txt')).toBe(true);
+
+    // Verify revealTarget was cleared
+    expect(useStore.getState().revealTarget).toBeNull();
+  });
+
+  test('reveal directory opens column and closes preview pane', async () => {
+    (window as any).electronAPI.readdir.mockResolvedValue({
+      success: true,
+      files: [mkFile('doc.txt', { path: '/Users/john/Documents/doc.txt' })],
+    });
+    (window as any).electronAPI.stat.mockResolvedValue({
+      success: true,
+      stat: { size: 0, modified: new Date().toISOString(), isDirectory: true },
+    });
+    (window as any).electronAPI.watcherStart.mockImplementation(() => {});
+    (window as any).electronAPI.storeSet.mockResolvedValue(undefined);
+
+    // Set up with preview pane open
+    useStore.setState({
+      panes: useStore.getState().panes.map(p => ({
+        ...p,
+        basePath: '/Users/john',
+        path: '/Users/john',
+        currentBreadcrumbPath: '/Users/john',
+        viewMode: 'column',
+        columnState: { paths: ['/Users/john'], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+      })),
+      previewFile: { path: '/Users/john/old.txt', name: 'old.txt', isDirectory: false, size: 1024, modified: new Date().toISOString(), extension: 'txt' },
+      showPreview: true,
+    });
+
+    // Reveal a directory (like search overlay does)
+    act(() => {
+      useStore.getState().setRevealTarget({
+        paneId: 'left',
+        filePath: '/Users/john/Documents',
+        isDirectory: true,
+        triggerPreview: false,
+      });
+    });
+
+    const revealTarget = useStore.getState().revealTarget;
+    if (revealTarget && revealTarget.paneId === 'left') {
+      await act(async () => {
+        await useStore.getState().revealFileInTree(
+          revealTarget.paneId,
+          revealTarget.filePath,
+          '', // fileDir will be derived
+          revealTarget.isDirectory
+        );
+      });
+      useStore.getState().clearRevealTarget();
+    }
+
+    // Verify column state includes the directory as a column (like clicking on it)
+    const pane = useStore.getState().panes.find(p => p.id === 'left');
+    expect(pane!.columnState.paths).toEqual(['/Users/john/Documents']);
+    expect(pane!.currentBreadcrumbPath).toBe('/Users/john/Documents');
+
+    // Verify the directory is selected
+    expect(pane!.selectedFiles.has('/Users/john/Documents')).toBe(true);
+
+    // Verify preview pane is closed
+    expect(useStore.getState().previewFile).toBeNull();
+    expect(useStore.getState().showPreview).toBe(false);
+
+    // Verify revealTarget was cleared
     expect(useStore.getState().revealTarget).toBeNull();
   });
 });

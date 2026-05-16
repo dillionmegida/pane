@@ -733,23 +733,25 @@ describe('Store - revealTarget', () => {
     useStore.setState({ revealTarget: null });
   });
 
-  test('setRevealTarget sets the target', () => {
-    const target = { paneId: 'left', filePath: '/test.txt', fileDir: '/test', isDirectory: false };
-    act(() => useStore.getState().setRevealTarget(target));
-    expect(useStore.getState().revealTarget).toEqual(target);
+  test('setRevealTarget sets the target', async () => {
+    const target = { paneId: 'left', filePath: '/test.txt' };
+    (window as any).electronAPI.stat.mockResolvedValue({
+      success: true,
+      stat: { mode: 33188 },
+    });
+    await act(async () => await useStore.getState().setRevealTarget(target));
+    expect(useStore.getState().revealTarget).toEqual({ ...target, isDirectory: false, triggerPreview: true });
   });
 
-  test('clearRevealTarget resets to null', () => {
-    const target = { paneId: 'left', filePath: '/test.txt', fileDir: '/test', isDirectory: false };
-    act(() => useStore.getState().setRevealTarget(target));
+  test('clearRevealTarget resets to null', async () => {
+    const target = { paneId: 'left', filePath: '/test.txt' };
+    (window as any).electronAPI.stat.mockResolvedValue({
+      success: true,
+      stat: { mode: 33188 },
+    });
+    await act(async () => await useStore.getState().setRevealTarget(target));
     act(() => useStore.getState().clearRevealTarget());
     expect(useStore.getState().revealTarget).toBeNull();
-  });
-
-  test('setRevealTarget with triggerPreview option', () => {
-    const target = { paneId: 'left', filePath: '/test.txt', fileDir: '/test', isDirectory: false, triggerPreview: true };
-    act(() => useStore.getState().setRevealTarget(target));
-    expect(useStore.getState().revealTarget!.triggerPreview).toBe(true);
   });
 });
 

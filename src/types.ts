@@ -124,8 +124,7 @@ export interface LogEntry {
 export interface RevealTarget {
   paneId: string;
   filePath: string;
-  fileDir: string;
-  isDirectory: boolean;
+  isDirectory?: boolean;
   triggerPreview?: boolean;
 }
 
