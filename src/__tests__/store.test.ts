@@ -10,42 +10,44 @@ describe('Store - Pane Management', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Reset store state
-    useStore.setState({
-      panes: [
-        {
-          id: 'left',
-          path: '/',
-          files: [],
-          loading: false,
-          error: null,
-          selectedFiles: new Set(),
-          sortBy: 'name',
-          sortOrder: 'asc',
-          viewMode: 'column',
-          tabs: [{ id: 'tab-1', path: '/', label: 'Home' }],
-          activeTab: 0,
-          currentBreadcrumbPath: '/',
-          columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
-        },
-        {
-          id: 'right',
-          path: '/',
-          files: [],
-          loading: false,
-          error: null,
-          selectedFiles: new Set(),
-          sortBy: 'name',
-          sortOrder: 'asc',
-          viewMode: 'column',
-          tabs: [{ id: 'tab-2', path: '/', label: 'Home' }],
-          activeTab: 0,
-          currentBreadcrumbPath: '/',
-          columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
-        },
-      ],
-      activePane: 'left',
-      showRightPane: false,
-    });
+    act(() => {
+      useStore.setState({
+        panes: [
+          {
+            id: 'left',
+            path: '/',
+            files: [],
+            loading: false,
+            error: null,
+            selectedFiles: new Set(),
+            sortBy: 'name',
+            sortOrder: 'asc',
+            viewMode: 'column',
+            tabs: [{ id: 'tab-1', path: '/', label: 'Home' }],
+            activeTab: 0,
+            currentBreadcrumbPath: '/',
+            columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+          },
+          {
+            id: 'right',
+            path: '/',
+            files: [],
+            loading: false,
+            error: null,
+            selectedFiles: new Set(),
+            sortBy: 'name',
+            sortOrder: 'asc',
+            viewMode: 'column',
+            tabs: [{ id: 'tab-2', path: '/', label: 'Home' }],
+            activeTab: 0,
+            currentBreadcrumbPath: '/',
+            columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+          },
+        ],
+        activePane: 'left',
+        showRightPane: false,
+      });
+    })
   });
 
   test('should initialize with two panes', () => {
@@ -98,27 +100,29 @@ describe('Store - Pane Management', () => {
 describe('Store - Navigation & Breadcrumbs', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useStore.setState({
-      panes: [
-        {
-          id: 'left',
-          path: '/',
-          files: [],
-          loading: false,
-          error: null,
-          selectedFiles: new Set(),
-          sortBy: 'name',
-          sortOrder: 'asc',
-          viewMode: 'column',
-          tabs: [{ id: 'tab-1', path: '/', label: 'Home' }],
-          activeTab: 0,
-          currentBreadcrumbPath: '/',
-          basePath: '/',
-          columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
-        },
-      ],
-      activePane: 'left',
-    });
+    act(() => {
+      useStore.setState({
+        panes: [
+          {
+            id: 'left',
+            path: '/',
+            files: [],
+            loading: false,
+            error: null,
+            selectedFiles: new Set(),
+            sortBy: 'name',
+            sortOrder: 'asc',
+            viewMode: 'column',
+            tabs: [{ id: 'tab-1', path: '/', label: 'Home' }],
+            activeTab: 0,
+            currentBreadcrumbPath: '/',
+            basePath: '/',
+            columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+          },
+        ],
+        activePane: 'left',
+      });
+    })
   });
 
   test('should generate breadcrumbs for root path', () => {
@@ -128,27 +132,29 @@ describe('Store - Navigation & Breadcrumbs', () => {
   });
 
   test('should generate breadcrumbs relative to basePath in column view', () => {
-    useStore.setState({
-      panes: [
-        {
-          id: 'left',
-          path: '/Users/john',
-          files: [],
-          loading: false,
-          error: null,
-          selectedFiles: new Set(),
-          sortBy: 'name',
-          sortOrder: 'asc',
-          viewMode: 'column',
-          tabs: [{ id: 'tab-1', path: '/Users/john', label: 'john' }],
-          activeTab: 0,
-          currentBreadcrumbPath: '/Users/john/Documents',
-          basePath: '/Users/john',
-          columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
-        },
-      ],
-      activePane: 'left',
-    });
+    act(() => {
+      useStore.setState({
+        panes: [
+          {
+            id: 'left',
+            path: '/Users/john',
+            files: [],
+            loading: false,
+            error: null,
+            selectedFiles: new Set(),
+            sortBy: 'name',
+            sortOrder: 'asc',
+            viewMode: 'column',
+            tabs: [{ id: 'tab-1', path: '/Users/john', label: 'john' }],
+            activeTab: 0,
+            currentBreadcrumbPath: '/Users/john/Documents',
+            basePath: '/Users/john',
+            columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+          },
+        ],
+        activePane: 'left',
+      });
+    })
     const { result } = renderHook(() => useStore());
     const breadcrumbs = result.current.getBreadcrumbs('left');
     expect(breadcrumbs).toHaveLength(2); // john, Documents
@@ -170,27 +176,29 @@ describe('Store - Navigation & Breadcrumbs', () => {
   });
 
   test('should show only basePath crumb when at basePath', () => {
-    useStore.setState({
-      panes: [
-        {
-          id: 'left',
-          path: '/Users/john',
-          files: [],
-          loading: false,
-          error: null,
-          selectedFiles: new Set(),
-          sortBy: 'name',
-          sortOrder: 'asc',
-          viewMode: 'column',
-          tabs: [{ id: 'tab-1', path: '/Users/john', label: 'john' }],
-          activeTab: 0,
-          currentBreadcrumbPath: '/Users/john',
-          basePath: '/Users/john',
-          columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
-        },
-      ],
-      activePane: 'left',
-    });
+    act(() => {
+      useStore.setState({
+        panes: [
+          {
+            id: 'left',
+            path: '/Users/john',
+            files: [],
+            loading: false,
+            error: null,
+            selectedFiles: new Set(),
+            sortBy: 'name',
+            sortOrder: 'asc',
+            viewMode: 'column',
+            tabs: [{ id: 'tab-1', path: '/Users/john', label: 'john' }],
+            activeTab: 0,
+            currentBreadcrumbPath: '/Users/john',
+            basePath: '/Users/john',
+            columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+          },
+        ],
+        activePane: 'left',
+      });
+    })
     const { result } = renderHook(() => useStore());
     const breadcrumbs = result.current.getBreadcrumbs('left');
     expect(breadcrumbs).toHaveLength(1);
@@ -251,30 +259,32 @@ describe('Store - Navigation & Breadcrumbs', () => {
 describe('Store - File Selection & Sorting', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useStore.setState({
-      panes: [
-        {
-          id: 'left',
-          path: '/test',
-          files: [
-            { name: 'file1.txt', isDirectory: false, size: 100, modified: new Date().toISOString(), extension: 'txt' },
-            { name: 'file2.js', isDirectory: false, size: 200, modified: new Date().toISOString(), extension: 'js' },
-            { name: 'folder1', isDirectory: true, size: 0, modified: new Date().toISOString(), extension: '' },
-          ],
-          loading: false,
-          error: null,
-          selectedFiles: new Set(),
-          sortBy: 'name',
-          sortOrder: 'asc',
-          viewMode: 'column',
-          tabs: [{ id: 'tab-1', path: '/test', label: 'Test' }],
-          activeTab: 0,
-          currentBreadcrumbPath: '/test',
-          columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
-        },
-      ],
-      activePane: 'left',
-    });
+    act(() => {
+      useStore.setState({
+        panes: [
+          {
+            id: 'left',
+            path: '/test',
+            files: [
+              { name: 'file1.txt', isDirectory: false, size: 100, modified: new Date().toISOString(), extension: 'txt' },
+              { name: 'file2.js', isDirectory: false, size: 200, modified: new Date().toISOString(), extension: 'js' },
+              { name: 'folder1', isDirectory: true, size: 0, modified: new Date().toISOString(), extension: '' },
+            ],
+            loading: false,
+            error: null,
+            selectedFiles: new Set(),
+            sortBy: 'name',
+            sortOrder: 'asc',
+            viewMode: 'column',
+            tabs: [{ id: 'tab-1', path: '/test', label: 'Test' }],
+            activeTab: 0,
+            currentBreadcrumbPath: '/test',
+            columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+          },
+        ],
+        activePane: 'left',
+      });
+    })
   });
 
   test('should select single file', () => {
@@ -354,29 +364,31 @@ describe('Store - File Selection & Sorting', () => {
 describe('Store - Column View State', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useStore.setState({
-      panes: [
-        {
-          id: 'left',
-          path: '/Users',
-          files: [
-            { name: 'john', isDirectory: true, size: 0, modified: new Date().toISOString(), extension: '' },
-            { name: 'jane', isDirectory: true, size: 0, modified: new Date().toISOString(), extension: '' },
-          ],
-          loading: false,
-          error: null,
-          selectedFiles: new Set(),
-          sortBy: 'name',
-          sortOrder: 'asc',
-          viewMode: 'column',
-          tabs: [{ id: 'tab-1', path: '/Users', label: 'Users' }],
-          activeTab: 0,
-          currentBreadcrumbPath: '/Users',
-          columnState: { paths: ['/Users'], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
-        },
-      ],
-      activePane: 'left',
-    });
+    act(() => {
+      useStore.setState({
+        panes: [
+          {
+            id: 'left',
+            path: '/Users',
+            files: [
+              { name: 'john', isDirectory: true, size: 0, modified: new Date().toISOString(), extension: '' },
+              { name: 'jane', isDirectory: true, size: 0, modified: new Date().toISOString(), extension: '' },
+            ],
+            loading: false,
+            error: null,
+            selectedFiles: new Set(),
+            sortBy: 'name',
+            sortOrder: 'asc',
+            viewMode: 'column',
+            tabs: [{ id: 'tab-1', path: '/Users', label: 'Users' }],
+            activeTab: 0,
+            currentBreadcrumbPath: '/Users',
+            columnState: { paths: ['/Users'], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+          },
+        ],
+        activePane: 'left',
+      });
+    })
   });
 
   test('should initialize column state', () => {
@@ -487,7 +499,8 @@ describe('Store - Column View State', () => {
 describe('Store - Tabs Management', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useStore.setState({
+    act(() => {
+      useStore.setState({
       panes: [
         {
           id: 'left',
@@ -507,6 +520,7 @@ describe('Store - Tabs Management', () => {
       ],
       activePane: 'left',
     });
+    })
   });
 
   test('should add new tab', () => {
@@ -565,12 +579,14 @@ describe('Store - Tabs Management', () => {
 describe('Store - Preview & Zoom', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useStore.setState({
+    act(() => {
+      useStore.setState({
       previewFile: null,
       showPreview: false,
       previewWidth: 300,
       zoom: 1.0,
     });
+    })
   });
 
   test('should set preview file', () => {
@@ -658,10 +674,12 @@ describe('Store - Preview & Zoom', () => {
 describe('Store - Clipboard Operations', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useStore.setState({
-      clipboardQueue: [],
-      clipboardMode: 'copy',
-    });
+    act(() => {
+      useStore.setState({
+        clipboardQueue: [],
+        clipboardMode: 'copy',
+      });
+    })
   });
 
   test('should add files to clipboard', () => {
@@ -744,11 +762,13 @@ describe('Store - pasteClipboard', () => {
     (window as any).electronAPI.copy.mockResolvedValue({ success: true });
     (window as any).electronAPI.move.mockResolvedValue({ success: true });
     (window as any).electronAPI.readdir.mockResolvedValue({ success: true, files: [] });
-    useStore.setState({
-      ...paneState,
-      clipboardQueue: [],
-      clipboardMode: 'copy',
-    });
+    act(() => {
+      useStore.setState({
+        ...paneState,
+        clipboardQueue: [],
+        clipboardMode: 'copy',
+      });
+    })
   });
 
   test('copy mode: calls electronAPI.copy for each file and keeps queue intact', async () => {
@@ -819,7 +839,8 @@ describe('Store - pasteClipboard', () => {
   });
 
   test('getActivePath returns pane.path in list view', () => {
-    useStore.setState({
+    act(() => {
+      useStore.setState({
       panes: [{
         id: 'left',
         path: '/home/user',
@@ -837,6 +858,7 @@ describe('Store - pasteClipboard', () => {
       }],
       activePane: 'left',
     });
+    })
     const { result } = renderHook(() => useStore());
     const activePath = result.current.getActivePath('left');
     expect(activePath).toBe('/home/user');
@@ -857,7 +879,8 @@ describe('Store - pasteClipboard', () => {
   });
 
   test('refreshPane is called for all panes after paste', async () => {
-    useStore.setState({
+    act(() => {
+      useStore.setState({
       panes: [
         { id: 'left', path: '/home/user', basePath: '/home/user', currentBreadcrumbPath: '/home/user', files: [], loading: false, error: null, selectedFiles: new Set(), sortBy: 'name', sortOrder: 'asc', viewMode: 'column', tabs: [{ id: 'tab-1', path: '/home/user', label: 'user' }], activeTab: 0 },
         { id: 'right', path: '/home/user/dest', basePath: '/home/user/dest', currentBreadcrumbPath: '/home/user/dest', files: [], loading: false, error: null, selectedFiles: new Set(), sortBy: 'name', sortOrder: 'asc', viewMode: 'column', tabs: [{ id: 'tab-2', path: '/home/user/dest', label: 'dest' }], activeTab: 0 },
@@ -867,6 +890,7 @@ describe('Store - pasteClipboard', () => {
       clipboardQueue: ['/src/file.txt'],
       clipboardMode: 'copy',
     });
+    })
     await act(async () => {
       await useStore.getState().pasteClipboard('/home/user/dest');
     });
