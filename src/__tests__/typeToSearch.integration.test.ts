@@ -142,9 +142,8 @@ describe('Type-to-Search Integration Tests - Real Keyboard Handler', () => {
 
       // Should select "hello.txt" (first file starting with "h")
       expect(getPane().selectedFiles.has(rootFiles[3].path)).toBe(true);
-        //     // Preview pane should show
-      expect(getStore().showPreview).toBe(true);
-      expect(getStore().previewFile?.path).toBe(rootFiles[3].path);
+      const pane = getStore().panes.find((p: any) => p.id === 'left');
+      expect(pane?.tabs[pane.activeTab].previewFile?.path).toBe(rootFiles[3].path);
       expect(container.textContent).not.toContain('Searching:');
 
       await act(async () => {

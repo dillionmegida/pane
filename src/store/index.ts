@@ -42,7 +42,7 @@ const createTabState = (tabPath: string): Tab => ({
 });
 
 // Snapshot the current pane-level state into a tab object
-const snapshotTab = (pane: Pane, globalPreviewFile: FileItem | null): Tab => {
+const snapshotTab = (pane: Pane): Tab => {
   const base = pane.basePath || pane.path || '/';
   const existingTab = pane.tabs[pane.activeTab];
   return {
@@ -50,7 +50,7 @@ const snapshotTab = (pane: Pane, globalPreviewFile: FileItem | null): Tab => {
     path: pane.path || '/',
     basePath: base,
     currentBreadcrumbPath: pane.currentBreadcrumbPath || base,
-    label: getTabLabel(pane.currentBreadcrumbPath, globalPreviewFile, base),
+    label: getTabLabel(pane.currentBreadcrumbPath, existingTab?.previewFile || null, base),
     files: pane.files || [],
     selectedFiles: new Set(pane.selectedFiles || []),
     activeBookmarkId: pane.activeBookmarkId || null,
@@ -58,7 +58,7 @@ const snapshotTab = (pane: Pane, globalPreviewFile: FileItem | null): Tab => {
     sortBy: pane.sortBy || 'name',
     sortOrder: pane.sortOrder || 'asc',
     columnState: pane.columnState ? { ...pane.columnState } : { ...DEFAULT_COLUMN_STATE },
-    previewFile: globalPreviewFile || null,
+    previewFile: existingTab?.previewFile || null,
     navigationHistory: pane.navigationHistory || existingTab?.navigationHistory || [],
     navigationIndex: pane.navigationIndex ?? existingTab?.navigationIndex ?? -1,
     _isRestoringHistory: pane._isRestoringHistory ?? existingTab?._isRestoringHistory ?? false,
@@ -168,8 +168,6 @@ interface StoreState {
   revealInTree: (paneId: string, filePath: string) => Promise<void>;
 
   // ── Preview ───────────────────────────────────────────────────────────────
-  previewFile: FileItem | null;
-  showPreview: boolean;
   previewWidth: number;
   setPreviewFile: (file: FileItem | null) => void;
   closePreview: () => void;
@@ -327,7 +325,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const currentPane = s.panes.find(p => p.id === paneId)!;
       const updatedPane = { ...currentPane, path: dirPath, files, loading: false, selectedFiles: new Set<string>() };
       const newTabs = currentPane.tabs.map((t, i) =>
-        i === currentPane.activeTab ? snapshotTab(updatedPane, s.previewFile) : t
+        i === currentPane.activeTab ? snapshotTab(updatedPane) : t
       );
       return {
         panes: s.panes.map(p => p.id === paneId ? { ...updatedPane, tabs: newTabs } : p),
@@ -378,7 +376,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const currentPane = s.panes.find(p => p.id === paneId)!;
       const updatedPane = { ...currentPane, path: dirPath, files, loading: false, selectedFiles: new Set<string>() };
       const newTabs = currentPane.tabs.map((t, i) =>
-        i === currentPane.activeTab ? snapshotTab(updatedPane, s.previewFile) : t
+        i === currentPane.activeTab ? snapshotTab(updatedPane) : t
       );
       return {
         panes: s.panes.map(p => p.id === paneId ? { ...updatedPane, tabs: newTabs } : p),
@@ -394,18 +392,24 @@ export const useStore = create<StoreState>((set, get) => ({
     const pane = panes.find(p => p.id === paneId);
     if (!pane) return;
 
-    set(s => ({
-      panes: s.panes.map(p => p.id === paneId ? {
-        ...p,
-        loading: true,
-        error: null,
-        currentBreadcrumbPath: dirPath,
-        basePath: dirPath,
-        activeBookmarkId: bookmarkId,
-      } : p),
-      previewFile: null,
-      showPreview: false,
-    }));
+    set(s => {
+      const currentPane = s.panes.find(p => p.id === paneId);
+      if (!currentPane) return s;
+      const newTabs = currentPane.tabs.map((t, i) =>
+        i === currentPane.activeTab ? { ...t, previewFile: null } : t
+      );
+      return {
+        panes: s.panes.map(p => p.id === paneId ? {
+          ...p,
+          loading: true,
+          error: null,
+          currentBreadcrumbPath: dirPath,
+          basePath: dirPath,
+          activeBookmarkId: bookmarkId,
+          tabs: newTabs,
+        } : p),
+      };
+    });
 
     const result = await window.electronAPI.readdir(dirPath);
     if (!result.success) {
@@ -429,7 +433,7 @@ export const useStore = create<StoreState>((set, get) => ({
         columnState: { ...DEFAULT_COLUMN_STATE }
       };
       const newTabs = currentPane.tabs.map((t, i) =>
-        i === currentPane.activeTab ? snapshotTab(updatedPane, null) : t
+        i === currentPane.activeTab ? snapshotTab(updatedPane) : t
       );
       return {
         panes: s.panes.map(p => p.id === paneId ? { ...updatedPane, tabs: newTabs } : p),
@@ -561,7 +565,7 @@ export const useStore = create<StoreState>((set, get) => ({
         if (p.id !== paneId) return p;
         const updated = { ...p, currentBreadcrumbPath: path };
         const newTabs = p.tabs.map((t, i) =>
-          i === p.activeTab ? snapshotTab(updated, s.previewFile) : t
+          i === p.activeTab ? snapshotTab(updated) : t
         );
         return { ...updated, tabs: newTabs };
       }),
@@ -594,7 +598,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (p.id !== paneId) return p;
       const updated = { ...p, viewMode };
       const newTabs = p.tabs.map((t, i) =>
-        i === p.activeTab ? snapshotTab(updated, s.previewFile) : t
+        i === p.activeTab ? snapshotTab(updated) : t
       );
       return { ...updated, tabs: newTabs };
     }),
@@ -606,7 +610,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (p.id !== paneId) return p;
       const updated = { ...p, columnState };
       const newTabs = p.tabs.map((t, i) =>
-        i === p.activeTab ? snapshotTab(updated, s.previewFile) : t
+        i === p.activeTab ? snapshotTab(updated) : t
       );
       return { ...updated, tabs: newTabs };
     }),
@@ -617,7 +621,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (p.id !== paneId) return p;
       const updated = { ...p, columnState: { ...p.columnState, ...updates } };
       const newTabs = p.tabs.map((t, i) =>
-        i === p.activeTab ? snapshotTab(updated, s.previewFile) : t
+        i === p.activeTab ? snapshotTab(updated) : t
       );
       return { ...updated, tabs: newTabs };
     }),
@@ -628,7 +632,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (p.id !== paneId) return p;
       const updated = { ...p, columnState: { ...DEFAULT_COLUMN_STATE } };
       const newTabs = p.tabs.map((t, i) =>
-        i === p.activeTab ? snapshotTab(updated, s.previewFile) : t
+        i === p.activeTab ? snapshotTab(updated) : t
       );
       return { ...updated, tabs: newTabs };
     }),
@@ -767,13 +771,12 @@ export const useStore = create<StoreState>((set, get) => ({
           selectedByColumn: selectedByColumn ?? builtSelectedByColumn,
         },
       };
-      const newTabs = currentPane.tabs.map((t, i) =>
-        i === currentPane.activeTab ? snapshotTab(updatedPane, previewFile) : t
-      );
+      const newTabs = currentPane.tabs.map((t, i) => {
+        if (i !== currentPane.activeTab) return t;
+        return { ...t, previewFile };
+      });
       return {
         panes: s.panes.map(p => p.id === paneId ? { ...updatedPane, tabs: newTabs } : p),
-        previewFile,
-        showPreview: !!previewFile,
       };
     });
 
@@ -860,7 +863,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const pane = s.panes.find(p => p.id === paneId);
       if (!pane) return s;
       const savedTabs = pane.tabs.map((t, i) =>
-        i === pane.activeTab ? snapshotTab(pane, s.previewFile) : t
+        i === pane.activeTab ? snapshotTab(pane) : t
       );
       const newTab = createTabState(desktopPath);
       return {
@@ -888,9 +891,8 @@ export const useStore = create<StoreState>((set, get) => ({
     const pane = get().panes.find(p => p.id === paneId);
     if (!pane || pane.tabs.length <= 1) return;
 
-    const { previewFile } = get();
     const savedTabs = pane.tabs.map((t, i) =>
-      i === pane.activeTab ? snapshotTab(pane, previewFile) : t
+      i === pane.activeTab ? snapshotTab(pane) : t
     );
     const newTabs = savedTabs.filter((_, i) => i !== tabIndex);
     let newActive = pane.activeTab;
@@ -920,7 +922,7 @@ export const useStore = create<StoreState>((set, get) => ({
     set(s => {
       const currentPane = s.panes.find(p => p.id === paneId)!;
       const savedTabs = currentPane.tabs.map((t, i) =>
-        i === currentPane.activeTab ? snapshotTab(currentPane, s.previewFile) : t
+        i === currentPane.activeTab ? snapshotTab(currentPane) : t
       );
       const targetTab = savedTabs[tabIndex];
       return {
@@ -928,8 +930,6 @@ export const useStore = create<StoreState>((set, get) => ({
           ? { ...p, tabs: savedTabs, activeTab: tabIndex, ...restoreFromTab(targetTab) }
           : p
         ),
-        previewFile: targetTab.previewFile || null,
-        showPreview: !!targetTab.previewFile,
       };
     });
     get().saveSession();
@@ -968,23 +968,20 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   // ── Preview ───────────────────────────────────────────────────────────────
-  previewFile: null,
-  showPreview: false,
   previewWidth: 300,
   setPreviewFile: (file) => {
     set(s => {
       const { activePane, panes } = s;
       const pane = panes.find(p => p.id === activePane);
-      if (!pane) return { previewFile: file, showPreview: !!file };
+      if (!pane) return s;
 
       const updatedPane = { ...pane };
-      const newTabs = pane.tabs.map((t, i) =>
-        i === pane.activeTab ? snapshotTab(updatedPane, file) : t
-      );
+      const newTabs = pane.tabs.map((t, i) => {
+        if (i !== pane.activeTab) return t;
+        return { ...t, previewFile: file };
+      });
 
       return {
-        previewFile: file,
-        showPreview: !!file,
         panes: panes.map(p => p.id === activePane ? { ...p, tabs: newTabs } : p),
       };
     });
@@ -994,16 +991,15 @@ export const useStore = create<StoreState>((set, get) => ({
     set(s => {
       const { activePane, panes } = s;
       const pane = panes.find(p => p.id === activePane);
-      if (!pane) return { previewFile: null, showPreview: false };
+      if (!pane) return s;
 
       const updatedPane = { ...pane };
-      const newTabs = pane.tabs.map((t, i) =>
-        i === pane.activeTab ? snapshotTab(updatedPane, null) : t
-      );
+      const newTabs = pane.tabs.map((t, i) => {
+        if (i !== pane.activeTab) return t;
+        return { ...t, previewFile: null };
+      });
 
       return {
-        previewFile: null,
-        showPreview: false,
         panes: panes.map(p => p.id === activePane ? { ...p, tabs: newTabs } : p),
       };
     });
@@ -1118,7 +1114,7 @@ export const useStore = create<StoreState>((set, get) => ({
       updateColumnState: state.updateColumnState,
       setCurrentBreadcrumbPath: state.setCurrentBreadcrumbPath,
       setSelection: state.setSelection,
-      setPreview: (previewFile, showPreview) => set({ previewFile, showPreview }),
+      setPreview: state.setPreviewFile,
       pushNavHistory: state.pushNavHistory,
       getDirSort: state.getDirSort,
       readdir: window.electronAPI.readdir,
@@ -1279,10 +1275,10 @@ export const useStore = create<StoreState>((set, get) => ({
   // ── Session persistence ───────────────────────────────────────────────────
   saveSession: () => {
     if (!get().initialized) return;
-    const { panes, activePane, previewFile } = get();
+    const { panes, activePane } = get();
     const session = panes.map(p => {
       const savedTabs = p.tabs.map((t, i) =>
-        i === p.activeTab ? snapshotTab(p, p.id === activePane ? previewFile : t.previewFile) : t
+        i === p.activeTab ? snapshotTab(p) : t
       );
       return {
         id: p.id,
@@ -1313,7 +1309,6 @@ export const useStore = create<StoreState>((set, get) => ({
     window.electronAPI.storeSet('session', {
       panes: session,
       activePane,
-      previewFilePath: previewFile?.path || null,
       directorySorts: get().directorySorts || {},
     });
   },
@@ -1404,7 +1399,7 @@ export const useStore = create<StoreState>((set, get) => ({
       return Math.max(0, count - 1);
     };
 
-    const hydratePaneSession = async (ps: SessionPane | null): Promise<(Partial<Pane> & { activeTabPreviewFile: FileItem | null }) | null> => {
+    const hydratePaneSession = async (ps: SessionPane | null): Promise<Partial<Pane> | null> => {
       if (!ps || !ps.tabs || ps.tabs.length === 0) return null;
 
       const hydratedTabs: Tab[] = await Promise.all(ps.tabs.map(async (tab) => {
@@ -1464,7 +1459,6 @@ export const useStore = create<StoreState>((set, get) => ({
         tabs: hydratedTabs,
         activeTab: activeTabIdx,
         ...restoreFromTab(activeTab),
-        activeTabPreviewFile: activeTab.previewFile || null,
       };
     };
 
@@ -1482,9 +1476,6 @@ export const useStore = create<StoreState>((set, get) => ({
       if (!leftHydrated) await get().navigateTo('left', homeDir);
       if (!rightHydrated) await get().navigateTo('right', homeDir);
 
-      const activePaneHydrated = savedActivePane === 'left' ? leftHydrated : rightHydrated;
-      const globalPreview = activePaneHydrated?.activeTabPreviewFile || null;
-
       set(s => ({
         activePane: savedActivePane,
         panes: s.panes.map(p => {
@@ -1492,8 +1483,6 @@ export const useStore = create<StoreState>((set, get) => ({
           if (!hydrated) return p;
           return { ...p, ...hydrated, loading: false, error: null };
         }),
-        previewFile: globalPreview,
-        showPreview: !!globalPreview,
       }));
     } else {
       let leftPath = homeDir;
@@ -1558,25 +1547,6 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     }
 
-    if (session?.previewFilePath && !leftSession?.tabs?.length && !rightSession?.tabs?.length) {
-      const statResult = await window.electronAPI.stat(session.previewFilePath);
-      if (statResult.success && statResult.stat) {
-        const fp = session.previewFilePath;
-        const fileName = fp.split('/').pop() ?? '';
-        const extension = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() ?? '' : '';
-        set({
-          previewFile: {
-            ...statResult.stat,
-            path: fp,
-            name: fileName,
-            extension,
-            isDirectory: statResult.stat.isDirectory,
-          },
-          showPreview: true,
-        });
-      }
-    }
-
     window.electronAPI.onWatcherChange((change) => {
       const { panes, refreshPane, setSelection, setPreviewFile, updateColumnState, closePreview } = get();
       const normalizePath = (path: string) => path.replace(/\/$/, '');
@@ -1587,9 +1557,9 @@ export const useStore = create<StoreState>((set, get) => ({
           if (p.selectedFiles.has(change.path)) {
             setSelection(p.id, []);
 
-            // If it's a file being previewed, close preview
-            const previewFile = get().previewFile;
-            if (previewFile && previewFile.path === change.path && !previewFile.isDirectory) {
+            // If it's a file being previewed in any tab, close preview
+            const currentTab = p.tabs[p.activeTab];
+            if (currentTab?.previewFile?.path === change.path && !currentTab.previewFile.isDirectory) {
               closePreview();
             }
 
@@ -1622,11 +1592,12 @@ export const useStore = create<StoreState>((set, get) => ({
     const state = get();
     state.panes.forEach(pane => {
       if (!pane.navigationHistory || pane.navigationHistory.length === 0) {
+        const currentTab = pane.tabs[pane.activeTab];
         state.pushToHistory(pane.id, {
           basePath: pane.basePath,
           currentBreadcrumbPath: pane.currentBreadcrumbPath,
           selectedFiles: [...pane.selectedFiles],
-          previewFilePath: state.previewFile?.path || null,
+          previewFilePath: currentTab?.previewFile?.path || null,
         });
       }
     });

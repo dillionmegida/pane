@@ -252,8 +252,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
     pushNavHistory,
     setActivePane,
     activePane,
-    showPreview,
-    previewFile,
+    panes,
     revealTarget,
     clearRevealTarget,
     revealFileInTree,
@@ -278,6 +277,11 @@ export default function FilePane({ paneId }: FilePaneProps) {
   const [fileTags, setFileTags] = useState<Record<string, Tag[]>>({});
   const [tagPickerState, setTagPickerState] = useState<{ filePath: string; position: { x: number; y: number } } | null>(null);
   const [typingBuffer, setTypingBuffer] = useState('');
+
+  // Get preview state from active tab
+  const activePaneState = panes.find(p => p.id === activePane);
+  const previewFile = activePaneState?.tabs[activePaneState?.activeTab || 0]?.previewFile || null;
+  const showPreview = previewFile !== null;
   const [folderSizes, setFolderSizes] = useState<Record<string, number>>({});
   const columnViewRef = useRef<HTMLDivElement>(null);
   const newItemInputRef = useRef<HTMLInputElement>(null);

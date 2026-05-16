@@ -128,10 +128,6 @@ describe('Reveal Functionality', () => {
           revealTarget.isDirectory
         );
       });
-      // Manually set showPreview since triggerPreview is true
-      if (revealTarget.triggerPreview) {
-        useStore.setState({ showPreview: true });
-      }
       useStore.getState().clearRevealTarget();
     }
 
@@ -144,9 +140,8 @@ describe('Reveal Functionality', () => {
     // Verify the file is selected
     expect(pane!.selectedFiles.has('/Users/john/Documents/file.txt')).toBe(true);
 
-    // Verify preview file is set for non-directory reveal
-    expect(useStore.getState().previewFile!.path).toBe('/Users/john/Documents/file.txt');
-    expect(useStore.getState().showPreview).toBe(true);
+    // Verify preview file is set for non-directory reveal (in the tab)
+    expect(pane!.tabs[pane!.activeTab].previewFile!.path).toBe('/Users/john/Documents/file.txt');
 
     // Verify revealTarget was cleared (FilePane useEffect does this)
     expect(useStore.getState().revealTarget).toBeNull();
@@ -211,9 +206,6 @@ describe('Reveal Functionality', () => {
           revealTarget.isDirectory
         );
       });
-      if (revealTarget.triggerPreview) {
-        useStore.setState({ showPreview: true });
-      }
       useStore.getState().clearRevealTarget();
     }
 
@@ -256,9 +248,11 @@ describe('Reveal Functionality', () => {
         currentBreadcrumbPath: '/Users/john',
         viewMode: 'column',
         columnState: { paths: ['/Users/john'], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+        tabs: p.tabs.map((t, i) => i === p.activeTab ? {
+          ...t,
+          previewFile: { path: '/Users/john/old.txt', name: 'old.txt', isDirectory: false, size: 1024, modified: new Date().toISOString(), extension: 'txt' },
+        } : t),
       })),
-      previewFile: { path: '/Users/john/old.txt', name: 'old.txt', isDirectory: false, size: 1024, modified: new Date().toISOString(), extension: 'txt' },
-      showPreview: true,
     });
 
     // Reveal a directory (like search overlay does)
@@ -292,9 +286,8 @@ describe('Reveal Functionality', () => {
     // Verify the directory is selected
     expect(pane!.selectedFiles.has('/Users/john/Documents')).toBe(true);
 
-    // Verify preview pane is closed
-    expect(useStore.getState().previewFile).toBeNull();
-    expect(useStore.getState().showPreview).toBe(false);
+    // Verify preview pane is closed (in the tab)
+    expect(pane!.tabs[pane!.activeTab].previewFile).toBeNull();
 
     // Verify revealTarget was cleared
     expect(useStore.getState().revealTarget).toBeNull();

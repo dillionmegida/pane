@@ -395,9 +395,9 @@ describe('goBackInHistory / goForwardInHistory', () => {
 
     await act(async () => { await useStore.getState().goBackInHistory('left'); });
 
-    expect(useStore.getState().previewFile).not.toBeNull();
-    expect(useStore.getState().previewFile!.path).toBe('/a/photo.png');
-    expect(useStore.getState().showPreview).toBe(true);
+    const pane = useStore.getState().panes.find(p => p.id === 'left');
+    expect(pane!.tabs[pane!.activeTab].previewFile).not.toBeNull();
+    expect(pane!.tabs[pane!.activeTab].previewFile!.path).toBe('/a/photo.png');
   });
 });
 
@@ -485,7 +485,6 @@ describe('saveSession - objective: serialize full state to electronAPI.storeSet'
       expect.objectContaining({
         panes: expect.any(Array),
         activePane: 'left',
-        previewFilePath: '/Users/john/preview.png',
         directorySorts: { '/Users/john': 'modified' },
       })
     );

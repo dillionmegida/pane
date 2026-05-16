@@ -112,7 +112,7 @@ describe('revealFileInTree Utility', () => {
     await revealFileInTree('left', basePath, basePath, true, mockDeps);
 
     expect(mockDeps.stat).not.toHaveBeenCalled();
-    expect(mockDeps.setPreview).toHaveBeenCalledWith(null, false);
+    expect(mockDeps.setPreview).toHaveBeenCalledWith(null);
   });
 
   test('pushes navigation history', async () => {

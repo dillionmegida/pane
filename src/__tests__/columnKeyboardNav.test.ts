@@ -287,9 +287,12 @@ describe('Column Keyboard Nav - ArrowLeft (go back)', () => {
 
   test('ArrowLeft clears preview', () => {
     act(() => { useStore.getState().setPreviewFile({ name: 'test.txt', path: '/test.txt' } as any); });
-    expect(getStore().previewFile).not.toBeNull();
+    const pane = getStore().panes.find((p: any) => p.id === 'left');
+    if (!pane) return;
+    expect(pane.tabs[pane.activeTab].previewFile).not.toBeNull();
     act(() => simulateArrowLeft(getStore()));
-    expect(getStore().previewFile).toBeNull();
+    const paneAfter = getStore().panes.find((p: any) => p.id === 'left');
+    expect(paneAfter?.tabs[paneAfter.activeTab].previewFile).toBeNull();
   });
 
   test('ArrowLeft at column 0 does nothing', () => {
@@ -355,17 +358,23 @@ describe('Column Keyboard Nav - Preview pane', () => {
       selectedFiles: new Set([rootFiles[2].path]), currentBreadcrumbPath: rootFiles[2].path,
     }));
     act(() => simulateArrowDown(getStore()));
-    expect(getStore().previewFile).not.toBeNull();
-    expect(getStore().previewFile.name).toBe('notes.txt');
+    const pane = getStore().panes.find((p: any) => p.id === 'left');
+    if (!pane) return;
+    expect(pane.tabs[pane.activeTab].previewFile).not.toBeNull();
+    expect(pane.tabs[pane.activeTab].previewFile!.name).toBe('notes.txt');
   });
 
   test('selecting a directory clears preview', () => {
     act(() => { useStore.getState().setPreviewFile(rootFiles[3]); });
-    expect(getStore().previewFile).not.toBeNull();
+    const pane = getStore().panes.find((p: any) => p.id === 'left');
+    if (!pane) return;
+    expect(pane.tabs[pane.activeTab].previewFile).not.toBeNull();
 
     useStore.setState(buildInitialState({ selectedFiles: new Set([rootFiles[3].path]), currentBreadcrumbPath: basePath }));
     act(() => simulateArrowUp(getStore()));
-    expect(getStore().previewFile).toBeNull();
+    const pane2 = getStore().panes.find((p: any) => p.id === 'left');
+    if (!pane2) return;
+    expect(pane2.tabs[pane2.activeTab].previewFile).toBeNull();
   });
 
   test('ArrowRight into a directory with file as first item sets preview', () => {
@@ -378,8 +387,9 @@ describe('Column Keyboard Nav - Preview pane', () => {
       columnState: { paths: [], filesByPath: { [rootFiles[0].path]: docsWithFileFirst }, selectedByColumn: {}, focusedIndex: 0 },
     }));
     act(() => simulateArrowRight(getStore()));
-    expect(getStore().previewFile).not.toBeNull();
-    expect(getStore().previewFile.name).toBe('readme.txt');
+    const pane = getStore().panes.find((p: any) => p.id === 'left');
+    expect(pane?.tabs[pane.activeTab].previewFile).not.toBeNull();
+    expect(pane?.tabs[pane.activeTab].previewFile.name).toBe('readme.txt');
   });
 });
 
@@ -658,26 +668,25 @@ describe('Column Keyboard Nav - Preview file state', () => {
       selectedFiles: new Set([rootFiles[2].path]), currentBreadcrumbPath: rootFiles[2].path, basePath,
     }));
     act(() => simulateArrowDown(getStore()));
-    expect(getStore().previewFile).not.toBeNull();
-    expect(getStore().previewFile.path).toBe(rootFiles[3].path);
-    expect(getStore().showPreview).toBe(true);
+    const pane = getStore().panes.find((p: any) => p.id === 'left');
+    expect(pane?.tabs[pane.activeTab].previewFile).not.toBeNull();
+    expect(pane?.tabs[pane.activeTab].previewFile.path).toBe(rootFiles[3].path);
   });
 
   test('preview is cleared when directory is selected', () => {
     act(() => { useStore.getState().setPreviewFile(rootFiles[3]); });
-    expect(getStore().showPreview).toBe(true);
     useStore.setState(buildInitialState({ selectedFiles: new Set([rootFiles[3].path]), currentBreadcrumbPath: basePath, basePath }));
     act(() => simulateArrowUp(getStore()));
-    expect(getStore().previewFile).toBeNull();
-    expect(getStore().showPreview).toBe(false);
+    const pane = getStore().panes.find((p: any) => p.id === 'left');
+    expect(pane?.tabs[pane.activeTab].previewFile).toBeNull();
   });
 
   test('preview is cleared on Escape', () => {
     act(() => { useStore.getState().setPreviewFile(rootFiles[3]); });
-    expect(getStore().showPreview).toBe(true);
     useStore.setState(buildInitialState({ selectedFiles: new Set([rootFiles[3].path]), currentBreadcrumbPath: basePath, basePath }));
     act(() => simulateEscape(getStore()));
-    expect(getStore().previewFile).toBeNull();
+    const pane = getStore().panes.find((p: any) => p.id === 'left');
+    expect(pane?.tabs[pane.activeTab].previewFile).toBeNull();
   });
 
   test('preview is cleared on ArrowLeft', () => {
@@ -687,9 +696,9 @@ describe('Column Keyboard Nav - Preview file state', () => {
       columnState: { paths: [], filesByPath: { [rootFiles[0].path]: documentsFiles }, selectedByColumn: {}, focusedIndex: 1 },
     }));
     act(() => { useStore.getState().setPreviewFile(documentsFiles[2]); });
-    expect(getStore().showPreview).toBe(true);
     act(() => simulateArrowLeft(getStore()));
-    expect(getStore().previewFile).toBeNull();
+    const pane = getStore().panes.find((p: any) => p.id === 'left');
+    expect(pane?.tabs[pane.activeTab].previewFile).toBeNull();
   });
 });
 

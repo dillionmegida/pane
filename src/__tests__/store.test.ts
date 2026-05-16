@@ -595,8 +595,8 @@ describe('Store - Preview & Zoom', () => {
     act(() => {
       result.current.setPreviewFile(mockFile);
     });
-    expect(result.current.previewFile).toEqual(mockFile);
-    expect(result.current.showPreview).toBe(true);
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane?.tabs[pane.activeTab].previewFile).toEqual(mockFile);
   });
 
   test('should close preview', () => {
@@ -606,8 +606,8 @@ describe('Store - Preview & Zoom', () => {
       result.current.setPreviewFile(mockFile);
       result.current.closePreview();
     });
-    expect(result.current.previewFile).toBeNull();
-    expect(result.current.showPreview).toBe(false);
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane?.tabs[pane.activeTab].previewFile).toBeNull();
   });
 
   test('should set preview width within bounds', () => {

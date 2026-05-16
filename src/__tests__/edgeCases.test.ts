@@ -252,7 +252,6 @@ describe('revealFileInTree - column building and file selection', () => {
       activePane: 'left',
       initialized: true,
       directorySorts: {},
-      previewFile: null,
     });
   });
 
@@ -268,15 +267,17 @@ describe('revealFileInTree - column building and file selection', () => {
     await act(async () => {
       await useStore.getState().revealFileInTree('left', '/Users/john/Documents/photo.png', '/Users/john/Documents', false);
     });
-    expect(useStore.getState().previewFile).not.toBeNull();
-    expect(useStore.getState().previewFile!.path).toBe('/Users/john/Documents/photo.png');
+    const pane = useStore.getState().panes.find(p => p.id === 'left');
+    expect(pane!.tabs[pane!.activeTab].previewFile).not.toBeNull();
+    expect(pane!.tabs[pane!.activeTab].previewFile!.path).toBe('/Users/john/Documents/photo.png');
   });
 
   test('does NOT set preview for directory reveals', async () => {
     await act(async () => {
       await useStore.getState().revealFileInTree('left', '/Users/john/Documents/sub', '/Users/john/Documents', true);
     });
-    expect(useStore.getState().previewFile).toBeNull();
+    const pane = useStore.getState().panes.find(p => p.id === 'left');
+    expect(pane!.tabs[pane!.activeTab].previewFile).toBeNull();
   });
 
   test('builds column paths when fileDir differs from basePath', async () => {
@@ -846,19 +847,28 @@ describe('navigateToBookmark - edge cases', () => {
     useStore.setState({
       panes: [defaultPane()],
       activePane: 'left',
-      previewFile: mkFile('old.png'),
-      showPreview: true,
       initialized: true,
       directorySorts: {},
     });
   });
 
-  test('clears previewFile and showPreview', async () => {
+  test('clears previewFile in active tab', async () => {
+    // Set initial preview in the tab
+    const pane = useStore.getState().panes.find(p => p.id === 'left');
+    const updatedTabs = pane!.tabs.map((t: any, i: number) => 
+      i === pane!.activeTab ? { ...t, previewFile: mkFile('old.png') } : t
+    );
+    useStore.setState({
+      panes: useStore.getState().panes.map((p: any) => 
+        p.id === 'left' ? { ...p, tabs: updatedTabs } : p
+      ),
+    });
+
     await act(async () => {
       await useStore.getState().navigateToBookmark('left', '/Bookmarked', 'bm-1');
     });
-    expect(useStore.getState().previewFile).toBeNull();
-    expect(useStore.getState().showPreview).toBe(false);
+    const paneAfter = useStore.getState().panes.find(p => p.id === 'left');
+    expect(paneAfter!.tabs[paneAfter!.activeTab].previewFile).toBeNull();
   });
 
   test('sets activeBookmarkId on pane', async () => {

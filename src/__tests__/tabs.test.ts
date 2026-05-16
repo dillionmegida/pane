@@ -551,15 +551,15 @@ describe('Tabs - Label derived from active directory / preview file / basePath',
       isDirectory: false, size: 5000, modified: '2024-01-01', extension: 'png',
     };
 
-    // Set previewFile globally and snapshot via setViewMode
-    useStore.setState({ previewFile, showPreview: true });
-
-    // Clear breadcrumb to undefined to force fallback to previewFile dir
+    // Set previewFile in the active tab
     useStore.setState({
       panes: useStore.getState().panes.map((p: any) => ({
         ...p,
         currentBreadcrumbPath: undefined,
         basePath: '/Users/john',
+        tabs: p.tabs.map((t: any, i: number) => 
+          i === p.activeTab ? { ...t, previewFile } : t
+        ),
       })),
     });
 
@@ -574,11 +574,11 @@ describe('Tabs - Label derived from active directory / preview file / basePath',
 
   test('tab label falls back to basePath when no breadcrumb or preview', () => {
     useStore.setState({
-      previewFile: null,
       panes: useStore.getState().panes.map((p: any) => ({
         ...p,
         currentBreadcrumbPath: undefined,
         basePath: '/Users/john/Music',
+        tabs: p.tabs.map((t: any) => ({ ...t, previewFile: null })),
       })),
     });
 
@@ -916,8 +916,6 @@ describe('Tabs - Preview File Per Tab', () => {
       activePane: 'left',
       homeDir: '/Users/john',
       initialized: true,
-      previewFile: file1,
-      showPreview: true,
     } as any);
   });
 
@@ -926,8 +924,8 @@ describe('Tabs - Preview File Per Tab', () => {
 
     act(() => { result.current.switchTab('left', 1); });
 
-    expect(result.current.previewFile.name).toBe('image.png');
-    expect(result.current.showPreview).toBe(true);
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane.tabs[pane.activeTab].previewFile.name).toBe('image.png');
   });
 
   test('switching to tab with no preview should close preview pane', () => {
@@ -944,8 +942,8 @@ describe('Tabs - Preview File Per Tab', () => {
 
     act(() => { result.current.switchTab('left', 1); });
 
-    expect(result.current.previewFile).toBe(null);
-    expect(result.current.showPreview).toBe(false);
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane.tabs[pane.activeTab].previewFile).toBe(null);
   });
 
   test('setPreviewFile should save to active tab', () => {
@@ -956,8 +954,7 @@ describe('Tabs - Preview File Per Tab', () => {
     act(() => { result.current.setPreviewFile(newFile as any); });
 
     const pane = result.current.panes.find((p: any) => p.id === 'left');
-    expect(pane.tabs[0].previewFile.name).toBe('new.pdf');
-    expect(result.current.previewFile.name).toBe('new.pdf');
+    expect(pane.tabs[pane.activeTab].previewFile.name).toBe('new.pdf');
   });
 
   test('closePreview should clear preview in active tab', () => {
@@ -966,20 +963,19 @@ describe('Tabs - Preview File Per Tab', () => {
     act(() => { result.current.closePreview(); });
 
     const pane = result.current.panes.find((p: any) => p.id === 'left');
-    expect(pane.tabs[0].previewFile).toBe(null);
-    expect(result.current.previewFile).toBe(null);
-    expect(result.current.showPreview).toBe(false);
+    expect(pane.tabs[pane.activeTab].previewFile).toBe(null);
   });
 
   test('switching back to tab1 should restore its preview', () => {
     const { result } = renderHook(() => useStore());
 
     act(() => { result.current.switchTab('left', 1); });
-    expect(result.current.previewFile.name).toBe('image.png');
+    const pane1 = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane1.tabs[pane1.activeTab].previewFile.name).toBe('image.png');
 
     act(() => { result.current.switchTab('left', 0); });
-    expect(result.current.previewFile.name).toBe('doc.txt');
-    expect(result.current.showPreview).toBe(true);
+    const pane0 = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane0.tabs[pane0.activeTab].previewFile.name).toBe('doc.txt');
   });
 
   test('creating new tab should clear preview', async () => {
@@ -989,8 +985,8 @@ describe('Tabs - Preview File Per Tab', () => {
 
     await act(async () => { result.current.addTab('left'); });
 
-    expect(result.current.previewFile).toBe(null);
-    expect(result.current.showPreview).toBe(false);
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane.tabs[pane.activeTab].previewFile).toBe(null);
   });
 
   test('closing active tab should restore preview from new active tab', () => {
@@ -998,8 +994,8 @@ describe('Tabs - Preview File Per Tab', () => {
 
     act(() => { result.current.closeTab('left', 0); });
 
-    expect(result.current.previewFile.name).toBe('image.png');
-    expect(result.current.showPreview).toBe(true);
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane.tabs[pane.activeTab].previewFile.name).toBe('image.png');
   });
 
   test('session persistence should save per-tab preview', () => {

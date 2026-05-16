@@ -429,16 +429,16 @@ describe('Column Keyboard Nav Integration Tests - Real Keyboard Handler', () => 
       });
 
       expect(getPane().selectedFiles.has(rootFiles[3].path)).toBe(true);
-      expect(getStore().showPreview).toBe(true);
-      expect(getStore().previewFile?.path).toBe(rootFiles[3].path);
-      
+      const pane3 = getStore().panes.find((p: any) => p.id === 'left');
+      expect(pane3?.tabs[pane3.activeTab].previewFile?.path).toBe(rootFiles[3].path);
+
       // ArrowDown to fifth item (readme.md file)
       await act(async () => {
         fireEvent.keyDown(document, { key: 'ArrowDown' });
       });
       expect(getPane().selectedFiles.has(rootFiles[4].path)).toBe(true);
-      expect(getStore().showPreview).toBe(true);
-      expect(getStore().previewFile?.path).toBe(rootFiles[4].path);
+      const pane4 = getStore().panes.find((p: any) => p.id === 'left');
+      expect(pane4?.tabs[pane4.activeTab].previewFile?.path).toBe(rootFiles[4].path);
 
       // ArrowUp to Pictures directory (should close preview)
       await act(async () => {
@@ -448,8 +448,8 @@ describe('Column Keyboard Nav Integration Tests - Real Keyboard Handler', () => 
         fireEvent.keyDown(document, { key: 'ArrowUp' });
       });
       expect(getPane().selectedFiles.has(rootFiles[2].path)).toBe(true);
-      expect(getStore().showPreview).toBe(false);
-      expect(getStore().previewFile).toBeNull();
+      const pane2 = getStore().panes.find((p: any) => p.id === 'left');
+      expect(pane2?.tabs[pane2.activeTab].previewFile).toBeNull();
     });
   });
 

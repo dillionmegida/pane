@@ -100,12 +100,14 @@ describe('File Watcher - file system change detection', () => {
   test('watcher closes preview when deleted file was previewed', async () => {
     useStore.setState({
       ...defaultPaneState(),
-      previewFile: mkFile('photo.png', { path: '/Users/john/photo.png' }),
-      showPreview: true,
       panes: [{
         ...defaultPaneState().panes[0],
         selectedFiles: new Set(['/Users/john/photo.png']),
         path: '/Users/john',
+        tabs: defaultPaneState().panes[0].tabs.map((t, i) => i === defaultPaneState().panes[0].activeTab ? {
+          ...t,
+          previewFile: mkFile('photo.png', { path: '/Users/john/photo.png' }),
+        } : t),
       }],
     });
 
@@ -115,15 +117,15 @@ describe('File Watcher - file system change detection', () => {
     panes.forEach(p => {
       if (p.selectedFiles.has(change.path)) {
         setSelection(p.id, []);
-        const previewFile = useStore.getState().previewFile;
-        if (previewFile && previewFile.path === change.path && !previewFile.isDirectory) {
+        const currentTab = p.tabs[p.activeTab];
+        if (currentTab?.previewFile?.path === change.path && !currentTab.previewFile.isDirectory) {
           closePreview();
         }
       }
     });
 
-    expect(useStore.getState().showPreview).toBe(false);
-    expect(useStore.getState().previewFile).toBeNull();
+    const pane = useStore.getState().panes.find(p => p.id === 'left');
+    expect(pane!.tabs[pane!.activeTab].previewFile).toBeNull();
   });
 
   test('watcher trims columns when deleted directory was in column view', async () => {

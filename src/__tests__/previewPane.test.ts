@@ -256,7 +256,8 @@ describe('Column view - showPreview drives scroll-to-end (regression)', () => {
     id: 'left', path: '/Desktop', basePath: '/Desktop', files: [],
     loading: false, error: null, selectedFiles: new Set<string>(),
     sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
-    tabs: [], activeTab: 0, currentBreadcrumbPath: '/Desktop',
+    tabs: [{ id: 'tab-1', path: '/Desktop', basePath: '/Desktop', currentBreadcrumbPath: '/Desktop', label: 'Desktop', files: [], selectedFiles: new Set(), activeBookmarkId: null, viewMode: 'column', sortBy: 'name', sortOrder: 'asc', columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 }, previewFile: null, navigationHistory: [], navigationIndex: -1, _isRestoringHistory: false }],
+    activeTab: 0, currentBreadcrumbPath: '/Desktop',
     columnState: { paths: ['/Desktop/A', '/Desktop/A/B'], filesByPath: {}, selectedByColumn: {}, focusedIndex: 2 },
     navigationHistory: [], navigationIndex: -1, _isRestoringHistory: false,
     activeBookmarkId: null,
@@ -264,47 +265,46 @@ describe('Column view - showPreview drives scroll-to-end (regression)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    useStore.setState({ panes: [paneState as any], activePane: 'left', showPreview: false, previewFile: null } as any);
+    useStore.setState({ panes: [paneState as any], activePane: 'left' } as any);
   });
 
-  test('showPreview is false initially with no preview file', () => {
+  test('preview is null initially with no preview file', () => {
     const { result } = renderHook(() => useStore());
-    expect(result.current.showPreview).toBe(false);
-    expect(result.current.previewFile).toBeNull();
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane?.tabs[pane.activeTab].previewFile).toBeNull();
   });
 
-  test('setPreviewFile sets showPreview to true, triggering scroll-to-end effect', () => {
-    const { result } = renderHook(() => useStore());
-    const file = makeFile('image.png');
-
-    act(() => { result.current.setPreviewFile(file); });
-
-    expect(result.current.showPreview).toBe(true);
-    expect(result.current.previewFile).not.toBeNull();
-    expect(result.current.previewFile?.path).toBe(file.path);
-  });
-
-  test('closePreview sets showPreview back to false, triggering scroll-to-end effect', () => {
+  test('setPreviewFile sets preview in active tab', () => {
     const { result } = renderHook(() => useStore());
     const file = makeFile('image.png');
 
     act(() => { result.current.setPreviewFile(file); });
-    expect(result.current.showPreview).toBe(true);
+
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane?.tabs[pane.activeTab].previewFile).not.toBeNull();
+    expect(pane?.tabs[pane.activeTab].previewFile?.path).toBe(file.path);
+  });
+
+  test('closePreview clears preview in active tab', () => {
+    const { result } = renderHook(() => useStore());
+    const file = makeFile('image.png');
+
+    act(() => { result.current.setPreviewFile(file); });
 
     act(() => { result.current.closePreview(); });
-    expect(result.current.showPreview).toBe(false);
-    expect(result.current.previewFile).toBeNull();
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane?.tabs[pane.activeTab].previewFile).toBeNull();
   });
 
-  test('showPreview toggles on setPreviewFile(null)', () => {
+  test('setPreviewFile(null) clears preview in active tab', () => {
     const { result } = renderHook(() => useStore());
     const file = makeFile('video.mp4');
 
     act(() => { result.current.setPreviewFile(file); });
-    expect(result.current.showPreview).toBe(true);
 
     act(() => { result.current.setPreviewFile(null); });
-    expect(result.current.showPreview).toBe(false);
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane?.tabs[pane.activeTab].previewFile).toBeNull();
   });
 
   test('column paths remain intact when preview opens (scroll does not alter paths)', () => {
@@ -314,22 +314,23 @@ describe('Column view - showPreview drives scroll-to-end (regression)', () => {
     act(() => { result.current.setPreviewFile(file); });
 
     const pane = result.current.panes.find((p: any) => p.id === 'left') as any;
-    expect(result.current.showPreview).toBe(true);
+    expect(pane.tabs[pane.activeTab].previewFile).not.toBeNull();
     expect(pane.columnState.paths).toHaveLength(2);
     expect(pane.columnState.paths[1]).toBe('/Desktop/A/B');
   });
 
-  test('switching preview file updates previewFile.path (drives scroll on each file click)', () => {
+  test('switching preview file updates previewFile.path in tab', () => {
     const { result } = renderHook(() => useStore());
     const fileA = makeFile('image-a.png');
     const fileB = makeFile('image-b.png');
 
     act(() => { result.current.setPreviewFile(fileA); });
-    expect(result.current.previewFile?.path).toBe(fileA.path);
+    const paneA = result.current.panes.find((p: any) => p.id === 'left');
+    expect(paneA?.tabs[paneA.activeTab].previewFile?.path).toBe(fileA.path);
 
     act(() => { result.current.setPreviewFile(fileB); });
-    expect(result.current.previewFile?.path).toBe(fileB.path);
-    expect(result.current.showPreview).toBe(true);
+    const paneB = result.current.panes.find((p: any) => p.id === 'left');
+    expect(paneB?.tabs[paneB.activeTab].previewFile?.path).toBe(fileB.path);
   });
 });
 

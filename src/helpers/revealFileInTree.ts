@@ -9,7 +9,7 @@ export interface RevealFileInTreeDeps {
   updateColumnState: (paneId: string, columnState: any) => void;
   setCurrentBreadcrumbPath: (paneId: string, path: string) => void;
   setSelection: (paneId: string, filePaths: string[]) => void;
-  setPreview: (previewFile: any, showPreview: boolean) => void;
+  setPreview: (previewFile: any) => void;
   pushNavHistory: (paneId: string, historyEntry: any) => void;
   getDirSort: (dirPath: string) => SortBy;
   readdir: (path: string) => Promise<{ success: boolean; files: FileItem[]; error?: string }>;
@@ -85,12 +85,12 @@ export async function revealFileInTree(
     if (file.success && file.stat) {
       const name = filePath.split('/').pop() ?? '';
       const ext = name.includes('.') ? name.split('.').pop()?.toLowerCase() ?? '' : '';
-      deps.setPreview({ ...file.stat, path: filePath, name, extension: ext, isDirectory: false }, true);
+      deps.setPreview({ ...file.stat, path: filePath, name, extension: ext, isDirectory: false });
       previewFilePath = filePath;
     }
   } else {
     // Close preview pane when revealing a directory
-    deps.setPreview(null, false);
+    deps.setPreview(null);
   }
 
   deps.pushNavHistory(paneId, {

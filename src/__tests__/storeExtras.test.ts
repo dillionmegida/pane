@@ -904,8 +904,13 @@ describe('Store - navigateToBookmark', () => {
   test('navigateToBookmark clears preview', async () => {
     useStore.setState({
       ...basePaneState(),
-      previewFile: mkFile('old.txt'),
-      showPreview: true,
+      panes: basePaneState().panes.map(p => ({
+        ...p,
+        tabs: p.tabs.map((t, i) => i === p.activeTab ? {
+          ...t,
+          previewFile: mkFile('old.txt'),
+        } : t),
+      })),
     });
 
     (window as any).electronAPI.readdir.mockResolvedValue({ success: true, files: [] });
@@ -914,8 +919,8 @@ describe('Store - navigateToBookmark', () => {
       await useStore.getState().navigateToBookmark('left', '/Users/john/Downloads', 'bm-2');
     });
 
-    expect(useStore.getState().previewFile).toBeNull();
-    expect(useStore.getState().showPreview).toBe(false);
+    const pane = useStore.getState().panes.find(p => p.id === 'left');
+    expect(pane!.tabs[pane!.activeTab].previewFile).toBeNull();
   });
 
   test('navigateToBookmark handles readdir failure', async () => {

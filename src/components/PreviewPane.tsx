@@ -275,11 +275,14 @@ function isTextContent(content: string): boolean {
 }
 
 export default function PreviewPane() {
-  const { previewFile, closePreview, previewWidth, setPreviewWidth } = useStore();
+  const { closePreview, previewWidth, setPreviewWidth, panes, activePane } = useStore();
   const mediaRef = useRef<MediaHandle>(null);
   const [pdfNumPages, setPdfNumPages] = useState<number | null>(null);
   const [pdfPage, setPdfPage] = useState(1);
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
+
+  const activePaneState = panes.find(p => p.id === activePane);
+  const previewFile = activePaneState?.tabs[activePaneState.activeTab]?.previewFile || null;
 
   const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
