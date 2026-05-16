@@ -46,11 +46,22 @@ export async function buildColumnState(
       }
     }
 
-    for (const colPath of columnPaths) {
-      const colResult = await deps.readdir(colPath);
-      if (colResult.success) {
-        const colDirSort = deps.getDirSort(colPath);
-        filesByPath[colPath] = sortFiles(colResult.files, colDirSort, 'asc');
+    // Fetch all column directories in parallel for better performance
+    const readdirResults = await Promise.all(
+      columnPaths.map(async (colPath) => {
+        const colResult = await deps.readdir(colPath);
+        if (colResult.success) {
+          const colDirSort = deps.getDirSort(colPath);
+          return { colPath, files: sortFiles(colResult.files, colDirSort, 'asc') };
+        }
+        return null;
+      })
+    );
+
+    // Populate filesByPath with successful results
+    for (const result of readdirResults) {
+      if (result) {
+        filesByPath[result.colPath] = result.files;
       }
     }
 
