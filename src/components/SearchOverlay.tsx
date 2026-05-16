@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import styled from 'styled-components';
+import { FixedSizeList as List, VariableSizeList as VariableList } from 'react-window';
 import { useStore, formatSize, formatDate, PREVIEW_TYPES, getPreviewType } from '../store';
 import ModalPreviewPane from './ModalPreviewPane';
 import { useConcurrentDirectoryScanner } from '../hooks/useDirectoryScanner';
@@ -103,7 +104,7 @@ const ResultsPane = styled.div`
 
 const Results = styled.div`
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
 `;
 
 const ResultItem = styled.div`
@@ -443,6 +444,8 @@ export default function SearchOverlay(): React.ReactElement {
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mainContentRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const [listHeight, setListHeight] = useState(600);
 
   const { isScanning, scanResults, setScanResults, scanWithConcurrentWalking, abortScan } = useConcurrentDirectoryScanner() as any;
 
@@ -480,6 +483,27 @@ export default function SearchOverlay(): React.ReactElement {
     return flat;
   }, [contentSearch, contentFileGroups, collapsedFiles]);
 
+  // Build flattened list for virtualization with type markers
+  const contentVirtualizedList = useMemo(() => {
+    if (!contentSearch) return [];
+    const items: any[] = [];
+    for (const group of contentFileGroups) {
+      items.push({ type: 'header', group });
+      if (!collapsedFiles.has(group.filePath)) {
+        for (const match of group.matches) {
+          items.push({ type: 'match', match, group });
+        }
+      }
+    }
+    return items;
+  }, [contentSearch, contentFileGroups, collapsedFiles]);
+
+  // Item size getter for VariableSizeList
+  const getItemSize = useCallback((index: number) => {
+    const item = contentVirtualizedList[index];
+    return item.type === 'header' ? 32 : 24;
+  }, [contentVirtualizedList]);
+
   // Highlight query matches within a line of text
   const highlightMatch = useCallback((text: string, q: string, isRegex: boolean): React.ReactNode => {
     if (!q) return text;
@@ -510,6 +534,31 @@ export default function SearchOverlay(): React.ReactElement {
 
   useEffect(() => {
     (window as any).electronAPI.storeGet('searchRoot').then((v: any) => setRootSearch(!!v));
+  }, []);
+
+  useEffect(() => {
+    const resultsEl = resultsRef.current;
+    if (!resultsEl) return;
+
+    let rafId: number | null = null;
+
+    const updateHeight = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        setListHeight(resultsEl.clientHeight);
+        rafId = null;
+      });
+    };
+
+    updateHeight();
+    
+    const resizeObserver = new ResizeObserver(updateHeight);
+    resizeObserver.observe(resultsEl);
+    
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      resizeObserver.disconnect();
+    };
   }, []);
 
   useEffect(() => {
@@ -748,14 +797,26 @@ export default function SearchOverlay(): React.ReactElement {
 
         <MainContent ref={mainContentRef}>
           <ResultsPane>
-            <Results>
+            <Results ref={resultsRef}>
               {contentSearch ? (
-                <>
-                  {contentFileGroups.map((group) => {
-                    const isCollapsed = collapsedFiles.has(group.filePath);
-                    return (
-                      <div key={group.filePath}>
-                        <ContentFileHeader onClick={() => toggleFileCollapse(group.filePath)}>
+                <VariableList
+                  height={listHeight}
+                  itemCount={contentVirtualizedList.length}
+                  itemSize={getItemSize}
+                  width="100%"
+                  outerElementType={Results}
+                >
+                  {({ index, style }) => {
+                    const item = contentVirtualizedList[index];
+                    if (item.type === 'header') {
+                      const group = item.group;
+                      const isCollapsed = collapsedFiles.has(group.filePath);
+                      return (
+                        <ContentFileHeader
+                          key={group.filePath}
+                          style={style}
+                          onClick={() => toggleFileCollapse(group.filePath)}
+                        >
                           <CollapseArrow collapsed={isCollapsed}>▼</CollapseArrow>
                           <ContentFileIcon>
                             <FileIconComponent ext={group.extension} size={14} />
@@ -764,52 +825,60 @@ export default function SearchOverlay(): React.ReactElement {
                           <ContentFilePath>{group.filePath}</ContentFilePath>
                           <ContentMatchCount>{group.matches.length}</ContentMatchCount>
                         </ContentFileHeader>
-                        {!isCollapsed && group.matches.map((match: any) => {
-                          const flatIdx = contentFlatList.indexOf(match);
-                          return (
-                            <ContentMatchRow
-                              key={`${match.path}:${match.lineNumber}`}
-                              className={flatIdx === selectedIdx ? 'selected' : ''}
-                              onClick={() => { setSelectedIdx(flatIdx); setSelectedItem(match); }}
-                              onDoubleClick={() => handleRevealInColumns(match.path)}
-                            >
-                              <LineNumber>{match.lineNumber}</LineNumber>
-                              <MatchedLineText>{highlightMatch(match.matchedLine, query, useRegex)}</MatchedLineText>
-                            </ContentMatchRow>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </>
+                      );
+                    } else {
+                      const match = item.match;
+                      const flatIdx = contentFlatList.indexOf(match);
+                      return (
+                        <ContentMatchRow
+                          key={`${match.path}:${match.lineNumber}`}
+                          style={style}
+                          className={flatIdx === selectedIdx ? 'selected' : ''}
+                          onClick={() => { setSelectedIdx(flatIdx); setSelectedItem(match); }}
+                          onDoubleClick={() => handleRevealInColumns(match.path)}
+                        >
+                          <LineNumber>{match.lineNumber}</LineNumber>
+                          <MatchedLineText>{highlightMatch(match.matchedLine, query, useRegex)}</MatchedLineText>
+                        </ContentMatchRow>
+                      );
+                    }
+                  }}
+                </VariableList>
               ) : (
-                <>
-                  {results.map((file: any, i: number) => (
+                <List
+                  height={listHeight}
+                  itemCount={results.length}
+                  itemSize={48}
+                  width="100%"
+                  outerElementType={Results}
+                >
+                  {({ index, style }) => (
                     <ResultItem
-                      key={file.path}
-                      className={i === selectedIdx ? 'selected' : ''}
-                      onClick={() => { setSelectedIdx(i); setSelectedItem(file); }}
-                      onDoubleClick={() => handleRevealInColumns(file.path)}
+                      key={results[index].path}
+                      style={style}
+                      className={index === selectedIdx ? 'selected' : ''}
+                      onClick={() => { setSelectedIdx(index); setSelectedItem(results[index]); }}
+                      onDoubleClick={() => handleRevealInColumns(results[index].path)}
                     >
                       <ResultIcon>
-                        {file.isDirectory ? (
-                          file.name?.endsWith('.app') ? <FileIconComponent ext="app" size={16} /> : '📁'
+                        {results[index].isDirectory ? (
+                          results[index].name?.endsWith('.app') ? <FileIconComponent ext="app" size={16} /> : '📁'
                         ) : (
-                          <FileIconComponent ext={file.extension} size={16} />
+                          <FileIconComponent ext={results[index].extension} size={16} />
                         )}
                       </ResultIcon>
                       <ResultInfo>
-                        <ResultName>{file.name}</ResultName>
-                        <ResultPath>{file.path}</ResultPath>
+                        <ResultName>{results[index].name}</ResultName>
+                        <ResultPath>{results[index].path}</ResultPath>
                       </ResultInfo>
                       <ResultMeta>
-                        <div>{file.isDirectory ? 'folder' : file.extension}</div>
-                        <div>{formatSize(file.size)}</div>
-                        <div>{formatDate(file.modified)}</div>
+                        <div>{results[index].isDirectory ? 'folder' : results[index].extension}</div>
+                        <div>{formatSize(results[index].size)}</div>
+                        <div>{formatDate(results[index].modified)}</div>
                       </ResultMeta>
                     </ResultItem>
-                  ))}
-                </>
+                  )}
+                </List>
               )}
               {!loading && !searchComplete && query && results.length === 0 && (
                 <EmptyMsg>Type to search...</EmptyMsg>

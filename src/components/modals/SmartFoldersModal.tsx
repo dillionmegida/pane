@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import styled from 'styled-components';
+import { FixedSizeList as List } from 'react-window';
 import { useStore, formatSize, formatDate } from '../../store';
 import ModalPreviewPane from '../ModalPreviewPane';
 import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
@@ -18,7 +19,7 @@ const FilterItem = styled.div<{ $active?: boolean }>`
   border-left: ${p => p.$active ? `2px solid ${p.theme.text.accent}` : '2px solid transparent'};
 `;
 const Divider = styled.div`width: 1px; background: ${p => p.theme.border.normal}; cursor: col-resize; user-select: none;`;
-const ContentArea = styled.div`flex: 1; overflow: auto; padding: 12px; border-right: 1px solid ${p => p.theme.border.normal};`;
+const ContentArea = styled.div`flex: 1; overflow: hidden; padding: 12px; border-right: 1px solid ${p => p.theme.border.normal};`;
 const FilterInfo = styled.div`font-size: 11px; color: ${p => p.theme.text.tertiary}; margin-left: 12px; flex: 1;`;
 const Options = styled.div`display: flex; gap: 6px; margin-bottom: 8px; align-items: center;`;
 const OptBtnWrapper = styled.div<{ $active?: boolean }>`
@@ -136,6 +137,8 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
   const [exclusionInputValue, setExclusionInputValue] = useState('');
   const [hasScannedOnce, setHasScannedOnce] = useState(false);
   const modalContainerRef = useRef<HTMLDivElement>(null);
+  const contentAreaRef = useRef<HTMLDivElement>(null);
+  const [listHeight, setListHeight] = useState(400);
   const cachedResultsRef = useRef<Record<string, FileItem[]>>({});
   const lastCacheKeyRef = useRef('');
 
@@ -158,6 +161,31 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
     `${selectedFilterType}-${currentDirectoryPath}-${selectedFilterType === 'large' ? parsedSizeMB : ''}-${excludedDirectories.join(',')}`;
 
   const stopEventPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
+
+  useEffect(() => {
+    const contentEl = contentAreaRef.current;
+    if (!contentEl) return;
+
+    let rafId: number | null = null;
+
+    const updateHeight = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        setListHeight(contentEl.clientHeight);
+        rafId = null;
+      });
+    };
+
+    updateHeight();
+    
+    const resizeObserver = new ResizeObserver(updateHeight);
+    resizeObserver.observe(contentEl);
+    
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     if (!isResizingLeftPane) return;
@@ -296,7 +324,7 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
               ))}
             </LeftPane>
             <Divider onMouseDown={(e) => { setResizeStartX(e.clientX); setResizeStartWidth(leftPaneWidthPx); setIsResizingLeftPane(true); }} />
-            <ContentArea>
+            <ContentArea ref={contentAreaRef}>
               <Options>
                 <OptBtnWrapper $active={excludedDirectories.length > 0} onClick={() => setShowExclusionInput(p => !p)}>
                   {showExclusionInput ? '▼' : '▶'} Excluded ({excludedDirectories.length})
@@ -360,14 +388,26 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
               {!isScanning && hasScannedOnce && scanResults.length === 0 && !(selectedFilterType === 'large' && parsedSizeMB === 0) && (
                 <EmptyState>No files match this filter</EmptyState>
               )}
-              {visibleResults.map(file => (
-                <ResultRow key={file.path} selected={selectedFile?.path === file.path} onClick={() => setSelectedFile(file)}>
-                  <ResultIcon>{file.isDirectory ? '📁' : '📄'}</ResultIcon>
-                  <FileName>{file.name}</FileName>
-                  <SizeText>{formatSize(file.size)}</SizeText>
-                  <ModifiedText>{formatDate(file.modified)}</ModifiedText>
-                </ResultRow>
-              ))}
+              <List
+                height={listHeight}
+                itemCount={visibleResults.length}
+                itemSize={30}
+                width="100%"
+              >
+                {({ index, style }) => (
+                  <ResultRow
+                    key={visibleResults[index].path}
+                    style={style}
+                    selected={selectedFile?.path === visibleResults[index].path}
+                    onClick={() => setSelectedFile(visibleResults[index])}
+                  >
+                    <ResultIcon>{visibleResults[index].isDirectory ? '📁' : '📄'}</ResultIcon>
+                    <FileName>{visibleResults[index].name}</FileName>
+                    <SizeText>{formatSize(visibleResults[index].size)}</SizeText>
+                    <ModifiedText>{formatDate(visibleResults[index].modified)}</ModifiedText>
+                  </ResultRow>
+                )}
+              </List>
             </ContentArea>
             <Divider onMouseDown={(e) => { setResizeStartX(e.clientX); setResizeStartWidth(rightPaneWidthPx); setIsResizingRightPane(true); }} />
             <ModalPreviewPane
