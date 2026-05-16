@@ -636,6 +636,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
     await window.electronAPI.rename(file.path, newPath);
     setRenaming(null);
     refreshPane(paneId);
+    setSelection(paneId, [newPath]);
     if (viewMode === 'column') {
       const result = await readDirSorted(dir, paneId);
       if (result.success) {
@@ -758,8 +759,9 @@ export default function FilePane({ paneId }: FilePaneProps) {
       }
 
       if (e.key === 'Enter' && selectedFiles.size === 1) {
-        const file = files.find(f => selectedFiles.has(f.path));
-        if (file) activateFile(file);
+        const file = files.find(f => selectedFiles.has(f.path))
+          || Object.values(columnState?.filesByPath || {}).flat().find(f => selectedFiles.has(f.path));
+        if (file) startRename(file);
         return;
       }
 
