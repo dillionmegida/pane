@@ -447,19 +447,31 @@ const iconDefs: Record<string, IconDef> = {
   },
 };
 
+const iconCache: Record<string, IconBase | null> = {};
+
 function resolveIcon(ext: string): IconBase | null {
+  if (ext in iconCache) {
+    return iconCache[ext];
+  }
+
   const raw = iconDefs[ext];
-  if (!raw) return null;
+  if (!raw) {
+    iconCache[ext] = null;
+    return null;
+  }
   if (isAlias(raw)) {
     const base = iconDefs[raw.alias] as IconBase;
-    return {
+    const resolved = {
       color: raw.color ?? base.color,
       bg: raw.bg !== undefined ? raw.bg : base.bg,
       label: raw.label,
       shape: base.shape,
       viewBox: base.viewBox,
     };
+    iconCache[ext] = resolved;
+    return resolved;
   }
+  iconCache[ext] = raw;
   return raw;
 }
 
