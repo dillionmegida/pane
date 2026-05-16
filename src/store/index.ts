@@ -3,11 +3,25 @@ import path from 'path-browserify';
 import { sortFiles, DEFAULT_SORT } from '../helpers/sort';
 import { buildColumnState } from '../helpers/columnState';
 import { revealFileInTree as revealFileInTreeUtil } from '../helpers/revealFileInTree';
+import { queryClient } from '../App';
 import type {
   FileItem, Pane, Tab, ColumnState, HistoryEntry,
   Bookmark, RevealTarget, LogEntry, Tag,
   ViewMode, SortBy, SortOrder, Breadcrumb,
 } from '../types';
+
+// ─── Helper: Cache-aware readdir ─────────────────────────────────────────────
+/**
+ * Cache-aware readdir that uses React Query cache.
+ * This replaces direct calls to window.electronAPI.readdir().
+ */
+async function cachedReaddir(dirPath: string): Promise<{ success: boolean; files: FileItem[]; error?: string }> {
+  return queryClient.fetchQuery({
+    queryKey: ['dir', dirPath],
+    queryFn: () => window.electronAPI.readdir(dirPath),
+    staleTime: 0,
+  });
+}
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 const DEFAULT_COLUMN_STATE: ColumnState = {
@@ -310,7 +324,7 @@ export const useStore = create<StoreState>((set, get) => ({
       panes: s.panes.map(p => p.id === paneId ? { ...p, loading: true, error: null, currentBreadcrumbPath: dirPath, basePath: dirPath, activeBookmarkId: null } : p),
     }));
 
-    const result = await window.electronAPI.readdir(dirPath);
+    const result = await cachedReaddir(dirPath);
     if (!result.success) {
       set(s => ({
         panes: s.panes.map(p => p.id === paneId ? { ...p, loading: false, error: result.error ?? null } : p),
@@ -361,7 +375,7 @@ export const useStore = create<StoreState>((set, get) => ({
       } : p),
     }));
 
-    const result = await window.electronAPI.readdir(dirPath);
+    const result = await cachedReaddir(dirPath);
     if (!result.success) {
       set(s => ({
         panes: s.panes.map(p => p.id === paneId ? { ...p, loading: false, error: result.error ?? null } : p),
@@ -411,7 +425,7 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     });
 
-    const result = await window.electronAPI.readdir(dirPath);
+    const result = await cachedReaddir(dirPath);
     if (!result.success) {
       set(s => ({
         panes: s.panes.map(p => p.id === paneId ? { ...p, loading: false, error: result.error ?? null } : p),
@@ -483,7 +497,7 @@ export const useStore = create<StoreState>((set, get) => ({
   setDirectorySort: async (dirPath, sortBy) => {
     set(s => ({ directorySorts: { ...s.directorySorts, [dirPath]: sortBy } }));
 
-    const result = await window.electronAPI.readdir(dirPath);
+    const result = await cachedReaddir(dirPath);
     if (!result.success) return;
     const sorted = sortFiles(result.files, sortBy, 'asc');
 
@@ -721,7 +735,7 @@ export const useStore = create<StoreState>((set, get) => ({
       } : p),
     }));
 
-    const result = await window.electronAPI.readdir(basePath);
+    const result = await cachedReaddir(basePath);
     if (!result.success) {
       set(s => ({
         panes: s.panes.map(p => p.id === paneId ? { ...p, error: result.error ?? null } : p),
@@ -733,7 +747,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const files = sortFiles(result.files, histDirSort, 'asc');
 
     const { paths: columnPaths, filesByPath, selectedByColumn: builtSelectedByColumn, focusedIndex } = await buildColumnState(basePath, currentBreadcrumbPath, {
-      readdir: window.electronAPI.readdir,
+      readdir: cachedReaddir,
       getDirSort: get().getDirSort,
     });
 
@@ -794,7 +808,7 @@ export const useStore = create<StoreState>((set, get) => ({
       panes: s.panes.map(p => p.id === paneId ? { ...p, loading: true, error: null } : p),
     }));
 
-    const result = await window.electronAPI.readdir(pane.path);
+    const result = await cachedReaddir(pane.path);
     if (!result.success) {
       set(s => ({
         panes: s.panes.map(p => p.id === paneId ? { ...p, loading: false, error: result.error ?? null } : p),
@@ -834,7 +848,7 @@ export const useStore = create<StoreState>((set, get) => ({
       if (colPaths.length === 0) return;
       const results = await Promise.all(
         colPaths.map(async (colPath) => {
-          const r = await window.electronAPI.readdir(colPath);
+          const r = await cachedReaddir(colPath);
           if (!r.success) return null;
           const colSort = getDirSort(colPath);
           return [colPath, sortFiles(r.files, colSort, 'asc')] as [string, FileItem[]];
@@ -1117,7 +1131,7 @@ export const useStore = create<StoreState>((set, get) => ({
       setPreview: state.setPreviewFile,
       pushNavHistory: state.pushNavHistory,
       getDirSort: state.getDirSort,
-      readdir: window.electronAPI.readdir,
+      readdir: cachedReaddir,
       stat: window.electronAPI.stat,
     });
   },
@@ -1264,7 +1278,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const pane = panes.find(p => p.id === paneId);
     if (!pane) return { success: false, files: [] };
 
-    const result = await window.electronAPI.readdir(dirPath);
+    const result = await cachedReaddir(dirPath);
     if (!result.success) return result;
 
     const rdDirSort = get().getDirSort(dirPath);
@@ -1377,7 +1391,7 @@ export const useStore = create<StoreState>((set, get) => ({
         colPaths.push(base);
       }
       const entries = await Promise.all(
-        colPaths.map(cp => window.electronAPI.readdir(cp).then(r => {
+        colPaths.map(cp => cachedReaddir(cp).then(r => {
           if (!r.success) return [cp, []] as [string, FileItem[]];
           const dirSort = get().getDirSort(cp);
           const sorted = sortFiles(r.files, dirSort, 'asc');
@@ -1407,7 +1421,7 @@ export const useStore = create<StoreState>((set, get) => ({
         const base = tab.basePath || tab.path;
         const breadcrumb = tab.currentBreadcrumbPath || tab.path;
         const focusedIndex = computeFocusedIndex(base, breadcrumb);
-        const baseDirResult = await window.electronAPI.readdir(base);
+        const baseDirResult = await cachedReaddir(base);
         let files: FileItem[] = [];
         if (baseDirResult.success) {
           const baseDirSort = get().getDirSort(base);
@@ -1550,6 +1564,10 @@ export const useStore = create<StoreState>((set, get) => ({
     window.electronAPI.onWatcherChange((change) => {
       const { panes, refreshPane, setSelection, setPreviewFile, updateColumnState, closePreview } = get();
       const normalizePath = (path: string) => path.replace(/\/$/, '');
+
+      // Invalidate React Query cache for the changed directory
+      const dirPath = change.dir || (change.path.includes('/') ? change.path.substring(0, change.path.lastIndexOf('/')) : '/');
+      queryClient.invalidateQueries({ queryKey: ['dir', dirPath] });
 
       // Handle file/directory deletion - deselect if selected
       if (change.type === 'unlink' || change.type === 'unlinkDir') {

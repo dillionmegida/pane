@@ -3,6 +3,33 @@
  * Runs before all tests to configure the test environment
  */
 
+import { QueryClient } from '@tanstack/react-query';
+
+// Mock the queryClient for tests
+const mockQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      staleTime: 0,
+      gcTime: 0,
+    },
+  },
+}) as any;
+
+// Mock the fetchQuery method to call the actual electronAPI
+mockQueryClient.fetchQuery = jest.fn(async (options: any) => {
+  return options.queryFn();
+});
+
+// Mock invalidateQueries
+mockQueryClient.invalidateQueries = jest.fn();
+
+// Mock the App module to provide the mock queryClient
+jest.mock('../App', () => ({
+  queryClient: mockQueryClient,
+  default: () => null,
+}), { virtual: true });
+
 // Mock window.electronAPI globally for all tests
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (window as any).electronAPI = {

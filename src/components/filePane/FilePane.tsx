@@ -721,7 +721,12 @@ export default function FilePane({ paneId }: FilePaneProps) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       // Type-to-search: capture alphanumeric keystrokes, space, dot, underscore, and hyphen
+      // Special case: if space is pressed and buffer is empty, let it fall through to quick preview
       if (e.key.length === 1 && /[a-zA-Z0-9 ._\-]/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        // If space is pressed and buffer is empty, skip type-to-search (allow quick preview)
+        if (e.key === ' ' && typingBufferRef.current === '') {
+          return;
+        }
         e.preventDefault();
         const newBuffer = typingBufferRef.current + e.key.toLowerCase();
         typingBufferRef.current = newBuffer;

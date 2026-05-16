@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import styled, { createGlobalStyle } from 'styled-components';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useStore } from './store/index';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
@@ -72,6 +73,17 @@ const BottomArea = styled.div`
   flex-direction: column;
   flex-shrink: 0;
 `;
+
+// Create a client for React Query
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 0, // Always check for freshness on mount
+      gcTime: 30000, // Keep in cache for 30 seconds after unmount
+      retry: 1, // Retry failed requests once
+    },
+  },
+});
 
 export default function App() {
   const {
@@ -178,7 +190,7 @@ export default function App() {
   }
 
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <GlobalStyle />
       <AppShell zoomScale={zoom}>
         <ContentRow>
@@ -201,6 +213,6 @@ export default function App() {
         {activeModal === 'smartFolders' && <SmartFoldersModal data={modalData} onClose={closeModal} />}
         {activeModal === 'settings' && <SettingsModal onClose={closeModal} />}
       </AppShell>
-    </>
+    </QueryClientProvider>
   );
 }
