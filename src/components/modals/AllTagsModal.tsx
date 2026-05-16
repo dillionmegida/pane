@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import styled from 'styled-components';
 import { useStore } from '../../store';
+import { MODAL_TYPES } from '../../helpers/modalPersistence';
+import { persistModalState as persistModalStateHelper } from '../../helpers/modalPersistence';
 import type { Tag, FileItem } from '../../types';
 
 const Overlay = styled.div`
@@ -156,6 +158,11 @@ export function AllTagsModal({ onClose }: AllTagsModalProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
+
+  // Persist modal state when opened
+  useEffect(() => {
+    persistModalStateHelper(MODAL_TYPES.ALL_TAGS, {});
+  }, []);
 
   const loadTags = useCallback(async () => {
     const r = await window.electronAPI.getAllTags();

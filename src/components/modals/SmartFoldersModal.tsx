@@ -6,6 +6,7 @@ import ModalPreviewPane from '../ModalPreviewPane';
 import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
 import { DEFAULT_EXCLUDED_DIRECTORIES, createFilterDefinitions, parseFileSizeInput } from '../../helpers/smartFolders';
 import { useConcurrentDirectoryScanner } from '../../hooks/useDirectoryScanner';
+import { MODAL_TYPES, persistModalState as persistModalStateHelper, persistModalStateImmediate, loadModalState, createSmartFoldersModalState } from '../../helpers/modalPersistence';
 import type { FileItem } from '../../types';
 
 const ModalContent = styled.div`display: flex; height: 100%;`;
@@ -136,6 +137,7 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
   const [excludedDirectories, setExcludedDirectories] = useState<string[]>(DEFAULT_EXCLUDED_DIRECTORIES);
   const [exclusionInputValue, setExclusionInputValue] = useState('');
   const [hasScannedOnce, setHasScannedOnce] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const modalContainerRef = useRef<HTMLDivElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
   const [listHeight, setListHeight] = useState(400);
@@ -161,6 +163,38 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
     `${selectedFilterType}-${currentDirectoryPath}-${selectedFilterType === 'large' ? parsedSizeMB : ''}-${excludedDirectories.join(',')}`;
 
   const stopEventPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
+
+  // Load persisted modal state when modal opens
+  useEffect(() => {
+    const loadPersistedState = async () => {
+      const { modalType, state } = await loadModalState();
+      if (modalType === MODAL_TYPES.SMART_FOLDERS && state) {
+        setIsRestoring(true);
+        if (state.selectedFilterType) setSelectedFilterType(state.selectedFilterType);
+        if (state.fileSizeInputMB) setFileSizeInputMB(state.fileSizeInputMB);
+        if (state.excludedDirectories) setExcludedDirectories(state.excludedDirectories);
+        setIsRestoring(false);
+      }
+    };
+    loadPersistedState();
+  }, []);
+
+  // Debounced save of smart folders state
+  useEffect(() => {
+    if (isRestoring) return;
+    const state = createSmartFoldersModalState(selectedFilterType, fileSizeInputMB, excludedDirectories);
+    persistModalStateHelper(MODAL_TYPES.SMART_FOLDERS, state);
+  }, [selectedFilterType, fileSizeInputMB, excludedDirectories, isRestoring]);
+
+  // Save state immediately when modal closes
+  useEffect(() => {
+    return () => {
+      if (!isRestoring) {
+        const state = createSmartFoldersModalState(selectedFilterType, fileSizeInputMB, excludedDirectories);
+        persistModalStateImmediate(MODAL_TYPES.SMART_FOLDERS, state);
+      }
+    };
+  }, [selectedFilterType, fileSizeInputMB, excludedDirectories, isRestoring]);
 
   useEffect(() => {
     const contentEl = contentAreaRef.current;
@@ -250,6 +284,7 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
   };
 
   useEffect(() => {
+    if (isRestoring) return; // Don't trigger scan when restoring state
     if (!currentDirectoryPath) return;
     const newCacheKey = getCacheKey();
     const prevCacheKey = lastCacheKeyRef.current;
@@ -271,7 +306,7 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
       return () => clearTimeout(handle);
     }
     runScan();
-  }, [selectedFilterType, currentDirectoryPath, parsedSizeMB, excludedDirectories]);
+  }, [selectedFilterType, currentDirectoryPath, parsedSizeMB, excludedDirectories, isRestoring]);
 
   const handleFileAction = async (actionKey: string, file: FileItem) => {
     if (actionKey === 'reveal') {

@@ -51,11 +51,26 @@ jest.mock('../App', () => ({
   getFilesForTag: jest.fn().mockResolvedValue({ success: true, files: [] }),
   searchByTag: jest.fn().mockResolvedValue({ success: true, files: [] }),
   search: jest.fn(),
+  searchCancel: jest.fn(),
   copy: jest.fn(),
   move: jest.fn(),
   getLog: jest.fn(),
   storeGet: jest.fn().mockResolvedValue(null),
   storeSet: jest.fn().mockResolvedValue(undefined),
+  undo: jest.fn().mockResolvedValue({ success: false }),
+  delete: jest.fn().mockResolvedValue({ success: true }),
+};
+
+// Polyfill ResizeObserver for tests
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+global.ResizeObserver = class ResizeObserver {
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+  }
+  callback: ResizeObserverCallback;
+  observe(target: Element) {}
+  unobserve(target: Element) {}
+  disconnect() {}
 };
 
 // Suppress console errors in tests (optional)

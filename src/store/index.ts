@@ -4,6 +4,7 @@ import { sortFiles, DEFAULT_SORT, clearSortCache } from '../helpers/sort';
 import { buildColumnState } from '../helpers/columnState';
 import { revealFileInTree as revealFileInTreeUtil } from '../helpers/revealFileInTree';
 import { queryClient } from '../App';
+import { loadModalState, saveModalState, clearModalState, serializeModalState, MODAL_TYPES } from '../helpers/modalPersistence';
 import type {
   FileItem, Pane, Tab, ColumnState, HistoryEntry,
   Bookmark, RevealTarget, LogEntry, Tag,
@@ -226,6 +227,8 @@ interface StoreState {
   modalData: unknown;
   openModal: (name: string, data?: unknown) => void;
   closeModal: () => void;
+  persistModalState: (modalType: string, state: any) => void;
+  restoreModalState: () => Promise<void>;
 
   showTerminal: boolean;
   terminalHeight: number;
@@ -1150,7 +1153,27 @@ export const useStore = create<StoreState>((set, get) => ({
   activeModal: null,
   modalData: null,
   openModal: (name, data = null) => set({ activeModal: name, modalData: data }),
-  closeModal: () => set({ activeModal: null, modalData: null }),
+  closeModal: () => {
+    clearModalState();
+    set({ activeModal: null, modalData: null });
+  },
+  persistModalState: (modalType, state) => {
+    const serialized = serializeModalState(modalType as any, state);
+    saveModalState(serialized);
+  },
+  restoreModalState: async () => {
+    const { modalType, state } = await loadModalState();
+    if (modalType) {
+      if (modalType === MODAL_TYPES.SEARCH) {
+        set({ 
+          showSearch: true, 
+          searchInitContentMode: state.contentSearch || false,
+        });
+      } else if (modalType === MODAL_TYPES.ALL_TAGS || modalType === MODAL_TYPES.SMART_FOLDERS) {
+        set({ activeModal: modalType, modalData: state });
+      }
+    }
+  },
 
   showTerminal: false,
   terminalHeight: 260,

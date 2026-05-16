@@ -92,11 +92,19 @@ export default function App() {
     showSearch,
     showSidebar,
     zoom,
+    restoreModalState,
   } = useStore();
 
   useEffect(() => {
     init();
   }, []);
+
+  // Restore modal state after initialization
+  useEffect(() => {
+    if (initialized) {
+      restoreModalState();
+    }
+  }, [initialized, restoreModalState]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

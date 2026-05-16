@@ -6,6 +6,7 @@ import ModalPreviewPane from './ModalPreviewPane';
 import { useConcurrentDirectoryScanner } from '../hooks/useDirectoryScanner';
 import { FileIcon as FileIconComponent } from './FileIcons';
 import { revealInColumns } from '../helpers/revealInColumns';
+import { createSearchModalState, MODAL_TYPES, loadModalState, persistModalStateImmediate } from '../helpers/modalPersistence';
 
 const ResizableDivider = styled.div`
   width: 4px;
@@ -418,7 +419,7 @@ const MatchHighlight = styled.span`
 `;
 
 export default function SearchOverlay(): React.ReactElement {
-  const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode, setSelection, getActivePath, getBreadcrumbs, homeDir, searchInitContentMode } = useStore() as any;
+  const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode, setSelection, getActivePath, getBreadcrumbs, homeDir, searchInitContentMode, persistModalState } = useStore() as any;
   const pane = panes.find((p: any) => p.id === activePane);
 
   const [query, setQuery] = useState('');
@@ -430,6 +431,8 @@ export default function SearchOverlay(): React.ReactElement {
   const [excludeInput, setExcludeInput] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [hasSearched, setHasSearched] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const skipInitialSearchRef = useRef(true); // Skip search on initial mount/restore
 
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [previewWidth, setPreviewWidth] = useState(320);
@@ -532,9 +535,38 @@ export default function SearchOverlay(): React.ReactElement {
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
+  // Load persisted modal state when modal opens
   useEffect(() => {
-    (window as any).electronAPI.storeGet('searchRoot').then((v: any) => setRootSearch(!!v));
+    const loadPersistedState = async () => {
+      const { modalType, state } = await loadModalState();
+      if (modalType === MODAL_TYPES.SEARCH && state) {
+        setIsRestoring(true);
+        if (state.query !== undefined) setQuery(state.query);
+        if (state.useRegex !== undefined) setUseRegex(state.useRegex);
+        if (state.contentSearch !== undefined) setContentSearch(state.contentSearch);
+        if (state.rootSearch !== undefined) setRootSearch(state.rootSearch);
+        if (state.excludedDirs !== undefined) setExcludedDirs(state.excludedDirs);
+        setIsRestoring(false);
+        // Allow searches after restoration is complete
+        setTimeout(() => { skipInitialSearchRef.current = false; }, 100);
+      }
+    };
+    loadPersistedState();
   }, []);
+
+  // Debounced save for query and excludedDirs (to avoid excessive writes)
+  useEffect(() => {
+    if (isRestoring) return;
+    const state = createSearchModalState(query, useRegex, contentSearch, rootSearch, excludedDirs);
+    persistModalState(MODAL_TYPES.SEARCH, state);
+  }, [query, excludedDirs, isRestoring, persistModalState]);
+
+  // Immediate save for toggle states (useRegex, contentSearch, rootSearch)
+  useEffect(() => {
+    if (isRestoring) return;
+    const state = createSearchModalState(query, useRegex, contentSearch, rootSearch, excludedDirs);
+    persistModalStateImmediate(MODAL_TYPES.SEARCH, state);
+  }, [useRegex, contentSearch, rootSearch, isRestoring]);
 
   useEffect(() => {
     const resultsEl = resultsRef.current;
@@ -559,11 +591,7 @@ export default function SearchOverlay(): React.ReactElement {
       if (rafId !== null) cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
     };
-  }, []);
-
-  useEffect(() => {
-    (window as any).electronAPI.storeSet('searchRoot', rootSearch);
-  }, [rootSearch]);
+  }, [resultsRef]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -624,6 +652,11 @@ export default function SearchOverlay(): React.ReactElement {
   };
 
   useEffect(() => {
+    if (isRestoring) return; // Don't trigger search when restoring state
+    if (skipInitialSearchRef.current) {
+      skipInitialSearchRef.current = false;
+      return; // Skip first search after restoration
+    }
     if (timerRef.current) clearTimeout(timerRef.current);
     cancelCurrentSearchRef.current();
     setSelectedItem(null);
@@ -642,7 +675,7 @@ export default function SearchOverlay(): React.ReactElement {
       if (timerRef.current) clearTimeout(timerRef.current);
       cancelCurrentSearchRef.current();
     };
-  }, [query, useRegex, contentSearch, excludedDirs, rootSearch]);
+  }, [query, useRegex, contentSearch, excludedDirs, rootSearch, isRestoring]);
 
   const doSearch = async () => {
     if (!pane || !query.trim()) return;
