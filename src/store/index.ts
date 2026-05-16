@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import path from 'path-browserify';
-import { sortFiles, DEFAULT_SORT } from '../helpers/sort';
+import { sortFiles, DEFAULT_SORT, clearSortCache } from '../helpers/sort';
 import { buildColumnState } from '../helpers/columnState';
 import { revealFileInTree as revealFileInTreeUtil } from '../helpers/revealFileInTree';
 import { queryClient } from '../App';
@@ -332,6 +332,7 @@ export const useStore = create<StoreState>((set, get) => ({
       return;
     }
 
+    clearSortCache();
     const dirSort = get().getDirSort(dirPath);
     const files = sortFiles(result.files, dirSort, 'asc');
 
@@ -383,6 +384,7 @@ export const useStore = create<StoreState>((set, get) => ({
       return;
     }
 
+    clearSortCache();
     const revealDirSort = get().getDirSort(dirPath);
     const files = sortFiles(result.files, revealDirSort, 'asc');
 
@@ -433,6 +435,7 @@ export const useStore = create<StoreState>((set, get) => ({
       return;
     }
 
+    clearSortCache();
     const bmDirSort = get().getDirSort(dirPath);
     const files = sortFiles(result.files, bmDirSort, 'asc');
 
@@ -499,6 +502,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
     const result = await cachedReaddir(dirPath);
     if (!result.success) return;
+    clearSortCache();
     const sorted = sortFiles(result.files, sortBy, 'asc');
 
     set(s => ({
@@ -565,13 +569,16 @@ export const useStore = create<StoreState>((set, get) => ({
     get().saveSession();
   },
 
-  setSortBy: (paneId, sortBy, sortOrder) => set(s => ({
-    panes: s.panes.map(p => {
-      if (p.id !== paneId) return p;
-      const files = sortFiles(p.files, sortBy, sortOrder || p.sortOrder);
-      return { ...p, sortBy, sortOrder: sortOrder || p.sortOrder, files };
-    }),
-  })),
+  setSortBy: (paneId, sortBy, sortOrder) => {
+    clearSortCache();
+    set(s => ({
+      panes: s.panes.map(p => {
+        if (p.id !== paneId) return p;
+        const files = sortFiles(p.files, sortBy, sortOrder || p.sortOrder);
+        return { ...p, sortBy, sortOrder: sortOrder || p.sortOrder, files };
+      }),
+    }));
+  },
 
   setCurrentBreadcrumbPath: (paneId, path) => {
     set(s => ({
@@ -743,6 +750,7 @@ export const useStore = create<StoreState>((set, get) => ({
       return;
     }
 
+    clearSortCache();
     const histDirSort = get().getDirSort(basePath);
     const files = sortFiles(result.files, histDirSort, 'asc');
 
@@ -816,6 +824,7 @@ export const useStore = create<StoreState>((set, get) => ({
       return;
     }
 
+    clearSortCache();
     const refreshDirSort = get().getDirSort(pane.path);
     const files = sortFiles(result.files, refreshDirSort, 'asc');
 
@@ -850,6 +859,7 @@ export const useStore = create<StoreState>((set, get) => ({
         colPaths.map(async (colPath) => {
           const r = await cachedReaddir(colPath);
           if (!r.success) return null;
+          clearSortCache();
           const colSort = getDirSort(colPath);
           return [colPath, sortFiles(r.files, colSort, 'asc')] as [string, FileItem[]];
         })

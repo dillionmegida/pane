@@ -1,5 +1,32 @@
 import type { FileItem, SortBy, SortOrder, SortType } from '../types';
 
+// ─── Sort Cache ───────────────────────────────────────────────────────────────
+interface SortCacheKey {
+  checksum: string;
+  sortBy: SortBy;
+  sortOrder: SortOrder;
+}
+
+const sortCache = new Map<string, FileItem[]>();
+
+// Generate a checksum for a files array
+function generateFilesChecksum(files: FileItem[]): string {
+  // Use a simple but effective checksum based on file paths and key properties
+  const parts = files.map(f => `${f.path}|${f.size}|${f.modified}|${f.isDirectory}`);
+  return parts.join('\x00');
+}
+
+// Generate cache key
+function getCacheKey(files: FileItem[], sortBy: SortBy, sortOrder: SortOrder): string {
+  const checksum = generateFilesChecksum(files);
+  return `${checksum}|${sortBy}|${sortOrder}`;
+}
+
+// Clear cache (call when files or sort settings change)
+export function clearSortCache(): void {
+  sortCache.clear();
+}
+
 // ─── Sort Definitions ─────────────────────────────────────────────────────────
 // Each sort has: id, label, icon (SVG path data), description
 export const SORT_TYPES: SortType[] = [
@@ -37,6 +64,12 @@ export const DEFAULT_SORT: SortBy = 'name';
 // sortBy: 'name' | 'added' | 'modified' | 'size'
 // sortOrder: 'asc' | 'desc'
 export function sortFiles(files: FileItem[], sortBy: SortBy = 'name', sortOrder: SortOrder = 'asc'): FileItem[] {
+  const cacheKey = getCacheKey(files, sortBy, sortOrder);
+  const cached = sortCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const sorted = [...files].sort((a, b) => {
     // Directories always first
     if (a.isDirectory && !b.isDirectory) return -1;
@@ -65,5 +98,7 @@ export function sortFiles(files: FileItem[], sortBy: SortBy = 'name', sortOrder:
     }
     return sortOrder === 'desc' ? -cmp : cmp;
   });
+
+  sortCache.set(cacheKey, sorted);
   return sorted;
 }
