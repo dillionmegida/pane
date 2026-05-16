@@ -881,7 +881,9 @@ describe('Store - pushNavHistory dedup', () => {
 describe('Store - navigateToBookmark', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useStore.setState(basePaneState());
+    act(() => {
+      useStore.setState(basePaneState());
+    });
   });
 
   test('navigateToBookmark sets activeBookmarkId', async () => {

@@ -115,8 +115,10 @@ describe('Column Keyboard Nav Integration Tests - Real Keyboard Handler', () => 
       if (path === projectsFiles[0].path) return { success: true, files: [] };
       return { success: true, files: [] };
     });
-    
-    useStore.setState(buildInitialState({ currentBreadcrumbPath: basePath }));
+
+    act(() => {
+      useStore.setState(buildInitialState({ currentBreadcrumbPath: basePath }));
+    });
   });
 
   afterEach(() => {

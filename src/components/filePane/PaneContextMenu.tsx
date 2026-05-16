@@ -28,13 +28,13 @@ const CtxTagRow = styled.div`
   min-height: 32px;
 `;
 
-const CtxTagDot = styled.div<{ color: string; active: boolean; hovered: boolean }>`
+const CtxTagDot = styled.div<{ color: string; $active: boolean; hovered: boolean }>`
   width: 18px;
   height: 18px;
   border-radius: 50%;
   background: ${p => p.color};
-  border: 2px solid ${p => p.active ? 'white' : 'transparent'};
-  box-shadow: ${p => p.active ? `0 0 0 2px ${p.color}` : 'none'};
+  border: 2px solid ${p => p.$active ? 'white' : 'transparent'};
+  box-shadow: ${p => p.$active ? `0 0 0 2px ${p.color}` : 'none'};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -53,14 +53,14 @@ const CtxTagLabel = styled.div`
   min-height: 16px;
 `;
 
-const MenuItem = styled.div<{ danger?: boolean; disabled?: boolean }>`
+const MenuItem = styled.div<{ $danger?: boolean; disabled?: boolean }>`
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
   border-radius: ${p => p.theme.radius.sm};
   cursor: ${p => p.disabled ? 'not-allowed' : 'pointer'};
-  color: ${p => p.danger ? p.theme.text.error : p.disabled ? p.theme.text.tertiary : p.theme.text.primary};
+  color: ${p => p.$danger ? p.theme.text.error : p.disabled ? p.theme.text.tertiary : p.theme.text.primary};
   opacity: ${p => p.disabled ? 0.5 : 1};
   transition: background 0.08s;
   &:hover { background: ${p => !p.disabled && p.theme.bg.hover}; }
@@ -104,7 +104,7 @@ const SortRow = styled.div`
   padding: 4px 6px;
 `;
 
-const SortBtn = styled.button<{ active: boolean }>`
+const SortBtn = styled.button<{ $active: boolean }>`
   flex: 1;
   display: flex;
   align-items: center;
@@ -112,9 +112,9 @@ const SortBtn = styled.button<{ active: boolean }>`
   gap: 4px;
   padding: 4px 6px;
   border-radius: ${p => p.theme.radius.sm};
-  background: ${p => p.active ? p.theme.bg.selection : p.theme.bg.primary};
-  border: 1px solid ${p => p.active ? p.theme.border.focus : p.theme.border.subtle};
-  color: ${p => p.active ? p.theme.text.accent : p.theme.text.secondary};
+  background: ${p => p.$active ? p.theme.bg.selection : p.theme.bg.primary};
+  border: 1px solid ${p => p.$active ? p.theme.border.focus : p.theme.border.subtle};
+  color: ${p => p.$active ? p.theme.text.accent : p.theme.text.secondary};
   cursor: pointer;
   font-size: 10px;
   transition: all 0.12s;
@@ -337,7 +337,7 @@ export default function PaneContextMenu({
                   <CtxTagDot
                     key={tag.tag_name}
                     color={tag.color}
-                    active={fileTags.has(tag.tag_name)}
+                    $active={fileTags.has(tag.tag_name)}
                     hovered={tagHover === tag.tag_name}
                     onMouseEnter={() => setTagHover(tag.tag_name)}
                     onMouseLeave={() => setTagHover(null)}
@@ -398,7 +398,7 @@ export default function PaneContextMenu({
             ) : null
           )}
           <Divider />
-          <MenuItem danger onClick={handleDelete}>
+          <MenuItem $danger onClick={handleDelete}>
             <MenuIcon>🗑️</MenuIcon>
             <MenuLabel>Delete {multiSelected ? `(${selectedFiles.size})` : ''}</MenuLabel>
             <Shortcut>⌫</Shortcut>
@@ -412,7 +412,7 @@ export default function PaneContextMenu({
         {SORT_TYPES.map(st => (
           <SortBtn
             key={st.id}
-            active={currentSort === st.id}
+            $active={currentSort === st.id}
             onClick={() => handleSortChange(st.id)}
             title={st.description}
           >

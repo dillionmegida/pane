@@ -135,7 +135,7 @@ function simulateEscape(_: any, paneId = 'left'): void {
 }
 
 describe('Column Keyboard Nav - ArrowDown', () => {
-  beforeEach(() => { jest.clearAllMocks(); useStore.setState(buildInitialState({ currentBreadcrumbPath: basePath })); });
+  beforeEach(() => { jest.clearAllMocks(); act(() => { useStore.setState(buildInitialState({ currentBreadcrumbPath: basePath })); }); });
 
   test('first ArrowDown with no selection selects the first item', () => {
     act(() => simulateArrowDown(getStore()));
@@ -170,7 +170,7 @@ describe('Column Keyboard Nav - ArrowDown', () => {
 });
 
 describe('Column Keyboard Nav - ArrowUp', () => {
-  beforeEach(() => { jest.clearAllMocks(); useStore.setState(buildInitialState({ currentBreadcrumbPath: basePath })); });
+  beforeEach(() => { jest.clearAllMocks(); act(() => { useStore.setState(buildInitialState({ currentBreadcrumbPath: basePath })); }); });
 
   test('first ArrowUp with no selection wraps to last item', () => {
     act(() => simulateArrowUp(getStore()));
@@ -348,7 +348,7 @@ describe('Column Keyboard Nav - Escape (deselect)', () => {
 });
 
 describe('Column Keyboard Nav - Preview pane', () => {
-  beforeEach(() => { jest.clearAllMocks(); useStore.setState(buildInitialState({ currentBreadcrumbPath: basePath })); });
+  beforeEach(() => { jest.clearAllMocks(); act(() => { useStore.setState(buildInitialState({ currentBreadcrumbPath: basePath })); }); });
 
   test('selecting a file via ArrowDown sets preview', () => {
     useStore.setState(buildInitialState({
@@ -584,7 +584,7 @@ describe('Column Keyboard Nav - getColumnPaths derivation', () => {
 });
 
 describe('Column Keyboard Nav - setSelection store action', () => {
-  beforeEach(() => { jest.clearAllMocks(); useStore.setState(buildInitialState()); });
+  beforeEach(() => { jest.clearAllMocks(); act(() => { useStore.setState(buildInitialState()); }); });
 
   test('setSelection replaces all previous selections', () => {
     act(() => { useStore.getState().setSelection('left', [rootFiles[0].path, rootFiles[1].path]); });

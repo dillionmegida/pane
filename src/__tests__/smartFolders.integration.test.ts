@@ -126,15 +126,19 @@ describe('SmartFoldersModal Integration Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockFilterType = 'large'; // Reset to default filter
-    useStore.setState(buildInitialState());
+    act(() => {
+      useStore.setState(buildInitialState());
+    });
   });
 
   afterEach(() => {
-    useStore.setState({
-      panes: [],
-      activePane: 'left',
-      previewFile: null,
-      showPreview: false,
+    act(() => {
+      useStore.setState({
+        panes: [],
+        activePane: 'left',
+        previewFile: null,
+        showPreview: false,
+      });
     });
   });
 

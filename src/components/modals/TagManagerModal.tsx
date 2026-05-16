@@ -15,14 +15,14 @@ const ColorRow = styled.div`
 `;
 
 const ColorDot = styled.button.withConfig({
-  shouldForwardProp: p => !['active', 'color'].includes(p),
-})<{ active: boolean; color: string }>`
+  shouldForwardProp: p => !['$active', 'color'].includes(p),
+})<{ $active: boolean; color: string }>`
   width: 22px;
   height: 22px;
   border-radius: 50%;
   background: ${p => p.color};
-  border: 2.5px solid ${p => p.active ? '#fff' : 'transparent'};
-  box-shadow: ${p => p.active ? `0 0 0 2px ${p.color}` : 'none'};
+  border: 2.5px solid ${p => p.$active ? '#fff' : 'transparent'};
+  box-shadow: ${p => p.$active ? `0 0 0 2px ${p.color}` : 'none'};
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -198,7 +198,7 @@ export function TagManagerModal({ data, onClose }: TagManagerModalProps) {
           <ColorRow>
             <NoneColorDot title="No color" onClick={() => setSelectedColor(null)}>✕</NoneColorDot>
             {TAG_COLORS.slice(0, 8).map(c => (
-              <ColorDot key={c} color={c} active={selectedColor === c} onClick={() => setSelectedColor(c)} title={COLOR_NAMES[c] || c}>
+              <ColorDot key={c} color={c} $active={selectedColor === c} onClick={() => setSelectedColor(c)} title={COLOR_NAMES[c] || c}>
                 {selectedColor === c && <CheckMark>✓</CheckMark>}
               </ColorDot>
             ))}

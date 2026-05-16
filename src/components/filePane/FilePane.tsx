@@ -35,7 +35,7 @@ const TabBar = styled.div`
   gap: 2px;
 `;
 
-const Tab = styled.div<{ active: boolean }>`
+const Tab = styled.div<{ $active: boolean }>`
   display: flex;
   align-items: center;
   gap: 5px;
@@ -43,8 +43,8 @@ const Tab = styled.div<{ active: boolean }>`
   height: 26px;
   cursor: pointer;
   font-size: 11px;
-  background: ${p => p.active ? p.theme.bg.primary : 'transparent'};
-  color: ${p => p.active ? p.theme.text.primary : p.theme.text.tertiary};
+  background: ${p => p.$active ? p.theme.bg.primary : 'transparent'};
+  color: ${p => p.$active ? p.theme.text.primary : p.theme.text.tertiary};
   transition: all 0.1s;
   white-space: nowrap;
   overflow: hidden;
@@ -1217,7 +1217,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
         {tabs.map((tab, i) => (
           <Tab
             key={tab.id}
-            active={i === activeTab}
+            $active={i === activeTab}
             onClick={e => { e.stopPropagation(); switchTab(paneId, i); }}
           >
             <TabLabel>{tab.label}</TabLabel>

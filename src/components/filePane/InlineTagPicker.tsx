@@ -29,14 +29,14 @@ const SectionTitle = styled.div`
   padding: 0 2px 4px;
 `;
 
-const TagRow = styled.div<{ active: boolean }>`
+const TagRow = styled.div<{ $active: boolean }>`
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 4px 6px;
   border-radius: ${p => p.theme.radius.sm};
   cursor: pointer;
-  background: ${p => p.active ? p.theme.bg.selection : 'transparent'};
+  background: ${p => p.$active ? p.theme.bg.selection : 'transparent'};
   transition: background 0.1s;
   &:hover { background: ${p => p.theme.bg.hover}; }
 `;
@@ -213,7 +213,7 @@ export default function InlineTagPicker({
         <Section>
           <SectionTitle>All Tags</SectionTitle>
           {allTags.map(tag => (
-            <TagRow key={tag.tag_name} active={hasTag(tag.tag_name)} onClick={() => toggleTag(tag)}>
+            <TagRow key={tag.tag_name} $active={hasTag(tag.tag_name)} onClick={() => toggleTag(tag)}>
               <TagDot color={tag.color} />
               <TagName>{tag.tag_name}</TagName>
               {hasTag(tag.tag_name) && (

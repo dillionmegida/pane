@@ -11,22 +11,22 @@ const ModalContent = styled.div`display: flex; height: 100%;`;
 const LeftPane = styled.div<{ width: number }>`
   width: ${p => `${p.width}px`}; border-right: 1px solid ${p => p.theme.border.normal}; padding: 8px 0; overflow: auto;
 `;
-const FilterItem = styled.div<{ active?: boolean }>`
+const FilterItem = styled.div<{ $active?: boolean }>`
   padding: 8px 14px; cursor: pointer; font-size: 12px;
-  color: ${p => p.active ? p.theme.text.accent : p.theme.text.secondary};
-  background: ${p => p.active ? p.theme.bg.selection : 'transparent'};
-  border-left: ${p => p.active ? `2px solid ${p.theme.text.accent}` : '2px solid transparent'};
+  color: ${p => p.$active ? p.theme.text.accent : p.theme.text.secondary};
+  background: ${p => p.$active ? p.theme.bg.selection : 'transparent'};
+  border-left: ${p => p.$active ? `2px solid ${p.theme.text.accent}` : '2px solid transparent'};
 `;
 const Divider = styled.div`width: 1px; background: ${p => p.theme.border.normal}; cursor: col-resize; user-select: none;`;
 const ContentArea = styled.div`flex: 1; overflow: auto; padding: 12px; border-right: 1px solid ${p => p.theme.border.normal};`;
 const FilterInfo = styled.div`font-size: 11px; color: ${p => p.theme.text.tertiary}; margin-left: 12px; flex: 1;`;
 const Options = styled.div`display: flex; gap: 6px; margin-bottom: 8px; align-items: center;`;
-const OptBtnWrapper = styled.div<{ active?: boolean }>`
+const OptBtnWrapper = styled.div<{ $active?: boolean }>`
   padding: 6px 10px;
-  background: ${p => p.active ? p.theme.bg.hover : p.theme.bg.secondary};
-  border: 1px solid ${p => p.active ? p.theme.border.strong : p.theme.border.normal};
+  background: ${p => p.$active ? p.theme.bg.hover : p.theme.bg.secondary};
+  border: 1px solid ${p => p.$active ? p.theme.border.strong : p.theme.border.normal};
   border-radius: 6px; font-size: 11px;
-  color: ${p => p.active ? p.theme.text.primary : p.theme.text.secondary};
+  color: ${p => p.$active ? p.theme.text.primary : p.theme.text.secondary};
   cursor: pointer; user-select: none;
 `;
 const ExcludePill = styled.span`
@@ -290,7 +290,7 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
           <ModalContent ref={modalContainerRef}>
             <LeftPane width={leftPaneWidthPx}>
               {Object.entries(filterDefinitions).map(([filterKey, filterConfig]) => (
-                <FilterItem key={filterKey} active={selectedFilterType === filterKey} onClick={() => setSelectedFilterType(filterKey)}>
+                <FilterItem key={filterKey} $active={selectedFilterType === filterKey} onClick={() => setSelectedFilterType(filterKey)}>
                   {filterConfig.name}
                 </FilterItem>
               ))}
@@ -298,7 +298,7 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
             <Divider onMouseDown={(e) => { setResizeStartX(e.clientX); setResizeStartWidth(leftPaneWidthPx); setIsResizingLeftPane(true); }} />
             <ContentArea>
               <Options>
-                <OptBtnWrapper active={excludedDirectories.length > 0} onClick={() => setShowExclusionInput(p => !p)}>
+                <OptBtnWrapper $active={excludedDirectories.length > 0} onClick={() => setShowExclusionInput(p => !p)}>
                   {showExclusionInput ? '▼' : '▶'} Excluded ({excludedDirectories.length})
                 </OptBtnWrapper>
                 <ScanStatusRow>

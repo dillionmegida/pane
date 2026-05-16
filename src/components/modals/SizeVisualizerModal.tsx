@@ -14,11 +14,11 @@ const Breadcrumb = styled.div`
   flex-wrap: wrap;
 `;
 
-const BreadcrumbPart = styled.span<{ active?: boolean }>`
+const BreadcrumbPart = styled.span<{ $active?: boolean }>`
   cursor: pointer;
-  color: ${p => p.active ? p.theme.text.primary : p.theme.accent.blue};
-  font-weight: ${p => p.active ? 600 : 400};
-  &:hover { text-decoration: ${p => p.active ? 'none' : 'underline'}; }
+  color: ${p => p.$active ? p.theme.text.primary : p.theme.accent.blue};
+  font-weight: ${p => p.$active ? 600 : 400};
+  &:hover { text-decoration: ${p => p.$active ? 'none' : 'underline'}; }
 `;
 
 const ItemRow = styled.div`
@@ -158,7 +158,7 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
                   <React.Fragment key={node.path}>
                     {i > 0 && <BreadcrumbSep>›</BreadcrumbSep>}
                     <BreadcrumbPart
-                      active={i === nodeStack.length - 1}
+                      $active={i === nodeStack.length - 1}
                       onClick={() => i < nodeStack.length - 1 && navigateToIndex(i)}
                     >
                       {node.name || node.path}

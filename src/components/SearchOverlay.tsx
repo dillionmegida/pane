@@ -70,10 +70,10 @@ const Options = styled.div`
   align-items: center;
 `;
 
-const OptBtn = styled.button<{ active?: boolean }>`
-  background: ${p => p.active ? p.theme.accent.blue + '30' : 'none'};
-  border: 1px solid ${p => p.active ? p.theme.accent.blue : p.theme.border.normal};
-  color: ${p => p.active ? p.theme.accent.blue : p.theme.text.secondary};
+const OptBtn = styled.button<{ $active?: boolean }>`
+  background: ${p => p.$active ? p.theme.accent.blue + '30' : 'none'};
+  border: 1px solid ${p => p.$active ? p.theme.accent.blue : p.theme.border.normal};
+  color: ${p => p.$active ? p.theme.accent.blue : p.theme.text.secondary};
   border-radius: ${p => p.theme.radius.sm};
   padding: 3px 8px;
   font-size: 0.625rem;
@@ -82,7 +82,7 @@ const OptBtn = styled.button<{ active?: boolean }>`
 `;
 
 const OptBtnWrapper = ({ active, children, ...props }: { active?: boolean; children: React.ReactNode; [key: string]: any }) => (
-  <OptBtn active={active} {...props}>{children}</OptBtn>
+  <OptBtn $active={active} {...props}>{children}</OptBtn>
 );
 
 const MainContent = styled.div`

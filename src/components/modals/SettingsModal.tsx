@@ -29,12 +29,12 @@ const ThemeGrid = styled.div`
   gap: 10px;
 `;
 
-const ThemeCard = styled.div<{ active: boolean }>`
+const ThemeCard = styled.div<{ $active: boolean }>`
   cursor: pointer;
   padding: 12px;
   border-radius: ${p => p.theme.radius.md};
-  border: 2px solid ${p => p.active ? p.theme.border.focus : p.theme.border.subtle};
-  background: ${p => p.active ? p.theme.bg.elevated : p.theme.bg.secondary};
+  border: 2px solid ${p => p.$active ? p.theme.border.focus : p.theme.border.subtle};
+  background: ${p => p.$active ? p.theme.bg.elevated : p.theme.bg.secondary};
   transition: all 0.15s ease;
 `;
 
@@ -163,7 +163,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               {Object.entries(themes).map(([key, themeObj]) => (
                 <ThemeCard
                   key={key}
-                  active={currentTheme === key}
+                  $active={currentTheme === key}
                   onClick={() => setTheme(key)}
                 >
                   <ThemeCardHeader>

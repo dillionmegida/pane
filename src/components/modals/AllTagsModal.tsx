@@ -74,17 +74,17 @@ const CtxMenu = styled.div`
   border: 1px solid ${p => p.theme.border.strong}; border-radius: ${p => p.theme.radius.md};
   box-shadow: ${p => p.theme.shadow.lg}; padding: 4px 0; width: 180px;
 `;
-const CtxItem = styled.div<{ danger?: boolean }>`
+const CtxItem = styled.div<{ $danger?: boolean }>`
   padding: 7px 14px; font-size: 12px; cursor: pointer;
-  color: ${p => p.danger ? p.theme.text.error : p.theme.text.primary};
+  color: ${p => p.$danger ? p.theme.text.error : p.theme.text.primary};
   &:hover { background: ${p => p.theme.bg.hover}; }
 `;
 const CtxDivider = styled.div`height: 1px; background: ${p => p.theme.border.subtle}; margin: 4px 0;`;
 const CtxColorRow = styled.div`display: flex; align-items: center; gap: 5px; flex-wrap: wrap; padding: 6px 14px;`;
-const CtxColorDot = styled.button.withConfig({ shouldForwardProp: p => !['color', 'active'].includes(p) })<{ color: string; active?: boolean }>`
+const CtxColorDot = styled.button.withConfig({ shouldForwardProp: p => !['color', '$active'].includes(p) })<{ color: string; $active?: boolean }>`
   width: 18px; height: 18px; border-radius: 50%; background: ${p => p.color};
-  border: 2px solid ${p => p.active ? '#fff' : 'transparent'};
-  box-shadow: ${p => p.active ? `0 0 0 2px ${p.color}` : 'none'};
+  border: 2px solid ${p => p.$active ? '#fff' : 'transparent'};
+  box-shadow: ${p => p.$active ? `0 0 0 2px ${p.color}` : 'none'};
   cursor: pointer; transition: transform 0.1s; &:hover { transform: scale(1.18); }
 `;
 const ConfirmOverlay = styled.div`
@@ -103,10 +103,10 @@ const ConfirmFileList = styled.div`
   padding: 6px 10px; margin-bottom: 14px; font-size: 11px; color: ${p => p.theme.text.secondary}; line-height: 1.6;
 `;
 const ConfirmActions = styled.div`display: flex; justify-content: flex-end; gap: 8px;`;
-const ActionBtn = styled.button<{ danger?: boolean; primary?: boolean }>`
+const ActionBtn = styled.button<{ $danger?: boolean; primary?: boolean }>`
   padding: 6px 14px; border-radius: ${p => p.theme.radius.sm}; font-size: 12px; cursor: pointer; border: none;
-  background: ${p => p.danger ? p.theme.text.error : p.primary ? p.theme.accent.blue : p.theme.bg.hover};
-  color: ${p => p.danger || p.primary ? 'white' : p.theme.text.primary};
+  background: ${p => p.$danger ? p.theme.text.error : p.primary ? p.theme.accent.blue : p.theme.bg.hover};
+  color: ${p => p.$danger || p.primary ? 'white' : p.theme.text.primary};
   &:hover { opacity: 0.85; }
 `;
 
@@ -266,7 +266,7 @@ export function AllTagsModal({ onClose }: AllTagsModalProps) {
           <CreateRow>
             <PaletteRow>
               {PALETTE.map(c => (
-                <CtxColorDot key={c} color={c} active={newColor === c} onClick={() => setNewColor(c)} />
+                <CtxColorDot key={c} color={c} $active={newColor === c} onClick={() => setNewColor(c)} />
               ))}
             </PaletteRow>
             <CreateInput
@@ -285,13 +285,13 @@ export function AllTagsModal({ onClose }: AllTagsModalProps) {
         <>
           <CtxBackdrop onClick={(e) => { e.stopPropagation(); setCtxMenu(null); }} />
           <CtxMenu style={{ left: ctxMenu.x, top: ctxMenu.y }} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-            <CtxItem danger onClick={() => confirmDelete(ctxMenu.tag)}>Delete Tag &quot;{ctxMenu.tag.tag_name}&quot;…</CtxItem>
+            <CtxItem $danger onClick={() => confirmDelete(ctxMenu.tag)}>Delete Tag &quot;{ctxMenu.tag.tag_name}&quot;…</CtxItem>
             <CtxDivider />
             <CtxItem onClick={() => startRename(ctxMenu.tag)}>Rename &quot;{ctxMenu.tag.tag_name}&quot;</CtxItem>
             <CtxDivider />
             <CtxColorRow>
               {PALETTE.map(c => (
-                <CtxColorDot key={c} color={c} active={ctxMenu.tag.color === c} onClick={() => recolor(ctxMenu.tag, c)} title={c} />
+                <CtxColorDot key={c} color={c} $active={ctxMenu.tag.color === c} onClick={() => recolor(ctxMenu.tag, c)} title={c} />
               ))}
             </CtxColorRow>
           </CtxMenu>
@@ -317,7 +317,7 @@ export function AllTagsModal({ onClose }: AllTagsModalProps) {
             )}
             <ConfirmActions>
               <ActionBtn onClick={() => setDeleteConfirm(null)}>Cancel</ActionBtn>
-              <ActionBtn danger onClick={doDelete}>Delete</ActionBtn>
+              <ActionBtn $danger onClick={doDelete}>Delete</ActionBtn>
             </ConfirmActions>
           </ConfirmBox>
         </ConfirmOverlay>,

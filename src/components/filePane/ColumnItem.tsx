@@ -4,7 +4,7 @@ import { FileIcon as FileIconComponent } from '../FileIcons';
 import { startDrag, endDrag } from './dragUtils';
 import type { FileItem, ColumnState } from '../../types';
 
-const Item = styled.div<{ selected: boolean; derived: boolean; dragOver: boolean; contextMenuSelected: boolean }>`
+const Item = styled.div<{ selected: boolean; $derived: boolean; $dragOver: boolean; $contextMenuSelected: boolean }>`
   display: flex;
   align-items: center;
   gap: 6px;
@@ -13,9 +13,9 @@ const Item = styled.div<{ selected: boolean; derived: boolean; dragOver: boolean
   font-size: 12px;
   color: ${p => p.theme.text.secondary};
   background: ${p =>
-    p.contextMenuSelected ? p.theme.bg.hover :
+    p.$contextMenuSelected ? p.theme.bg.hover :
     p.selected ? p.theme.bg.selection :
-    p.derived ? p.theme.bg.hover :
+    p.$derived ? p.theme.bg.hover :
     'transparent'};
   border-radius: ${p => p.theme.radius.sm};
   margin: 0 3px;
@@ -225,9 +225,9 @@ export default function ColumnItem({
     <Item
       ref={itemRef}
       selected={isSelected}
-      derived={isDerived}
-      dragOver={isDragOver}
-      contextMenuSelected={isContextMenuSelected}
+      $derived={isDerived}
+      $dragOver={isDragOver}
+      $contextMenuSelected={isContextMenuSelected}
       className={`${isSelected ? 'selected' : ''} ${isDerived ? 'derived' : ''} ${isDragOver ? 'drag-over' : ''}`}
       onClick={handleClick}
       onContextMenu={e => onContextMenu(e, file)}

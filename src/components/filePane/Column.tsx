@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import ColumnItem from './ColumnItem';
 import type { FileItem, ColumnState } from '../../types';
 
-const ColumnWrap = styled.div<{ width: string; isFocused: boolean }>`
+const ColumnWrap = styled.div<{ width: string; $isFocused: boolean }>`
   width: ${p => p.width};
   min-width: ${p => p.width};
   height: 100%;
@@ -12,7 +12,7 @@ const ColumnWrap = styled.div<{ width: string; isFocused: boolean }>`
   border-right: 1px solid ${p => p.theme.border.subtle};
   flex-shrink: 0;
   position: relative;
-  background: ${p => p.isFocused ? `${p.theme.bg.hover}66` : 'transparent'};
+  background: ${p => p.$isFocused ? `${p.theme.bg.hover}66` : 'transparent'};
   transition: background 0.1s;
 `;
 
@@ -112,7 +112,7 @@ export default function Column({
   return (
     <ColumnWrap
       width={width}
-      isFocused={isFocused}
+      $isFocused={isFocused}
       data-column-index={columnIndex}
       onDragOver={handleDragOver}
       onDrop={handleDrop}

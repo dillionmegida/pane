@@ -56,11 +56,11 @@ const PreviewMedia = styled.div`
 const ActionBar = styled.div`
   display: flex; gap: 6px; padding: 10px 16px; border-top: 1px solid ${p => p.theme.border.subtle};
 `;
-const ActionButton = styled.button<{ danger?: boolean }>`
+const ActionButton = styled.button<{ $danger?: boolean }>`
   padding: 5px 12px; font-size: 11px; border-radius: ${p => p.theme.radius.sm}; cursor: pointer;
-  background: ${p => p.danger ? '#c0392b20' : p.theme.bg.hover};
-  border: 1px solid ${p => p.danger ? '#c0392b40' : p.theme.border.normal};
-  color: ${p => p.danger ? '#e74c3c' : p.theme.text.primary};
+  background: ${p => p.$danger ? '#c0392b20' : p.theme.bg.hover};
+  border: 1px solid ${p => p.$danger ? '#c0392b40' : p.theme.border.normal};
+  color: ${p => p.$danger ? '#e74c3c' : p.theme.text.primary};
   &:hover { opacity: 0.8; }
 `;
 const EmptyPreview = styled.div`
@@ -176,7 +176,7 @@ export default function ModalPreviewPane({ file, width, actions = [], onActionCl
           {actions.map(action => (
             <ActionButton
               key={action.key}
-              danger={action.key === 'delete'}
+              $danger={action.key === 'delete' ? true : undefined}
               onClick={() => onActionClick?.(action.key, file)}
             >
               {action.label}
