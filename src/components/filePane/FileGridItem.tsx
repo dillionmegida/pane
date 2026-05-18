@@ -83,6 +83,7 @@ interface FileGridItemProps {
   paneId: string;
   fileTags: Record<string, Tag[]>;
   onClick: (e: React.MouseEvent) => void;
+  onDoubleClick: (file: FileItem) => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onDrop: (e: React.DragEvent, file: FileItem) => void;
   setSelection: (paneId: string, files: string[]) => void;
@@ -100,6 +101,7 @@ export default function FileGridItem({
   paneId,
   fileTags,
   onClick,
+  onDoubleClick,
   onContextMenu,
   onDrop,
   setSelection,
@@ -107,6 +109,13 @@ export default function FileGridItem({
   setIsDragging,
   setDragOver,
 }: FileGridItemProps) {
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!file.isDirectory) {
+      onDoubleClick(file);
+    }
+  };
+
   const handleDragStart = (e: React.DragEvent) => {
     startDrag(e, file, selectedFiles, setSelection, setDraggedFiles, setIsDragging, paneId);
   };
@@ -140,6 +149,7 @@ export default function FileGridItem({
       selected={isSelected}
       className={isDragOver ? 'drag-over' : ''}
       onClick={onClick}
+      onDoubleClick={handleDoubleClick}
       onContextMenu={onContextMenu}
       draggable
       onDragStart={handleDragStart}

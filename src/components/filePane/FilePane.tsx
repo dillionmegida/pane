@@ -487,6 +487,13 @@ export default function FilePane({ paneId }: FilePaneProps) {
     }
   };
 
+  // ── Double-click handling ──────────────────────────────────────────────────
+  const handleFileDoubleClick = useCallback((file: FileItem) => {
+    if (!file.isDirectory) {
+      window.electronAPI.openPath(file.path);
+    }
+  }, []);
+
   // ── Column item click ──────────────────────────────────────────────────────
   const handleColumnItemClick = useCallback(async (
     e: React.MouseEvent,
@@ -1028,6 +1035,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
               onRenameCommit={commitRename}
               onRenameCancel={() => setRenaming(null)}
               onClick={e => handleFileClick(e, file)}
+              onDoubleClick={handleFileDoubleClick}
               onContextMenu={e => handleContextMenu(e, file)}
               onDrop={(e, f) => handleDrop(e, f)}
               setSelection={setSelection}
@@ -1054,6 +1062,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
           paneId={paneId}
           fileTags={fileTags}
           onClick={e => handleFileClick(e, file)}
+          onDoubleClick={handleFileDoubleClick}
           onContextMenu={e => handleContextMenu(e, file)}
           onDrop={(e, f) => handleDrop(e, f)}
           setSelection={setSelection}
@@ -1095,6 +1104,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
           onRenameCommit={commitRename}
           onRenameCancel={() => setRenaming(null)}
           onItemClick={handleColumnItemClick}
+          onItemDoubleClick={handleFileDoubleClick}
           onItemContextMenu={(e, f) => handleContextMenu(e, f)}
           onDrop={handleDrop}
           onEmptyClick={() => {
@@ -1148,6 +1158,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
               onRenameCommit={commitRename}
               onRenameCancel={() => setRenaming(null)}
               onItemClick={handleColumnItemClick}
+              onItemDoubleClick={handleFileDoubleClick}
               onItemContextMenu={(e, f) => handleContextMenu(e, f)}
               onDrop={handleDrop}
               onEmptyClick={() => {

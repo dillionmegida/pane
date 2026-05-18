@@ -124,6 +124,7 @@ interface FileListItemProps {
   onRenameCommit: () => void;
   onRenameCancel: () => void;
   onClick: (e: React.MouseEvent) => void;
+  onDoubleClick: (file: FileItem) => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onDrop: (e: React.DragEvent, file: FileItem) => void;
   setSelection: (paneId: string, files: string[]) => void;
@@ -147,6 +148,7 @@ export default function FileListItem({
   onRenameCommit,
   onRenameCancel,
   onClick,
+  onDoubleClick,
   onContextMenu,
   onDrop,
   setSelection,
@@ -155,6 +157,13 @@ export default function FileListItem({
   setDragOver,
 }: FileListItemProps) {
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!file.isDirectory) {
+      onDoubleClick(file);
+    }
+  };
 
   const handleDragStart = (e: React.DragEvent) => {
     startDrag(e, file, selectedFiles, setSelection, setDraggedFiles, setIsDragging, paneId);
@@ -190,6 +199,7 @@ export default function FileListItem({
       contextMenuSelected={isContextMenuSelected}
       className={isDragOver ? 'drag-over' : ''}
       onClick={onClick}
+      onDoubleClick={handleDoubleClick}
       onContextMenu={onContextMenu}
       draggable
       onDragStart={handleDragStart}

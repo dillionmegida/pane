@@ -57,6 +57,7 @@ interface ColumnProps {
   onRenameCommit: () => void;
   onRenameCancel: () => void;
   onItemClick: (e: React.MouseEvent, file: FileItem, columnIndex: number, clickType: string) => void;
+  onItemDoubleClick: (file: FileItem) => void;
   onItemContextMenu: (e: React.MouseEvent, file: FileItem) => void;
   onDrop: (e: React.DragEvent, file: FileItem | null, path?: string) => void;
   onEmptyClick: (columnIndex: number) => void;
@@ -89,6 +90,7 @@ export default function Column({
   onRenameCommit,
   onRenameCancel,
   onItemClick,
+  onItemDoubleClick,
   onItemContextMenu,
   onDrop,
   onEmptyClick,
@@ -143,6 +145,7 @@ export default function Column({
               onRenameCommit={onRenameCommit}
               onRenameCancel={onRenameCancel}
               onItemClick={onItemClick}
+              onItemDoubleClick={onItemDoubleClick}
               onContextMenu={onItemContextMenu}
               onDrop={onDrop}
               setSelection={setSelection}

@@ -13,7 +13,7 @@ const Item = styled.div<{ selected: boolean; $derived: boolean; $dragOver: boole
   font-size: 12px;
   color: ${p => p.theme.text.secondary};
   background: ${p =>
-    p.$contextMenuSelected ? p.theme.bg.hover :
+    p.$contextMenuSelected ? p.theme.bg.derived :
     p.selected ? p.theme.bg.selection :
     p.$derived ? p.theme.bg.derived :
     'transparent'};
@@ -111,6 +111,7 @@ interface ColumnItemProps {
   onRenameCommit?: () => void;
   onRenameCancel?: () => void;
   onItemClick: (e: React.MouseEvent, file: FileItem, columnIndex: number, clickType: string) => void;
+  onItemDoubleClick: (file: FileItem) => void;
   onContextMenu: (e: React.MouseEvent, file: FileItem) => void;
   onDrop: (e: React.DragEvent, file: FileItem | null, path?: string) => void;
   setSelection: (paneId: string, files: string[]) => void;
@@ -138,6 +139,7 @@ export default function ColumnItem({
   onRenameCommit,
   onRenameCancel,
   onItemClick,
+  onItemDoubleClick,
   onContextMenu,
   onDrop,
   setSelection,
@@ -171,6 +173,13 @@ export default function ColumnItem({
     } else {
       updateColumnState(paneId, { focusedIndex: columnIndex });
       onItemClick(e, file, columnIndex, clickType);
+    }
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!file.isDirectory) {
+      onItemDoubleClick(file);
     }
   };
 
@@ -211,6 +220,7 @@ export default function ColumnItem({
       $contextMenuSelected={isContextMenuSelected}
       className={`${isSelected ? 'selected' : ''} ${isDerived ? 'derived' : ''} ${isDragOver ? 'drag-over' : ''}`}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
       onContextMenu={e => onContextMenu(e, file)}
       draggable
       onDragStart={handleDragStart}
