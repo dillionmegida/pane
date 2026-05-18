@@ -175,6 +175,8 @@ const SMART_FOLDERS = [
   { id: 'old', name: 'Old Files', icon: '🗓️' },
 ] as const;
 
+interface Drive { name: string; path: string; type: string; }
+
 export default function Sidebar() {
   const {
     bookmarks, setBookmarks,
@@ -184,6 +186,18 @@ export default function Sidebar() {
     getActivePath,
     sidebarWidth, setSidebarWidth,
   } = useStore();
+
+  const [drives, setDrives] = useState<Drive[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const result = await window.electronAPI.getDrives();
+        setDrives(result || []);
+      } catch (_) {}
+    };
+    load();
+  }, []);
 
   const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -318,10 +332,22 @@ export default function Sidebar() {
       <ScrollArea>
         <Section>
           <SectionHeader>Devices</SectionHeader>
-          <Item className={activePath === '/' ? 'active' : ''} onClick={() => navigate('/')}>
-            <span className="icon">💻</span>
-            <span className="name">Macintosh HD</span>
-          </Item>
+          {drives.map(drive => (
+            <Item
+              key={drive.path}
+              className={activePath === drive.path ? 'active' : ''}
+              onClick={() => navigate(drive.path)}
+            >
+              <span className="icon">{drive.path === '/' ? '💻' : '💾'}</span>
+              <span className="name">{drive.name}</span>
+            </Item>
+          ))}
+          {drives.length === 0 && (
+            <Item className={activePath === '/' ? 'active' : ''} onClick={() => navigate('/')}>
+              <span className="icon">💻</span>
+              <span className="name">Macintosh HD</span>
+            </Item>
+          )}
         </Section>
 
         <Divider />

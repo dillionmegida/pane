@@ -155,7 +155,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
+    // if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
   });
 
   mainWindow.on('resize', () => {
@@ -383,7 +383,24 @@ ipcMain.handle('fs:chmod', async (event, filePath, mode) => {
 
 ipcMain.handle('fs:getHomeDir', async () => os.homedir());
 ipcMain.handle('fs:getDrives', async () => {
-  return [{ name: 'Macintosh HD', path: '/', type: 'disk' }];
+  try {
+    const volumesDir = '/Volumes';
+    const entries = fs.readdirSync(volumesDir, { withFileTypes: true });
+    const drives = entries
+      .filter(e => e.isDirectory() || e.isSymbolicLink())
+      .map(e => {
+        const volumePath = path.join(volumesDir, e.name);
+        let resolvedPath = volumePath;
+        try {
+          const real = fs.realpathSync(volumePath);
+          if (real === '/') resolvedPath = '/';
+        } catch (_) {}
+        return { name: e.name, path: resolvedPath, type: 'disk' };
+      });
+    return drives;
+  } catch (_) {
+    return [{ name: 'Macintosh HD', path: '/', type: 'disk' }];
+  }
 });
 
 // ─── IPC: Search ─────────────────────────────────────────────────────────────

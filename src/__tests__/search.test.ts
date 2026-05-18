@@ -125,6 +125,70 @@ describe('Search Functionality', () => {
   });
 });
 
+describe('Modal Persistence', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useStore.setState({
+      panes: [{
+        id: 'left',
+        path: '/Users/john',
+        files: [],
+        loading: false,
+        error: null,
+        selectedFiles: new Set(),
+        sortBy: 'name',
+        sortOrder: 'asc',
+        viewMode: 'column',
+        tabs: [{ id: 'tab-1', path: '/Users/john', label: 'john' }],
+        activeTab: 0,
+        currentBreadcrumbPath: '/Users/john',
+        columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+      }],
+      activePane: 'left',
+      showSearch: false,
+      searchQuery: '',
+      searchResults: [],
+      searchLoading: false,
+    } as any);
+    // Clear any persisted modal state
+    if ((window as any).electronAPI.storeSet) {
+      (window as any).electronAPI.storeSet('modalState', '');
+    }
+  });
+
+  test('should persist modal state when search is opened', async () => {
+    const { result } = renderHook(() => useStore());
+    
+    // Open search modal
+    act(() => { result.current.toggleSearch(); });
+    expect(result.current.showSearch).toBe(true);
+    
+    // Simulate app rerender by calling restoreModalState
+    await act(async () => { await result.current.restoreModalState(); });
+    
+    // Modal should still be shown after restore
+    expect(result.current.showSearch).toBe(true);
+  });
+
+  test('should clear modal state when search is closed and not reopen on restore', async () => {
+    const { result } = renderHook(() => useStore());
+    
+    // Open search modal
+    act(() => { result.current.toggleSearch(); });
+    expect(result.current.showSearch).toBe(true);
+    
+    // Close search modal
+    act(() => { result.current.toggleSearch(); });
+    expect(result.current.showSearch).toBe(false);
+    
+    // Simulate app rerender by calling restoreModalState
+    await act(async () => { await result.current.restoreModalState(); });
+    
+    // Modal should not be shown after restore since it was closed
+    expect(result.current.showSearch).toBe(false);
+  });
+});
+
 describe('Search Results Navigation', () => {
   beforeEach(() => {
     jest.clearAllMocks();

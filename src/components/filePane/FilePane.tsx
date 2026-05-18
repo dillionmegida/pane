@@ -1069,7 +1069,8 @@ export default function FilePane({ paneId }: FilePaneProps) {
     const paths = columnState?.paths || [];
     const filesByPath = columnState?.filesByPath || {};
     const base = pane.basePath || pane.path;
-    const baseDirFiles = filesByPath[base] || files;
+    const filterHidden = (arr: FileItem[]) => showHidden ? arr : arr.filter(f => !f.name.startsWith('.'));
+    const baseDirFiles = filterHidden(filesByPath[base] || files);
 
     return (
       <ColumnViewArea ref={columnViewRef} onClick={() => setSelection(paneId, [])}>
@@ -1123,7 +1124,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
           onResizerMouseDown={handleColumnResizerMouseDown(0)}
         />
         {paths.map((colPath, idx) => {
-          const colFiles = filesByPath[colPath] || [];
+          const colFiles = filterHidden(filesByPath[colPath] || []);
           const colIndex = idx + 1;
           return (
             <Column
@@ -1200,7 +1201,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
   const _base = pane?.basePath || pane?.path || '';
   const _focusedPath = _focusedIdx === 0 ? _base : (columnState?.paths?.[((_focusedIdx) - 1)] ?? '');
   const totalFiles = viewMode === 'column'
-    ? (_focusedIdx === 0 ? files.length : (columnState?.filesByPath?.[_focusedPath] || []).length)
+    ? (_focusedIdx === 0 ? files.length : (showHidden ? columnState?.filesByPath?.[_focusedPath] || [] : (columnState?.filesByPath?.[_focusedPath] || []).filter((f: FileItem) => !f.name.startsWith('.'))).length)
     : files.length;
   const selCount = selectedFiles.size;
 

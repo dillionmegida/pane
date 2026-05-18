@@ -251,6 +251,7 @@ declare global {
       getPermissions?: (path: string) => Promise<{ success: boolean; permissions: string }>;
       setPermissions?: (args: { path: string; permissions: string }) => Promise<GenericResult>;
       getDuplicates?: (path: string) => Promise<{ success: boolean; groups: FileItem[][] }>;
+      getDrives: () => Promise<Array<{ name: string; path: string; type: string }>>;
     };
   }
 }

@@ -136,17 +136,10 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
-  const [showHidden, setShowHidden] = useState(false);
   const currentTheme = useStore(state => state.currentTheme);
   const setTheme = useStore(state => state.setTheme);
-
-  useEffect(() => {
-    window.electronAPI.storeGet('showHidden').then((v: unknown) => setShowHidden(!!v));
-  }, []);
-
-  const toggle = async (key: string, val: unknown) => {
-    await window.electronAPI.storeSet(key, val);
-  };
+  const showHidden = useStore(state => state.showHidden);
+  const toggleHiddenFiles = useStore(state => state.toggleHiddenFiles);
 
   return (
     <Overlay onClick={onClose}>
@@ -184,7 +177,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <SettingsSection>
             <SectionTitle>General</SectionTitle>
             <SettingLabel>
-              <input type="checkbox" checked={showHidden} onChange={e => { setShowHidden(e.target.checked); toggle('showHidden', e.target.checked); }} />
+              <input type="checkbox" checked={showHidden} onChange={() => toggleHiddenFiles()} />
               <div>
                 <SettingLabelTitle>Show hidden files</SettingLabelTitle>
                 <SettingLabelDesc>Show files beginning with a dot (.)</SettingLabelDesc>

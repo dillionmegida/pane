@@ -15,7 +15,7 @@ const Item = styled.div<{ selected: boolean; $derived: boolean; $dragOver: boole
   background: ${p =>
     p.$contextMenuSelected ? p.theme.bg.hover :
     p.selected ? p.theme.bg.selection :
-    p.$derived ? p.theme.bg.hover :
+    p.$derived ? p.theme.bg.derived :
     'transparent'};
   border-radius: ${p => p.theme.radius.sm};
   margin: 0 3px;
@@ -60,31 +60,12 @@ const SymlinkIndicator = styled.span`
   font-size: 10px;
   color: ${p => p.theme.text.tertiary};
   flex-shrink: 0;
-  position: relative;
   cursor: help;
-
-  &::after {
-    content: attr(data-tip);
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
-    background: ${p => p.theme.bg.elevated};
-    color: ${p => p.theme.text.primary};
-    border: 1px solid ${p => p.theme.border.normal};
-    border-radius: ${p => p.theme.radius.sm};
-    padding: 3px 8px;
-    font-size: 11px;
-    white-space: nowrap;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.15s;
-    z-index: 9999;
-    box-shadow: ${p => p.theme.shadow.md};
-  }
-
-  &:hover::after {
+  opacity: 0.7;
+  
+  &:hover {
     opacity: 1;
+    color: ${p => p.theme.accent.blue};
   }
 `;
 
@@ -265,8 +246,11 @@ export default function ColumnItem({
       ) : (
         <ItemName>{file.name}</ItemName>
       )}
-      {file.isSymlink && (
-        <SymlinkIndicator data-tip={file.symlinkTarget ? `→ ${file.symlinkTarget}` : 'Symlink'}>
+      {file.isSymlink && file.symlinkTarget && (
+        <SymlinkIndicator
+          data-tooltip-id="symlink-tooltip"
+          data-tooltip-content={`→ ${file.symlinkTarget}`}
+        >
           ↗
         </SymlinkIndicator>
       )}

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import styled, { createGlobalStyle } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Tooltip } from 'react-tooltip';
 import { useStore } from './store/index';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
@@ -220,6 +221,20 @@ export default function App() {
         {activeModal === 'sizeViz' && <SizeVisualizerModal data={modalData} onClose={closeModal} />}
         {activeModal === 'smartFolders' && <SmartFoldersModal data={modalData} onClose={closeModal} />}
         {activeModal === 'settings' && <SettingsModal onClose={closeModal} />}
+
+        <Tooltip
+          id="symlink-tooltip"
+          place="top"
+          style={{
+            backgroundColor: '#2a2a2e',
+            color: '#e8e8ed',
+            fontSize: '11px',
+            padding: '2px 4px',
+            borderRadius: '4px',
+            zIndex: 99999,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+          }}
+        />
       </AppShell>
     </QueryClientProvider>
   );

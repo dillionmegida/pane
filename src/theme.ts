@@ -25,6 +25,7 @@ export interface ThemeBg {
   hover: string;
   active: string;
   selection: string;
+  derived: string;
 }
 
 export interface ThemeBorder {
@@ -101,9 +102,10 @@ export const themes: Record<string, Theme> = {
       secondary: '#18181b',
       tertiary: '#1e1e22',
       elevated: '#242428',
-      hover: '#2a2a2f',
+      hover: '#16161a',
       active: '#313138',
       selection: '#1a3a5c',
+      derived: '#1e1e22',
     },
     border: {
       subtle: '#222226',
@@ -150,9 +152,10 @@ export const themes: Record<string, Theme> = {
       secondary: '#f5f5f7',
       tertiary: '#e9e9eb',
       elevated: '#f0f0f3',
-      hover: '#e2e2e6',
+      hover: '#e2e2e669',
       active: '#d1d1d9',
       selection: '#c3e1ff',
+      derived: '#e9e9eb',
     },
     border: {
       subtle: '#e0e0e3',
@@ -199,9 +202,10 @@ export const themes: Record<string, Theme> = {
       secondary: '#f9f6f1',
       tertiary: '#f0ebe3',
       elevated: '#f5f1ea',
-      hover: '#ebe5db',
+      hover: '#f4f0ea5c',
       active: '#ddd5c8',
       selection: '#ffecd1',
+      derived: '#f0ebe3',
     },
     border: {
       subtle: '#e8e0d5',
@@ -251,6 +255,7 @@ export const themes: Record<string, Theme> = {
       hover: '#dfe5ed',
       active: '#cdd5e0',
       selection: '#d1e7ff',
+      derived: '#e8ecf1',
     },
     border: {
       subtle: '#dce3eb',

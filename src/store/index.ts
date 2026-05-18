@@ -341,7 +341,19 @@ export const useStore = create<StoreState>((set, get) => ({
 
     set(s => {
       const currentPane = s.panes.find(p => p.id === paneId)!;
-      const updatedPane = { ...currentPane, path: dirPath, files, loading: false, selectedFiles: new Set<string>() };
+      const updatedPane = {
+        ...currentPane,
+        path: dirPath,
+        files,
+        loading: false,
+        selectedFiles: new Set<string>(),
+        columnState: {
+          paths: [dirPath],
+          filesByPath: {},
+          selectedByColumn: {},
+          focusedIndex: 0,
+        },
+      };
       const newTabs = currentPane.tabs.map((t, i) =>
         i === currentPane.activeTab ? snapshotTab(updatedPane) : t
       );
@@ -832,15 +844,22 @@ export const useStore = create<StoreState>((set, get) => ({
     const files = sortFiles(result.files, refreshDirSort, 'asc');
 
     // Also refresh column state filesByPath if in column view
-    const updatedColumnState = pane.viewMode === 'column' && pane.columnState?.filesByPath
-      ? {
-          ...pane.columnState,
-          filesByPath: {
-            ...pane.columnState.filesByPath,
-            [pane.path]: files,
-          },
-        }
-      : pane.columnState;
+    let updatedColumnState = pane.columnState;
+    if (pane.viewMode === 'column' && pane.columnState?.filesByPath) {
+      const colPaths = Object.keys(pane.columnState.filesByPath);
+      const refreshedEntries = await Promise.all(
+        colPaths.map(async (colPath) => {
+          if (colPath === pane.path) return [colPath, files] as [string, FileItem[]];
+          const r = await cachedReaddir(colPath);
+          if (!r.success) return [colPath, pane.columnState.filesByPath[colPath]] as [string, FileItem[]];
+          const s = get().getDirSort(colPath);
+          return [colPath, sortFiles(r.files, s, 'asc')] as [string, FileItem[]];
+        })
+      );
+      const newFilesByPath: Record<string, FileItem[]> = {};
+      for (const [k, v] of refreshedEntries) newFilesByPath[k] = v;
+      updatedColumnState = { ...pane.columnState, filesByPath: newFilesByPath };
+    }
 
     set(s => ({
       panes: s.panes.map(p => p.id === paneId ? { ...p, files, loading: false, columnState: updatedColumnState } : p),
@@ -852,33 +871,10 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ showHidden: newValue });
     await window.electronAPI.storeSet('showHidden', newValue);
 
-    const { panes, getDirSort } = get();
-    await Promise.all(panes.map(async (pane) => {
-      get().refreshPane(pane.id);
+    queryClient.invalidateQueries({ queryKey: ['dir'] });
 
-      const colPaths = Object.keys(pane.columnState?.filesByPath || {});
-      if (colPaths.length === 0) return;
-      const results = await Promise.all(
-        colPaths.map(async (colPath) => {
-          const r = await cachedReaddir(colPath);
-          if (!r.success) return null;
-          clearSortCache();
-          const colSort = getDirSort(colPath);
-          return [colPath, sortFiles(r.files, colSort, 'asc')] as [string, FileItem[]];
-        })
-      );
-      const newFilesByPath: Record<string, FileItem[]> = { ...pane.columnState.filesByPath };
-      for (const entry of results) {
-        if (entry) newFilesByPath[entry[0]] = entry[1];
-      }
-      set(s => ({
-        panes: s.panes.map(p =>
-          p.id === pane.id
-            ? { ...p, columnState: { ...p.columnState, filesByPath: newFilesByPath } }
-            : p
-        ),
-      }));
-    }));
+    const { panes } = get();
+    await Promise.all(panes.map(pane => get().refreshPane(pane.id)));
   },
 
   // ── Tabs ─────────────────────────────────────────────────────────────────
@@ -1198,12 +1194,18 @@ export const useStore = create<StoreState>((set, get) => ({
   searchResults: [],
   searchLoading: false,
   searchInitContentMode: false,
-  toggleSearch: (opts) => set(s => ({
-    showSearch: !s.showSearch,
-    searchQuery: '',
-    searchResults: [],
-    searchInitContentMode: !s.showSearch ? (opts?.contentMode ?? false) : false,
-  })),
+  toggleSearch: (opts) => {
+    const isClosing = get().showSearch;
+    if (isClosing) {
+      clearModalState();
+    }
+    set(s => ({
+      showSearch: !s.showSearch,
+      searchQuery: '',
+      searchResults: [],
+      searchInitContentMode: !s.showSearch ? (opts?.contentMode ?? false) : false,
+    }));
+  },
 
   showHidden: false,
 
