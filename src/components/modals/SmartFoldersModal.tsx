@@ -267,7 +267,7 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
     if (!isScanning && hasScannedOnce) {
       cachedResultsRef.current[getCacheKey()] = scanResults;
     }
-  }, [isScanning, scanResults, hasScannedOnce]);
+  }, [isScanning, hasScannedOnce]);
 
   const executeFilterScan = async (sizeThresholdMB = parsedSizeMB) => {
     if (!currentDirectoryPath) return;
@@ -288,7 +288,6 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
     if (!currentDirectoryPath) return;
     const newCacheKey = getCacheKey();
     const prevCacheKey = lastCacheKeyRef.current;
-    if (prevCacheKey && prevCacheKey !== newCacheKey) cachedResultsRef.current[prevCacheKey] = scanResults;
     if (prevCacheKey !== newCacheKey) abortScan();
     lastCacheKeyRef.current = newCacheKey;
     const cached = cachedResultsRef.current[newCacheKey];

@@ -1069,6 +1069,74 @@ ipcMain.handle('shell:openExternal', async (event, url) => shell.openExternal(ur
 ipcMain.handle('shell:openPath', async (event, p) => shell.openPath(p));
 ipcMain.handle('shell:showItemInFinder', async (event, p) => shell.showItemInFinder(p));
 
+// ─── IPC: Open With ───────────────────────────────────────────────────────────
+ipcMain.handle('shell:getAppsForFile', async (event, filePath) => {
+  try {
+    const { execSync } = require('child_process');
+    // Use macOS Launch Services to get apps that can open this file
+    // system_profiler and lsregister give us registered apps
+    const ext = path.extname(filePath).slice(1).toLowerCase();
+    
+    // Use mdls to find UTI for the file, then find apps that handle it
+    // Fallback: scan /Applications for .app bundles
+    const appsDir = '/Applications';
+    const appEntries = fs.readdirSync(appsDir, { withFileTypes: true })
+      .filter(e => (e.isDirectory() || e.isSymbolicLink()) && e.name.endsWith('.app'))
+      .map(e => ({
+        name: e.name.replace(/\.app$/, ''),
+        path: path.join(appsDir, e.name),
+      }));
+
+    // Also check ~/Applications
+    const userAppsDir = path.join(os.homedir(), 'Applications');
+    try {
+      const userAppEntries = fs.readdirSync(userAppsDir, { withFileTypes: true })
+        .filter(e => (e.isDirectory() || e.isSymbolicLink()) && e.name.endsWith('.app'))
+        .map(e => ({
+          name: e.name.replace(/\.app$/, ''),
+          path: path.join(userAppsDir, e.name),
+        }));
+      appEntries.push(...userAppEntries);
+    } catch (_) {}
+
+    const allApps = appEntries.sort((a, b) => a.name.localeCompare(b.name));
+    return { success: true, apps: allApps };
+  } catch (err) {
+    return { success: false, error: err.message, apps: [] };
+  }
+});
+
+ipcMain.handle('shell:openWith', async (event, { filePath, appPath }) => {
+  try {
+    const { execSync } = require('child_process');
+    execSync(`open -a "${appPath}" "${filePath}"`);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('shell:getDefaultApp', async (event, ext) => {
+  const apps = store ? store.get('defaultApps', {}) : {};
+  return { success: true, app: apps[ext] || null };
+});
+
+ipcMain.handle('shell:setDefaultApp', async (event, { ext, appPath, appName }) => {
+  if (!store) return { success: false };
+  const apps = store.get('defaultApps', {});
+  apps[ext] = { path: appPath, name: appName };
+  store.set('defaultApps', apps);
+  return { success: true };
+});
+
+ipcMain.handle('shell:clearDefaultApp', async (event, ext) => {
+  if (!store) return { success: false };
+  const apps = store.get('defaultApps', {});
+  delete apps[ext];
+  store.set('defaultApps', apps);
+  return { success: true };
+});
+
 ipcMain.handle('dialog:showOpenDialog', async (event, opts) => dialog.showOpenDialog(mainWindow, opts));
 ipcMain.handle('dialog:showSaveDialog', async (event, opts) => dialog.showSaveDialog(mainWindow, opts));
 

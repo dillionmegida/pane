@@ -63,7 +63,7 @@ const MenuItem = styled.div<{ $danger?: boolean; disabled?: boolean }>`
   color: ${p => p.$danger ? p.theme.text.error : p.disabled ? p.theme.text.tertiary : p.theme.text.primary};
   opacity: ${p => p.disabled ? 0.5 : 1};
   transition: background 0.08s;
-  &:hover { background: ${p => !p.disabled && p.theme.bg.hover}; }
+  &:hover { background: ${p => p.disabled ? 'transparent' : p.theme.bg.hover}; }
 `;
 
 const MenuIcon = styled.span`
@@ -102,6 +102,50 @@ const SortRow = styled.div`
   display: flex;
   gap: 3px;
   padding: 4px 6px;
+`;
+
+const SubMenuWrap = styled.div`
+  position: relative;
+`;
+
+const SubMenu = styled.div`
+  position: absolute;
+  left: calc(100% + 4px);
+  top: 0;
+  z-index: 9100;
+  background: ${p => p.theme.bg.elevated};
+  border: 1px solid ${p => p.theme.border.normal};
+  border-radius: ${p => p.theme.radius.md};
+  box-shadow: ${p => p.theme.shadow.lg};
+  padding: 4px;
+  min-width: 220px;
+  max-width: 320px;
+  max-height: 360px;
+  overflow-y: auto;
+  font-size: 12px;
+  user-select: none;
+`;
+
+const SubMenuItem = styled.div<{ $active?: boolean; $danger?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: ${p => p.theme.radius.sm};
+  cursor: pointer;
+  color: ${p => p.$danger ? p.theme.text.error : p.theme.text.primary};
+  background: ${p => p.$active ? p.theme.bg.selection : 'transparent'};
+  transition: background 0.08s;
+  &:hover { background: ${p => p.theme.bg.hover}; }
+`;
+
+const DefaultBadge = styled.span`
+  font-size: 9px;
+  background: ${p => p.theme.accent.blue}33;
+  color: ${p => p.theme.text.accent};
+  padding: 1px 5px;
+  border-radius: 8px;
+  margin-left: auto;
 `;
 
 const SortBtn = styled.button<{ $active: boolean }>`
@@ -166,6 +210,9 @@ export default function PaneContextMenu({
 
   const [tagHover, setTagHover] = useState<string | null>(null);
   const [fileTags, setFileTags] = useState<Set<string>>(new Set());
+  const [openWithVisible, setOpenWithVisible] = useState(false);
+  const [openWithApps, setOpenWithApps] = useState<Array<{ name: string; path: string }> | null>(null);
+  const [defaultApp, setDefaultApp] = useState<{ path: string; name: string } | null>(null);
 
   const { allTags, loadAllTags } = useStore();
 
@@ -185,6 +232,12 @@ export default function PaneContextMenu({
       window.electronAPI.getTags(file.path).then((r: { success: boolean; tags: Tag[] }) => {
         if (r.success) setFileTags(new Set(r.tags.map((t: Tag) => t.tag_name)));
       });
+      if (!file.isDirectory) {
+        const ext = file.extension || '';
+        window.electronAPI.getDefaultApp(ext).then((r: { success: boolean; app: { path: string; name: string } | null }) => {
+          if (r.success) setDefaultApp(r.app);
+        });
+      }
     }
   }, [file?.path]);
 
@@ -251,6 +304,40 @@ export default function PaneContextMenu({
     const files = selectedFiles.size > 0 ? [...selectedFiles] : file ? [file.path] : [];
     onDelete(files);
     onClose();
+  };
+
+  const handleOpenWith = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpenWithVisible(v => !v);
+    if (openWithApps === null) {
+      const r = await window.electronAPI.getAppsForFile(file!.path);
+      setOpenWithApps(r.success ? r.apps : []);
+    }
+  };
+
+  const handleOpenWithApp = async (app: { name: string; path: string }) => {
+    if (!file) return;
+    await window.electronAPI.openWith(file.path, app.path);
+    setOpenWithVisible(false);
+    onClose();
+  };
+
+  const handleSetDefault = async (app: { name: string; path: string }) => {
+    if (!file) return;
+    const ext = file.extension || '';
+    await window.electronAPI.setDefaultApp(ext, app.path, app.name);
+    setDefaultApp(app);
+    await window.electronAPI.openWith(file.path, app.path);
+    setOpenWithVisible(false);
+    onClose();
+  };
+
+  const handleClearDefault = async () => {
+    if (!file) return;
+    const ext = file.extension || '';
+    await window.electronAPI.clearDefaultApp(ext);
+    setDefaultApp(null);
+    setOpenWithVisible(false);
   };
 
   const handleSortChange = async (sortBy: SortBy) => {
@@ -366,6 +453,43 @@ export default function PaneContextMenu({
           )}
           {!file.isDirectory && (
             <>
+              <SubMenuWrap>
+                <MenuItem onClick={handleOpenWith}>
+                  <MenuIcon>↗</MenuIcon>
+                  <MenuLabel>Open With{defaultApp ? <DefaultBadge>{defaultApp.name}</DefaultBadge> : null}</MenuLabel>
+                  <Shortcut>▸</Shortcut>
+                </MenuItem>
+                {openWithVisible && (
+                  <SubMenu>
+                    {openWithApps === null ? (
+                      <SubMenuItem style={{ opacity: 0.5, cursor: 'default' }}>Loading…</SubMenuItem>
+                    ) : openWithApps.length === 0 ? (
+                      <SubMenuItem style={{ opacity: 0.5, cursor: 'default' }}>No apps found</SubMenuItem>
+                    ) : (
+                      openWithApps.map(app => (
+                        <SubMenuItem
+                          key={app.path}
+                          $active={defaultApp?.path === app.path}
+                          onClick={e => { e.stopPropagation(); handleOpenWithApp(app); }}
+                        >
+                          <MenuLabel>{app.name}</MenuLabel>
+                          {defaultApp?.path !== app.path ? (
+                            <Shortcut
+                              style={{ cursor: 'pointer', color: 'inherit', opacity: 0.6 }}
+                              title={`Set ${app.name} as default for .${file.extension}`}
+                              onClick={e => { e.stopPropagation(); handleSetDefault(app); }}
+                            >
+                              Set default
+                            </Shortcut>
+                          ) : (
+                            <DefaultBadge onClick={e => { e.stopPropagation(); handleClearDefault(); }} style={{ cursor: 'pointer' }}>Default ✕</DefaultBadge>
+                          )}
+                        </SubMenuItem>
+                      ))
+                    )}
+                  </SubMenu>
+                )}
+              </SubMenuWrap>
               <MenuItem onClick={() => {
                 openModal('permissions', { filePath: file.path });
                 onClose();

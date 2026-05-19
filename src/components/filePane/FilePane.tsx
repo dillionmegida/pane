@@ -488,9 +488,15 @@ export default function FilePane({ paneId }: FilePaneProps) {
   };
 
   // ── Double-click handling ──────────────────────────────────────────────────
-  const handleFileDoubleClick = useCallback((file: FileItem) => {
+  const handleFileDoubleClick = useCallback(async (file: FileItem) => {
     if (!file.isDirectory) {
-      window.electronAPI.openPath(file.path);
+      const ext = file.extension || '';
+      const r = await window.electronAPI.getDefaultApp(ext);
+      if (r.success && r.app) {
+        window.electronAPI.openWith(file.path, r.app.path);
+      } else {
+        window.electronAPI.openPath(file.path);
+      }
     }
   }, []);
 

@@ -252,6 +252,11 @@ declare global {
       setPermissions?: (args: { path: string; permissions: string }) => Promise<GenericResult>;
       getDuplicates?: (path: string) => Promise<{ success: boolean; groups: FileItem[][] }>;
       getDrives: () => Promise<Array<{ name: string; path: string; type: string }>>;
+      getAppsForFile: (filePath: string) => Promise<{ success: boolean; apps: Array<{ name: string; path: string }> }>;
+      openWith: (filePath: string, appPath: string) => Promise<GenericResult>;
+      getDefaultApp: (ext: string) => Promise<{ success: boolean; app: { path: string; name: string } | null }>;
+      setDefaultApp: (ext: string, appPath: string, appName: string) => Promise<GenericResult>;
+      clearDefaultApp: (ext: string) => Promise<GenericResult>;
     };
   }
 }
