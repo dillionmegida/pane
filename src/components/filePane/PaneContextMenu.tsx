@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { useFloating, offset, flip, shift, type ReferenceType } from '@floating-ui/react';
+import { useFloating, offset, flip, shift, size, autoUpdate, type ReferenceType } from '@floating-ui/react';
 import { useStore } from '../../store';
 import { SORT_TYPES } from '../../helpers/sort';
 import type { FileItem, SortBy, Tag } from '../../types';
@@ -53,7 +53,7 @@ const CtxTagLabel = styled.div`
   min-height: 16px;
 `;
 
-const MenuItem = styled.div<{ $danger?: boolean; disabled?: boolean }>`
+const MenuItem = styled.div<{ $danger?: boolean; disabled?: boolean; $highlighted?: boolean }>`
   display: flex;
   align-items: center;
   gap: 8px;
@@ -63,7 +63,8 @@ const MenuItem = styled.div<{ $danger?: boolean; disabled?: boolean }>`
   color: ${p => p.$danger ? p.theme.text.error : p.disabled ? p.theme.text.tertiary : p.theme.text.primary};
   opacity: ${p => p.disabled ? 0.5 : 1};
   transition: background 0.08s;
-  &:hover { background: ${p => p.disabled ? 'transparent' : p.theme.bg.hover}; }
+  background: ${p => p.$highlighted ? p.theme.bg.active : 'transparent'};
+  &:hover { background: ${p => p.disabled ? 'transparent' : p.theme.bg.active}; }
 `;
 
 const MenuIcon = styled.span`
@@ -109,9 +110,7 @@ const SubMenuWrap = styled.div`
 `;
 
 const SubMenu = styled.div`
-  position: absolute;
-  left: calc(100% + 4px);
-  top: 0;
+  position: fixed;
   z-index: 9100;
   background: ${p => p.theme.bg.elevated};
   border: 1px solid ${p => p.theme.border.normal};
@@ -120,7 +119,6 @@ const SubMenu = styled.div`
   padding: 4px;
   min-width: 220px;
   max-width: 320px;
-  max-height: 360px;
   overflow-y: auto;
   font-size: 12px;
   user-select: none;
@@ -136,7 +134,7 @@ const SubMenuItem = styled.div<{ $active?: boolean; $danger?: boolean }>`
   color: ${p => p.$danger ? p.theme.text.error : p.theme.text.primary};
   background: ${p => p.$active ? p.theme.bg.selection : 'transparent'};
   transition: background 0.08s;
-  &:hover { background: ${p => p.theme.bg.hover}; }
+  &:hover { background: ${p => p.$active ? p.theme.bg.selection : p.theme.bg.active}; }
 `;
 
 const DefaultBadge = styled.span`
@@ -213,6 +211,7 @@ export default function PaneContextMenu({
   const [openWithVisible, setOpenWithVisible] = useState(false);
   const [openWithApps, setOpenWithApps] = useState<Array<{ name: string; path: string }> | null>(null);
   const [defaultApp, setDefaultApp] = useState<{ path: string; name: string } | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { allTags, loadAllTags } = useStore();
 
@@ -222,8 +221,29 @@ export default function PaneContextMenu({
 
   const { refs, floatingStyles } = useFloating({
     placement: 'bottom-start',
+    strategy: 'fixed',
     middleware: [offset(2), flip(), shift({ padding: 8 })],
     elements: { reference: virtualEl as any },
+  });
+
+  const { refs: subRefs, floatingStyles: subFloatingStyles } = useFloating({
+    placement: 'right-start',
+    strategy: 'fixed',
+    open: openWithVisible,
+    whileElementsMounted: autoUpdate,
+    middleware: [
+      offset(4),
+      flip({ fallbackPlacements: ['right-end', 'left-start', 'left-end'] }),
+      shift({ padding: 8 }),
+      size({
+        padding: 8,
+        apply({ availableHeight, elements }) {
+          Object.assign(elements.floating.style, {
+            maxHeight: `${Math.min(360, availableHeight)}px`,
+          });
+        },
+      }),
+    ],
   });
 
   useEffect(() => {
@@ -306,13 +326,33 @@ export default function PaneContextMenu({
     onClose();
   };
 
-  const handleOpenWith = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setOpenWithVisible(v => !v);
-    if (openWithApps === null) {
-      const r = await window.electronAPI.getAppsForFile(file!.path);
-      setOpenWithApps(r.success ? r.apps : []);
-    }
+  const handleOpenWithHover = async () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(async () => {
+      setOpenWithVisible(true);
+      if (openWithApps === null) {
+        const r = await window.electronAPI.getAppsForFile(file!.path);
+        setOpenWithApps(r.success ? r.apps : []);
+      }
+    }, 150);
+  };
+
+  const handleOpenWithLeave = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setOpenWithVisible(false);
+    }, 200);
+  };
+
+  const handleSubMenuEnter = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+  };
+
+  const handleSubMenuLeave = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setOpenWithVisible(false);
+    }, 200);
   };
 
   const handleOpenWithApp = async (app: { name: string; path: string }) => {
@@ -453,39 +493,73 @@ export default function PaneContextMenu({
           )}
           {!file.isDirectory && (
             <>
-              <SubMenuWrap>
-                <MenuItem onClick={handleOpenWith}>
+              <SubMenuWrap
+                onMouseEnter={handleOpenWithHover}
+                onMouseLeave={handleOpenWithLeave}
+              >
+                <MenuItem
+                  ref={subRefs.setReference as any}
+                  $highlighted={openWithVisible}
+                >
                   <MenuIcon>↗</MenuIcon>
                   <MenuLabel>Open With{defaultApp ? <DefaultBadge>{defaultApp.name}</DefaultBadge> : null}</MenuLabel>
                   <Shortcut>▸</Shortcut>
                 </MenuItem>
                 {openWithVisible && (
-                  <SubMenu>
+                  <SubMenu
+                    ref={subRefs.setFloating}
+                    style={subFloatingStyles}
+                    onMouseEnter={handleSubMenuEnter}
+                    onMouseLeave={handleSubMenuLeave}
+                  >
                     {openWithApps === null ? (
                       <SubMenuItem style={{ opacity: 0.5, cursor: 'default' }}>Loading…</SubMenuItem>
                     ) : openWithApps.length === 0 ? (
                       <SubMenuItem style={{ opacity: 0.5, cursor: 'default' }}>No apps found</SubMenuItem>
                     ) : (
-                      openWithApps.map(app => (
-                        <SubMenuItem
-                          key={app.path}
-                          $active={defaultApp?.path === app.path}
-                          onClick={e => { e.stopPropagation(); handleOpenWithApp(app); }}
-                        >
-                          <MenuLabel>{app.name}</MenuLabel>
-                          {defaultApp?.path !== app.path ? (
-                            <Shortcut
-                              style={{ cursor: 'pointer', color: 'inherit', opacity: 0.6 }}
-                              title={`Set ${app.name} as default for .${file.extension}`}
-                              onClick={e => { e.stopPropagation(); handleSetDefault(app); }}
-                            >
-                              Set default
-                            </Shortcut>
-                          ) : (
-                            <DefaultBadge onClick={e => { e.stopPropagation(); handleClearDefault(); }} style={{ cursor: 'pointer' }}>Default ✕</DefaultBadge>
-                          )}
-                        </SubMenuItem>
-                      ))
+                      (() => {
+                        const defaultAppPath = defaultApp?.path;
+                        const sortedApps = [...openWithApps].sort((a, b) => {
+                          if (a.path === defaultAppPath) return -1;
+                          if (b.path === defaultAppPath) return 1;
+                          return a.name.localeCompare(b.name);
+                        });
+                        const defaultAppItem = sortedApps.find(a => a.path === defaultAppPath);
+                        const otherApps = sortedApps.filter(a => a.path !== defaultAppPath);
+                        
+                        return (
+                          <>
+                            {defaultAppItem && (
+                              <>
+                                <SubMenuItem
+                                  key={defaultAppItem.path}
+                                  $active
+                                  onClick={e => { e.stopPropagation(); handleOpenWithApp(defaultAppItem); }}
+                                >
+                                  <MenuLabel>{defaultAppItem.name}</MenuLabel>
+                                  <DefaultBadge onClick={e => { e.stopPropagation(); handleClearDefault(); }} style={{ cursor: 'pointer' }}>Default ✕</DefaultBadge>
+                                </SubMenuItem>
+                                <Divider />
+                              </>
+                            )}
+                            {otherApps.map(app => (
+                              <SubMenuItem
+                                key={app.path}
+                                onClick={e => { e.stopPropagation(); handleOpenWithApp(app); }}
+                              >
+                                <MenuLabel>{app.name}</MenuLabel>
+                                <Shortcut
+                                  style={{ cursor: 'pointer', color: 'inherit', opacity: 0.6 }}
+                                  title={`Set ${app.name} as default for .${file.extension}`}
+                                  onClick={e => { e.stopPropagation(); handleSetDefault(app); }}
+                                >
+                                  Set default
+                                </Shortcut>
+                              </SubMenuItem>
+                            ))}
+                          </>
+                        );
+                      })()
                     )}
                   </SubMenu>
                 )}
@@ -499,9 +573,9 @@ export default function PaneContextMenu({
               </MenuItem>
             </>
           )}
-          <Divider />
           {file.isDirectory ? (
             <>
+              <Divider />
               <MenuItem onClick={() => {
                 openModal('zip', { files: selectedFiles.size > 0 ? [...selectedFiles] : [file.path] });
                 onClose();
@@ -512,13 +586,16 @@ export default function PaneContextMenu({
             </>
           ) : (
             file.extension === 'zip' || file.extension === 'gz' || file.extension === 'tar' ? (
-              <MenuItem onClick={() => {
-                openModal('unzip', { filePath: file.path });
-                onClose();
-              }}>
-                <MenuIcon>📂</MenuIcon>
-                <MenuLabel>Extract…</MenuLabel>
-              </MenuItem>
+              <>
+                <Divider />
+                <MenuItem onClick={() => {
+                  openModal('unzip', { filePath: file.path });
+                  onClose();
+                }}>
+                  <MenuIcon>📂</MenuIcon>
+                  <MenuLabel>Extract…</MenuLabel>
+                </MenuItem>
+              </>
             ) : null
           )}
           <Divider />
@@ -530,20 +607,24 @@ export default function PaneContextMenu({
         </>
       )}
 
-      <Divider />
-      <SectionLabel>Sort by</SectionLabel>
-      <SortRow>
-        {SORT_TYPES.map(st => (
-          <SortBtn
-            key={st.id}
-            $active={currentSort === st.id}
-            onClick={() => handleSortChange(st.id)}
-            title={st.description}
-          >
-            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" dangerouslySetInnerHTML={{ __html: st.svgInner }} />
-          </SortBtn>
-        ))}
-      </SortRow>
+      {(!file || file.isDirectory) && (
+        <>
+          <Divider />
+          <SectionLabel>Sort by</SectionLabel>
+          <SortRow>
+            {SORT_TYPES.map(st => (
+              <SortBtn
+                key={st.id}
+                $active={currentSort === st.id}
+                onClick={() => handleSortChange(st.id)}
+                title={st.description}
+              >
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" dangerouslySetInnerHTML={{ __html: st.svgInner }} />
+              </SortBtn>
+            ))}
+          </SortRow>
+        </>
+      )}
     </Menu>
   );
 }
