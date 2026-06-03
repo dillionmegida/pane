@@ -41,18 +41,19 @@ const CtrlBtn = styled.button`
   color: rgba(255,255,255,0.9);
   cursor: pointer;
   padding: 4px 6px;
-  border-radius: ${p => p.theme.radius.sm};
-  font-size: 18px;
-  line-height: 1;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: ${p => p.theme.radius.sm};
+  font-size: 18px;
+  line-height: 1;
   flex-shrink: 0;
   &:hover { background: rgba(255,255,255,0.15); }
 `;
 
 const ProgressTrack = styled.div`
-  /* flex: 1; */
   width: min(70%, 70px);
   height: 6px;
   background: rgba(255,255,255,0.25);
@@ -70,7 +71,7 @@ const ProgressFill = styled.div`
   pointer-events: none;
 `;
 
-const ProgressThumb = styled.div`
+const ProgressThumb = styled.div<{ dragging?: boolean }>`
   position: absolute;
   top: 50%;
   width: 10px;
@@ -79,7 +80,7 @@ const ProgressThumb = styled.div`
   background: ${p => p.theme.accent.blue};
   transform: scale(0);
   translate: -50% -50%;
-  transition: transform 0.12s;
+  transition: ${p => p.dragging ? 'none' : 'transform 0.12s'};
   pointer-events: none;
 `;
 
@@ -136,6 +137,10 @@ const CustomVideo = forwardRef<MediaHandle, CustomVideoProps>(function CustomVid
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const durationRef = useRef(0);
 
   useImperativeHandle(outerRef, () => ({
     play: async () => { await videoRef.current?.play(); },
@@ -155,7 +160,7 @@ const CustomVideo = forwardRef<MediaHandle, CustomVideoProps>(function CustomVid
     const v = videoRef.current;
     if (!v) return;
     const onT = () => setCurrentTime(v.currentTime);
-    const onD = () => setDuration(v.duration);
+    const onD = () => { setDuration(v.duration); durationRef.current = v.duration; };
     const onP = () => { setPlaying(true); onPlay?.(); };
     const onPa = () => { setPlaying(false); onPause?.(); };
     const onE = () => { setPlaying(false); onEnded?.(); };
@@ -181,13 +186,43 @@ const CustomVideo = forwardRef<MediaHandle, CustomVideoProps>(function CustomVid
     if (v.paused) v.play(); else v.pause();
   };
 
-  const seekTo = (e: React.MouseEvent<HTMLDivElement>) => {
+  const seekFromClientX = (clientX: number) => {
     const v = videoRef.current;
-    if (!v || !duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    v.currentTime = ratio * duration;
+    const track = trackRef.current;
+    if (!v || !durationRef.current || !track) return;
+    const rect = track.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const t = ratio * durationRef.current;
+    v.currentTime = t;
+    setCurrentTime(t);
   };
+
+  const seekFromClientXRef = useRef(seekFromClientX);
+  seekFromClientXRef.current = seekFromClientX;
+
+  const seekTo = (e: React.MouseEvent<HTMLDivElement>) => {
+    seekFromClientXRef.current(e.clientX);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    seekFromClientXRef.current(e.clientX);
+  };
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      seekFromClientXRef.current(e.clientX);
+    };
+    const onUp = () => { isDraggingRef.current = false; setIsDragging(false); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
 
   const handleVolume = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
@@ -218,9 +253,9 @@ const CustomVideo = forwardRef<MediaHandle, CustomVideoProps>(function CustomVid
         <CtrlBtn onClick={togglePlay} title={playing ? 'Pause' : 'Play'}>
           {playing ? '⏸' : '▶'}
         </CtrlBtn>
-        <ProgressTrack onClick={seekTo}>
+        <ProgressTrack ref={trackRef} onClick={seekTo} onMouseDown={handleMouseDown}>
           <ProgressFill style={{ width: `${pct}%` }} />
-          <ProgressThumb style={{ left: `${pct}%` }} />
+          <ProgressThumb dragging={isDragging} style={{ left: `${pct}%` }} />
         </ProgressTrack>
         <TimeLabel>{formatTime(currentTime)} / {formatTime(duration)}</TimeLabel>
         <VolumeWrap>
