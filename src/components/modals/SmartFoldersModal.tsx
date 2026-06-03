@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import styled from 'styled-components';
+import { toast } from 'react-toastify';
 import { FixedSizeList as List } from 'react-window';
 import { useStore, formatSize, formatDate } from '../../store';
 import ModalPreviewPane from '../ModalPreviewPane';
@@ -325,6 +326,9 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
         if (r.success) {
           setSelectedFile(null);
           setScanResults(scanResults.filter(f => f.path !== file.path));
+        } else {
+          console.error(`Failed to delete ${file.path}: ${r.error}`);
+          toast.error(`Failed to delete file:\n\n${r.error}`);
         }
       };
 

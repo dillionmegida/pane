@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import styled from 'styled-components';
 import { useFloating, offset, flip, shift, type ReferenceType } from '@floating-ui/react';
+import { Tooltip } from 'react-tooltip';
 import { useStore } from '../store';
 import type { Bookmark, FileItem, Tag } from '../types';
 import PaneContextMenu from './filePane/PaneContextMenu';
@@ -110,6 +111,7 @@ const Item = styled.div`
 
   &:hover { background: ${p => p.theme.bg.hover}; color: ${p => p.theme.text.primary}; }
   &.active { color: ${p => p.theme.text.primary}; background: ${p => p.theme.bg.active}; }
+  &.context-menu-active { background: ${p => p.theme.bg.selection}; color: ${p => p.theme.text.primary}; }
 
   .icon { font-size: 13px; flex-shrink: 0; }
   .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -157,10 +159,7 @@ const TagDot = styled.span<{ color: string }>`
 
 const BookmarkItem = styled(Item)`
   &.dragging { opacity: 0.4; }
-  &.context-menu-open {
-    background: ${p => p.theme.bg.selection} !important;
-    color: ${p => p.theme.text.primary};
-  }
+  &.context-menu-active { background: ${p => p.theme.bg.selection}; color: ${p => p.theme.text.primary}; }
 `;
 
 const DropIndicatorLine = styled.div`
@@ -264,8 +263,23 @@ export default function Sidebar() {
   const [expandedSections, setExpandedSections] = useState({ bookmarks: true, tags: true });
   const [bookmarkContextMenu, setBookmarkContextMenu] = useState<{ x: number; y: number; bookmark: Bookmark } | null>(null);
   const [driveContextMenu, setDriveContextMenu] = useState<{ x: number; y: number; drive: Drive } | null>(null);
+  const [ejectingPath, setEjectingPath] = useState<string | null>(null);
 
   const activePath = getActivePath(activePane);
+
+  const driveVirtualEl = useMemo(() => {
+    if (!driveContextMenu) return null;
+    return {
+      getBoundingClientRect: () => DOMRect.fromRect({ x: driveContextMenu.x, y: driveContextMenu.y, width: 0, height: 0 }),
+    } as ReferenceType;
+  }, [driveContextMenu]);
+
+  const { refs: driveRefs, floatingStyles: driveFloatingStyles } = useFloating({
+    placement: 'bottom-start',
+    strategy: 'fixed',
+    middleware: [offset(2), flip(), shift({ padding: 8 })],
+    elements: { reference: driveVirtualEl as any },
+  });
   const activeBookmark = useStore.getState().getActiveBookmark(activePane);
 
   useEffect(() => {
@@ -282,17 +296,6 @@ export default function Sidebar() {
       window.removeEventListener('contextmenu', close);
     };
   }, [driveContextMenu]);
-
-  useEffect(() => {
-    if (!bookmarkContextMenu) return;
-    const close = () => setBookmarkContextMenu(null);
-    window.addEventListener('click', close);
-    window.addEventListener('contextmenu', close);
-    return () => {
-      window.removeEventListener('click', close);
-      window.removeEventListener('contextmenu', close);
-    };
-  }, [bookmarkContextMenu]);
 
   const navigate = (p: string) => navigateTo(activePane, p);
 
@@ -368,12 +371,14 @@ export default function Sidebar() {
   const handleBookmarkContextMenu = (e: React.MouseEvent, bm: Bookmark) => {
     e.preventDefault();
     e.stopPropagation();
+    setDriveContextMenu(null);
     setBookmarkContextMenu({ x: e.clientX, y: e.clientY, bookmark: bm });
   };
 
   const handleDriveContextMenu = (e: React.MouseEvent, drive: Drive) => {
     e.preventDefault();
     e.stopPropagation();
+    setBookmarkContextMenu(null);
     setDriveContextMenu({ x: e.clientX, y: e.clientY, drive });
   };
 
@@ -402,17 +407,6 @@ export default function Sidebar() {
   const toggleSection = (key: 'bookmarks' | 'tags') =>
     setExpandedSections(s => ({ ...s, [key]: !s[key] }));
 
-  const driveVirtualEl = useMemo(() => driveContextMenu ? ({
-    getBoundingClientRect: () => DOMRect.fromRect({ x: driveContextMenu.x, y: driveContextMenu.y, width: 0, height: 0 }),
-  } as ReferenceType) : null, [driveContextMenu]);
-
-  const { refs: driveRefs, floatingStyles: driveFloatingStyles } = useFloating({
-    placement: 'bottom-start',
-    strategy: 'fixed',
-    middleware: [offset(2), flip(), shift({ padding: 8 })],
-    elements: { reference: driveVirtualEl as any },
-  });
-
   return (
     <SidebarWrap sidebarWidth={sidebarWidth}>
       <SidebarResizeHandle onMouseDown={handleResizeMouseDown} />
@@ -423,9 +417,15 @@ export default function Sidebar() {
           {drives.map(drive => (
             <Item
               key={drive.path}
-              className={activePath === drive.path ? 'active' : ''}
+              className={`${activePath === drive.path ? 'active' : ''} ${driveContextMenu && driveContextMenu.drive.path === drive.path ? 'context-menu-active' : ''}`}
               onClick={() => navigate(drive.path)}
               onContextMenu={(e) => handleDriveContextMenu(e, drive)}
+              {...(ejectingPath === drive.path && {
+                'data-tooltip-id': 'drive-tooltip',
+                'data-tooltip-content': 'Ejecting...',
+                'data-tooltip-place': 'right',
+              })}
+              style={{ opacity: ejectingPath === drive.path ? 0.5 : 1, pointerEvents: ejectingPath === drive.path ? 'none' : 'auto' }}
             >
               <span className="icon">{drive.path === '/' ? '💻' : '💾'}</span>
               <span className="name">{drive.name}</span>
@@ -433,7 +433,7 @@ export default function Sidebar() {
           ))}
           {drives.length === 0 && (
             <Item
-              className={activePath === '/' ? 'active' : ''}
+              className={`${activePath === '/' ? 'active' : ''} ${driveContextMenu && driveContextMenu.drive.path === '/' ? 'context-menu-active' : ''}`}
               onClick={() => navigate('/')}
               onContextMenu={(e) => handleDriveContextMenu(e, { name: 'Macintosh HD', path: '/', type: 'disk' })}
             >
@@ -465,7 +465,7 @@ export default function Sidebar() {
                   {insertLineIndex === idx && <DropIndicatorLine />}
                   <BookmarkItem
                     data-bookmark-idx={idx}
-                    className={`${reorderSrcIdx === idx ? 'dragging' : ''} ${activeBookmark && activeBookmark.id === bm.id ? 'active' : ''} ${bookmarkContextMenu?.bookmark.id === bm.id ? 'context-menu-open' : ''}`}
+                    className={`${reorderSrcIdx === idx ? 'dragging' : ''} ${activePath === bm.path ? 'active' : ''} ${activeBookmark && activeBookmark.id === bm.id ? 'bookmark-active' : ''} ${bookmarkContextMenu && bookmarkContextMenu.bookmark.id === bm.id ? 'context-menu-active' : ''}`}
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('bookmark-index', String(idx)); setReorderSrcIdx(idx); }}
                     onDragEnd={() => { setInsertLineIndex(null); setReorderSrcIdx(null); }}
@@ -539,6 +539,21 @@ export default function Sidebar() {
             <CtxIcon>📊</CtxIcon>
             <CtxLabel>Disk Usage…</CtxLabel>
           </CtxItem>
+          {driveContextMenu.drive.path !== '/' && (
+            <CtxItem onClick={async () => {
+              setDriveContextMenu(null);
+              setEjectingPath(driveContextMenu.drive.path);
+              const result = await window.electronAPI.ejectVolume(driveContextMenu.drive.path);
+              setEjectingPath(null);
+              if (result.success) {
+                const updatedDrives = await window.electronAPI.getDrives();
+                setDrives(updatedDrives || []);
+              }
+            }}>
+              <CtxIcon>⏏️</CtxIcon>
+              <CtxLabel>Eject</CtxLabel>
+            </CtxItem>
+          )}
         </CtxMenu>
       )}
 
@@ -586,6 +601,18 @@ export default function Sidebar() {
       <SidebarFooter>
         <FooterBtn onClick={() => openModal('settings')} title="Settings">⚙️</FooterBtn>
       </SidebarFooter>
+
+      <Tooltip
+        id="drive-tooltip"
+        place="right"
+        style={{
+          backgroundColor: '#2a2a2e',
+          color: '#e8e8ed',
+          fontSize: '11px',
+          padding: '4px 8px',
+          borderRadius: '4px',
+        }}
+      />
     </SidebarWrap>
   );
 }

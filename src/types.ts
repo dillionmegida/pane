@@ -242,6 +242,8 @@ declare global {
       clearLog: () => Promise<GenericResult>;
       chmod: (path: string, mode: string) => Promise<GenericResult>;
       folderSize: (path: string) => Promise<{ success: boolean; tree: FolderSizeNode }>;
+      onFolderSizeProgress?: (cb: (msg: { type: string; child?: FolderSizeNode; rootName?: string; rootPath?: string }) => void) => void;
+      offFolderSizeProgress?: () => void;
       findDuplicates: (path: string) => Promise<{ success: boolean; exact?: DuplicateGroup[]; near?: DuplicateGroup[] }>;
       moveDuplicates: (args: { files: string[]; baseDir: string }) => Promise<GenericResult>;
       batchRename: (renames: Array<{ oldPath: string; newPath: string }>) => Promise<GenericResult>;
@@ -252,6 +254,7 @@ declare global {
       setPermissions?: (args: { path: string; permissions: string }) => Promise<GenericResult>;
       getDuplicates?: (path: string) => Promise<{ success: boolean; groups: FileItem[][] }>;
       getDrives: () => Promise<Array<{ name: string; path: string; type: string }>>;
+      ejectVolume: (volumePath: string) => Promise<GenericResult>;
       getAppsForFile: (filePath: string) => Promise<{ success: boolean; apps: Array<{ name: string; path: string }> }>;
       openWith: (filePath: string, appPath: string) => Promise<GenericResult>;
       getDefaultApp: (ext: string) => Promise<{ success: boolean; app: { path: string; name: string } | null }>;

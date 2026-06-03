@@ -53,6 +53,17 @@ const ItemName = styled.span`font-size: 12px; color: ${p => p.theme.text.primary
 const ItemSize = styled.span`font-size: 11px; color: ${p => p.theme.text.tertiary}; flex-shrink: 0; width: 60px; text-align: right;`;
 const ItemPct = styled.span`font-size: 10px; color: ${p => p.theme.text.tertiary}; flex-shrink: 0; width: 36px; text-align: right;`;
 
+const ScanningBadge = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: ${p => p.theme.accent.blue};
+  padding: 2px 8px;
+  background: ${p => p.theme.accent.blue}18;
+  border-radius: 10px;
+`;
+
 const ScanningMsg = styled.div`
   text-align: center;
   padding: 60px;
@@ -68,6 +79,7 @@ const SummaryRow = styled.div`
   color: ${p => p.theme.text.tertiary};
   margin-bottom: 10px;
   display: flex;
+  align-items: center;
   gap: 12px;
 `;
 
@@ -158,7 +170,10 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
   const paneId = data?.paneId || activePane;
 
   const [tree, setTree] = useState<FolderSizeNode | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [streamedChildren, setStreamedChildren] = useState<FolderSizeNode[]>([]);
+  const [streamRootPath, setStreamRootPath] = useState<string | null>(null);
+  const [streamRootName, setStreamRootName] = useState<string>('');
   const [nodeStack, setNodeStack] = useState<FolderSizeNode[]>([]);
   const [ctx, setCtx] = useState<CtxState | null>(null);
   const ctxRef = useRef<HTMLDivElement>(null);
@@ -180,14 +195,32 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
     };
   }, [ctx]);
 
-  const loadTree = async (path: string) => {
-    setLoading(true);
-    const r = await window.electronAPI.folderSize(path);
-    if (r.success) {
-      setTree(r.tree);
-      setNodeStack([r.tree]);
-    }
-    setLoading(false);
+  const loadTree = (rootPath: string) => {
+    setScanning(true);
+    setTree(null);
+    setStreamedChildren([]);
+    setStreamRootPath(rootPath);
+    setStreamRootName(rootPath.split('/').filter(Boolean).pop() || rootPath);
+    setNodeStack([]);
+
+    window.electronAPI.offFolderSizeProgress?.();
+    window.electronAPI.onFolderSizeProgress?.((msg: { type: string; child?: FolderSizeNode; rootName?: string }) => {
+      if (msg.type === 'init' && msg.rootName) {
+        setStreamRootName(msg.rootName);
+      } else if (msg.type === 'child' && msg.child) {
+        setStreamedChildren(prev => [...prev, msg.child!]);
+      }
+    });
+
+    window.electronAPI.folderSize(rootPath).then((r: { success: boolean; tree: FolderSizeNode }) => {
+      window.electronAPI.offFolderSizeProgress?.();
+      setScanning(false);
+      if (r.success) {
+        setTree(r.tree);
+        setStreamedChildren([]);
+        setNodeStack([r.tree]);
+      }
+    });
   };
 
   const enterDir = (child: FolderSizeNode) => setNodeStack(s => [...s, child]);
@@ -222,27 +255,25 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
     setCtx(null);
   };
 
-  const ctxRescan = async () => {
+  const ctxRescan = () => {
     if (!ctx) return;
     setCtx(null);
-    setLoading(true);
-    const r = await window.electronAPI.folderSize(ctx.node.path);
-    if (r.success) {
-      setTree(r.tree);
-      setNodeStack([r.tree]);
-    }
-    setLoading(false);
+    loadTree(ctx.node.path);
   };
 
-  const handleReload = async () => {
-    if (!tree) return;
-    await loadTree(tree.path);
+  const handleReload = () => {
+    const rootPath = tree?.path ?? streamRootPath;
+    if (rootPath) loadTree(rootPath);
   };
 
-  const sorted = currentNode?.children
-    ? [...currentNode.children].sort((a, b) => b.size - a.size).slice(0, 50)
-    : [];
+  // While streaming, show streamed children; once complete, use the final tree node
+  const displayChildren: FolderSizeNode[] = currentNode
+    ? [...(currentNode.children ?? [])].sort((a, b) => b.size - a.size).slice(0, 50)
+    : [...streamedChildren].sort((a, b) => b.size - a.size);
+
+  const sorted = displayChildren;
   const totalSize = sorted.reduce((s, c) => s + c.size, 0) || 1;
+  const isStreaming = scanning && streamedChildren.length > 0;
 
   return (
     <Overlay onClick={onClose}>
@@ -257,15 +288,15 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
           </div>
         </ModalHeader>
         <ModalBody pad="14px">
-          {loading && (
+          {scanning && streamedChildren.length === 0 && (
             <ScanningMsg>
               Scanning folder sizes...
             </ScanningMsg>
           )}
-          {!loading && currentNode && (
+          {(currentNode || isStreaming) && (
             <>
               <Breadcrumb>
-                {nodeStack.map((node, i) => (
+                {nodeStack.length > 0 ? nodeStack.map((node, i) => (
                   <React.Fragment key={node.path}>
                     {i > 0 && <BreadcrumbSep>›</BreadcrumbSep>}
                     <BreadcrumbPart
@@ -275,13 +306,19 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
                       {node.name || node.path}
                     </BreadcrumbPart>
                   </React.Fragment>
-                ))}
+                )) : (
+                  <BreadcrumbPart $active>{streamRootName || streamRootPath}</BreadcrumbPart>
+                )}
               </Breadcrumb>
 
               <SummaryRow>
-                <span>Total: <SummaryTotal>{formatSize(currentNode.size)}</SummaryTotal></span>
-                <span>{sorted.length} items shown{(currentNode.children?.length ?? 0) > 50 ? ` (of ${currentNode.children!.length})` : ''}</span>
-                {currentNode !== tree && (
+                {currentNode
+                  ? <span>Total: <SummaryTotal>{formatSize(currentNode.size)}</SummaryTotal></span>
+                  : <span><SummaryTotal>{formatSize(totalSize)}</SummaryTotal> so far…</span>
+                }
+                <span>{sorted.length} items shown{(currentNode?.children?.length ?? 0) > 50 ? ` (of ${currentNode!.children!.length})` : ''}</span>
+                {isStreaming && <ScanningBadge>⏳ Scanning...</ScanningBadge>}
+                {currentNode && currentNode !== tree && (
                   <BackToRoot onClick={() => tree && setNodeStack([tree])}>
                     ↑ Back to root
                   </BackToRoot>

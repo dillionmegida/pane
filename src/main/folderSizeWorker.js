@@ -66,6 +66,38 @@ async function buildTree(p, depth = 0) {
   } catch { return null; }
 }
 
-buildTree(workerData.dirPath)
-  .then(tree => parentPort.postMessage({ success: true, tree }))
-  .catch(err => parentPort.postMessage({ success: false, error: err.message }));
+async function streamRoot(dirPath) {
+  try {
+    const stat = await fs.promises.lstat(dirPath);
+    if (!stat.isDirectory()) {
+      const name = require('path').basename(dirPath);
+      parentPort.postMessage({ type: 'complete', tree: { name, path: dirPath, size: stat.size, isDirectory: false, children: [] } });
+      return;
+    }
+
+    const entries = await readDirSafe(dirPath);
+    const visible = entries.filter(e => !e.startsWith('.'));
+    const rootName = path.basename(dirPath) || dirPath;
+
+    // Emit a placeholder root immediately so the UI can show the header
+    parentPort.postMessage({ type: 'init', rootPath: dirPath, rootName, total: visible.length });
+
+    const children = [];
+
+    await Promise.all(visible.map(async (e) => {
+      const child = await buildTree(path.join(dirPath, e), 1);
+      if (child) {
+        children.push(child);
+        parentPort.postMessage({ type: 'child', child });
+      }
+    }));
+
+    const size = children.reduce((sum, c) => sum + c.size, 0);
+    const tree = { name: rootName, path: dirPath, size, isDirectory: true, children };
+    parentPort.postMessage({ type: 'complete', tree });
+  } catch (err) {
+    parentPort.postMessage({ type: 'error', error: err.message });
+  }
+}
+
+streamRoot(workerData.dirPath);

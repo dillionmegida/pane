@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
+import path from 'path-browserify';
+import { toast } from 'react-toastify';
 import { useStore, formatSize, formatDate, getFileIcon, isPreviewable } from '../../store';
 import Column from './Column';
 import FileListItem from './FileListItem';
@@ -712,9 +714,19 @@ export default function FilePane({ paneId }: FilePaneProps) {
     if (targets.length === 0) return;
 
     const performDelete = async () => {
+      const errors: string[] = [];
       for (const fp of targets) {
-        await window.electronAPI.delete(fp);
+        const result = await window.electronAPI.delete(fp);
+        if (!result.success) {
+          errors.push(`${path.basename(fp)}: ${result.error}`);
+        }
       }
+      
+      if (errors.length > 0) {
+        console.error('Failed to delete some files:\n' + errors.join('\n'));
+        toast.error(`Failed to delete ${errors.length} file(s):\n\n${errors.join('\n')}`);
+      }
+      
       setSelection(paneId, []);
       refreshPane(paneId);
       if (viewMode === 'column') {

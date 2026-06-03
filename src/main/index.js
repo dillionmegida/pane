@@ -345,7 +345,7 @@ ipcMain.handle('fs:move', async (event, srcPath, destPath) => {
 ipcMain.handle('fs:delete', async (event, filePath) => {
   try {
     pushUndo('delete', { filePath, tempPath: path.join(os.tmpdir(), `fp_trash_${Date.now()}_${path.basename(filePath)}`) });
-    shell.trashItem(filePath);
+    await shell.trashItem(filePath);
     logActivity('delete', `Deleted: ${path.basename(filePath)}`, [filePath]);
     return { success: true };
   } catch (err) {
@@ -401,6 +401,24 @@ ipcMain.handle('fs:getDrives', async () => {
     return drives;
   } catch (_) {
     return [{ name: 'Macintosh HD', path: '/', type: 'disk' }];
+  }
+});
+
+ipcMain.handle('fs:ejectVolume', async (event, volumePath) => {
+  try {
+    const { spawn } = require('child_process');
+    await new Promise((resolve, reject) => {
+      const proc = spawn('diskutil', ['eject', volumePath]);
+      proc.on('close', (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`diskutil eject failed with code ${code}`));
+      });
+      proc.on('error', reject);
+    });
+    logActivity('eject', `Ejected volume: ${path.basename(volumePath)}`, [volumePath]);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
 });
 
@@ -818,7 +836,17 @@ ipcMain.handle('fs:folderSize', (event, dirPath) => {
   return new Promise((resolve) => {
     const workerPath = path.join(__dirname, 'folderSizeWorker.js');
     const worker = new Worker(workerPath, { workerData: { dirPath } });
-    worker.once('message', resolve);
+    const sender = event.sender;
+    worker.on('message', (msg) => {
+      if (msg.type === 'complete') {
+        resolve({ success: true, tree: msg.tree });
+      } else if (msg.type === 'error') {
+        resolve({ success: false, error: msg.error });
+      } else {
+        // Stream init/child progress to renderer
+        if (!sender.isDestroyed()) sender.send('folderSize:progress', msg);
+      }
+    });
     worker.once('error', (err) => resolve({ success: false, error: err.message }));
   });
 });

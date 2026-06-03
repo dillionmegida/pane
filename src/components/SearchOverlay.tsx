@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import styled from 'styled-components';
+import { toast } from 'react-toastify';
 import { FixedSizeList as List, VariableSizeList as VariableList } from 'react-window';
 import { useStore, formatSize, formatDate, PREVIEW_TYPES, getPreviewType } from '../store';
 import ModalPreviewPane from './ModalPreviewPane';
@@ -660,6 +661,9 @@ export default function SearchOverlay(): React.ReactElement {
           if (contentSearch) setContentResults(prev => prev.filter((item: any) => item.path !== file.path));
           else setScanResults((prev: any[]) => prev.filter((item: any) => item.path !== file.path));
           setSelectedItem(null);
+        } else {
+          console.error(`Failed to delete ${file.path}: ${r.error}`);
+          toast.error(`Failed to delete file:\n\n${r.error}`);
         }
       };
 

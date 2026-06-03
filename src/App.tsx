@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import styled, { createGlobalStyle } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Tooltip } from 'react-tooltip';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { useStore } from './store/index';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
@@ -31,6 +33,49 @@ const GlobalStyle = createGlobalStyle`
   ::-webkit-scrollbar-thumb { background: ${p => p.theme.text.tertiary}40; border-radius: 99px; }
   ::-webkit-scrollbar-thumb:hover { background: ${p => p.theme.text.tertiary}80; }
   ::-webkit-scrollbar-corner { background: transparent; }
+  
+  .Toastify__toast-container {
+    z-index: 999999;
+  }
+  
+  .Toastify__toast {
+    background: ${p => p.theme.bg.elevated};
+    color: ${p => p.theme.text.primary};
+    border: 1px solid ${p => p.theme.border.normal};
+    box-shadow: ${p => p.theme.shadow.lg};
+    font-family: ${p => p.theme.font.sans};
+    font-size: ${p => p.theme.font.size.sm};
+    padding: 10px 14px;
+    min-height: auto;
+  }
+  
+  .Toastify__toast-body {
+    margin-right: 0;
+  }
+  
+  .Toastify__toast--error {
+    border-left: 3px solid ${p => p.theme.text.error};
+  }
+  
+  .Toastify__toast--success {
+    border-left: 3px solid ${p => p.theme.text.success};
+  }
+  
+  .Toastify__toast--info {
+    border-left: 3px solid ${p => p.theme.accent.blue};
+  }
+  
+  .Toastify__toast--warning {
+    border-left: 3px solid ${p => p.theme.text.warning};
+  }
+  
+  .Toastify__close-button {
+    display: none;
+  }
+  
+  .Toastify__progress-bar {
+    background: ${p => p.theme.accent.blue};
+  }
 `;
 
 const AppShell = styled.div<{ zoomScale?: number }>`
@@ -236,6 +281,17 @@ export default function App() {
             zIndex: 99999,
             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
           }}
+        />
+        <ToastContainer
+          position="top-right"
+          autoClose={5000}
+          hideProgressBar={false}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
         />
       </AppShell>
     </QueryClientProvider>

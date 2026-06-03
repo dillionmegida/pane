@@ -121,8 +121,15 @@ at the same time, don't resize the horizontal width yet...so if i open 7 columns
 
 * add support for in a file tree, being able to type to search for a file...so it debounces..and waits until i'm done so if i type "hello" it waits until i stop typing for a bit and then searches, and auto selects the first result
 * shift cmd selection broken
+* cmd a to select everything in acolumn
 
-* i should be able to eject removable volumes
+
 * also i discovered that multi selected delete is only deleting one file not everything
 
-* when i disconnect a removable volume, collapse all the columns
+* when i disconnect a removable volume, collapse all the columns (if that removable volume was open)
+
+* in smart folders/search, returned results, some of them should have delete disabled...for example, in things like System*
+
+* back to root in disk usage map doesn't work while the app is still scanning...even breadcrumbs don't show up
+
+* add listener for when removable volume is plugged in (just like the watcher for files)
