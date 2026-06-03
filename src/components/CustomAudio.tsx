@@ -137,7 +137,7 @@ function formatTime(secs: number): string {
 const NUM_BARS = 24;
 
 export interface MediaHandle {
-  play: () => void;
+  play: () => Promise<void>;
   pause: () => void;
   stop: () => void;
   paused: boolean;
@@ -164,7 +164,7 @@ const CustomAudio = forwardRef<MediaHandle, CustomAudioProps>(function CustomAud
   const [muted, setMuted] = useState(false);
 
   useImperativeHandle(outerRef, () => ({
-    play: () => { audioRef.current?.play(); },
+    play: async () => { await audioRef.current?.play(); },
     pause: () => { audioRef.current?.pause(); },
     stop: () => {
       if (audioRef.current) {

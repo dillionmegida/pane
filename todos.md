@@ -121,3 +121,8 @@ at the same time, don't resize the horizontal width yet...so if i open 7 columns
 
 * add support for in a file tree, being able to type to search for a file...so it debounces..and waits until i'm done so if i type "hello" it waits until i stop typing for a bit and then searches, and auto selects the first result
 * shift cmd selection broken
+
+* i should be able to eject removable volumes
+* also i discovered that multi selected delete is only deleting one file not everything
+
+* when i disconnect a removable volume, collapse all the columns

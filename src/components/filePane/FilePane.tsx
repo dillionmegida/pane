@@ -723,7 +723,29 @@ export default function FilePane({ paneId }: FilePaneProps) {
         const result = await readDirSorted(dir, paneId);
         if (result.success) newFbp[dir] = result.files;
       }));
-      updateColumnState(paneId, { filesByPath: newFbp });
+      
+      // If any deleted item is a directory with an open column, trim that column and all to its right
+      const deletedDirs = targets.filter(fp => columnState.paths?.includes(fp));
+      if (deletedDirs.length > 0) {
+        const firstDeletedIdx = Math.min(...deletedDirs.map(d => columnState.paths.indexOf(d)));
+        const newPaths = columnState.paths.slice(0, firstDeletedIdx);
+        const base = pane.basePath || pane.path;
+        const keepSet = new Set([base, ...newPaths]);
+        const trimmedFbp: Record<string, FileItem[]> = {};
+        for (const [k, v] of Object.entries(newFbp)) {
+          if (keepSet.has(k)) trimmedFbp[k] = v;
+        }
+        const newBreadcrumb = newPaths.length > 0 ? newPaths[newPaths.length - 1] : base;
+        setColumnState(paneId, {
+          paths: newPaths,
+          filesByPath: trimmedFbp,
+          selectedByColumn: {},
+          focusedIndex: Math.max(0, firstDeletedIdx - 1),
+        });
+        setCurrentBreadcrumbPath(paneId, newBreadcrumb);
+      } else {
+        updateColumnState(paneId, { filesByPath: newFbp });
+      }
     }
   };
 
@@ -781,8 +803,9 @@ export default function FilePane({ paneId }: FilePaneProps) {
       const base = pane.basePath || pane.path;
       const columnPaths = getColumnPaths(paneId);
       const focusedColPath = columnPaths[focusedIdx] ?? base;
+      const filterHiddenNav = (arr: FileItem[]) => showHidden ? arr : arr.filter((f: FileItem) => !f.name.startsWith('.'));
       const displayFiles = viewMode === 'column'
-        ? (columnState.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? files : []))
+        ? filterHiddenNav(columnState.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? files : []))
         : files;
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') {

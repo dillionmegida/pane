@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { formatSize, formatDate, isPreviewable, useStore } from '../store';
+import { formatSize, formatDate, isPreviewable, useStore, PREVIEW_TYPES } from '../store';
 import CustomVideo from './CustomVideo';
 import CustomAudio from './CustomAudio';
 import { FileIcon as FileIconComponent } from './FileIcons';
@@ -106,9 +106,9 @@ export default function ModalPreviewPane({ file, width, actions = [], onActionCl
     setIsText(false);
     if (!file || file.isDirectory) return;
     const ext = file.extension?.toLowerCase() || '';
-    const isImgExt = ['jpg','jpeg','png','gif','webp','svg','bmp','ico'].includes(ext);
-    const isVidExt = ['mp4','mov','mkv','webm','avi'].includes(ext);
-    const isAudExt = ['mp3','wav','ogg','flac','aac','m4a'].includes(ext);
+    const isImgExt = PREVIEW_TYPES.imageExts.includes(ext as typeof PREVIEW_TYPES.imageExts[number]);
+    const isVidExt = PREVIEW_TYPES.videoExts.includes(ext as typeof PREVIEW_TYPES.videoExts[number]);
+    const isAudExt = PREVIEW_TYPES.audioExts.includes(ext as typeof PREVIEW_TYPES.audioExts[number]);
     const isPdf = ext === 'pdf';
     if (!isImgExt && !isVidExt && !isAudExt && !isPdf && file.size < 2 * 1024 * 1024) {
       setLoadingText(true);
@@ -126,9 +126,9 @@ export default function ModalPreviewPane({ file, width, actions = [], onActionCl
   if (!file) return <PreviewPane width={width}><EmptyPreview>Select a file to preview</EmptyPreview></PreviewPane>;
 
   const ext = file.extension?.toLowerCase() || '';
-  const isImage = ['jpg','jpeg','png','gif','webp','svg','bmp','ico'].includes(ext);
-  const isVideo = ['mp4','mov','mkv','webm','avi'].includes(ext);
-  const isAudio = ['mp3','wav','ogg','flac','aac','m4a'].includes(ext);
+  const isImage = PREVIEW_TYPES.imageExts.includes(ext as typeof PREVIEW_TYPES.imageExts[number]);
+  const isVideo = PREVIEW_TYPES.videoExts.includes(ext as typeof PREVIEW_TYPES.videoExts[number]);
+  const isAudio = PREVIEW_TYPES.audioExts.includes(ext as typeof PREVIEW_TYPES.audioExts[number]);
 
   return (
     <PreviewPane width={width}>

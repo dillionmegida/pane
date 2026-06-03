@@ -4,17 +4,18 @@ import type { MediaHandle } from './CustomAudio';
 
 const Wrapper = styled.div`
   width: 100%;
+  height: 100%;
   background: #000;
   overflow: hidden;
   position: relative;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 `;
 
 const VideoEl = styled.video<{ maxHeight?: string }>`
   width: 100%;
-  height: ${p => p.maxHeight ? 'auto' : '100%'};
-  flex: ${p => p.maxHeight ? '0 0 auto' : '1'};
+  height: 100%;
   display: block;
   background: #000;
   max-height: ${p => p.maxHeight || 'none'};
@@ -24,34 +25,38 @@ const VideoEl = styled.video<{ maxHeight?: string }>`
 const Controls = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
-  position: relative;
-  padding: 6px 10px;
-  background: ${p => p.theme.bg.secondary};
-  border-top: 1px solid ${p => p.theme.border.subtle};
+  gap: 12px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 16px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.8));
+  border-top: none;
 `;
 
 const CtrlBtn = styled.button`
   background: none;
   border: none;
-  color: ${p => p.theme.text.primary};
+  color: rgba(255,255,255,0.9);
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 4px 6px;
   border-radius: ${p => p.theme.radius.sm};
-  font-size: 14px;
+  font-size: 18px;
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  &:hover { background: ${p => p.theme.bg.hover}; }
+  &:hover { background: rgba(255,255,255,0.15); }
 `;
 
 const ProgressTrack = styled.div`
-  flex: 1;
-  height: 4px;
-  background: ${p => p.theme.bg.elevated};
-  border-radius: 2px;
+  /* flex: 1; */
+  width: min(70%, 70px);
+  height: 6px;
+  background: rgba(255,255,255,0.25);
+  border-radius: 3px;
   position: relative;
   cursor: pointer;
   overflow: visible;
@@ -79,8 +84,8 @@ const ProgressThumb = styled.div`
 `;
 
 const TimeLabel = styled.span`
-  font-size: 10px;
-  color: ${p => p.theme.text.tertiary};
+  font-size: 12px;
+  color: rgba(255,255,255,0.85);
   font-family: ${p => p.theme.font.mono};
   white-space: nowrap;
   flex-shrink: 0;
@@ -89,17 +94,19 @@ const TimeLabel = styled.span`
 const VolumeWrap = styled.div`
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 `;
 
 const VolumeSlider = styled.input`
-  width: 56px;
-  accent-color: ${p => p.theme.accent.blue};
+  width: min(30%, 70px);
+  height: 6px;
+  accent-color: #fff;
   cursor: pointer;
 `;
 
 const MuteBtn = styled(CtrlBtn)`
-  font-size: 12px;
+  font-size: 16px;
+  color: rgba(255,255,255,0.9);
 `;
 
 function formatTime(secs: number): string {
@@ -131,7 +138,7 @@ const CustomVideo = forwardRef<MediaHandle, CustomVideoProps>(function CustomVid
   const [muted, setMuted] = useState(false);
 
   useImperativeHandle(outerRef, () => ({
-    play: () => { videoRef.current?.play(); },
+    play: async () => { await videoRef.current?.play(); },
     pause: () => { videoRef.current?.pause(); },
     stop: () => {
       if (videoRef.current) {

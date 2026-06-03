@@ -64,10 +64,10 @@ const StopBtn = styled.button`
 const InfoMessage = styled.div`color: ${p => p.theme.text.secondary}; font-size: 11px; padding: 8px 0; font-style: italic;`;
 const EmptyState = styled.div`color: ${p => p.theme.text.tertiary}; font-size: 12px; padding: 20px 0;`;
 const ResultRow = styled.div<{ selected?: boolean }>`
-  display: flex; align-items: center; gap: 8px; padding: 5px 8px; font-size: 11px; cursor: pointer; border-radius: 4px;
+  display: flex; align-items: center; gap: 8px; padding: 5px 8px; font-size: 11px; cursor: pointer;
   background: ${p => p.selected ? p.theme.bg.selection : 'transparent'};
   border-left: ${p => p.selected ? `2px solid ${p.theme.text.accent}` : '2px solid transparent'};
-  &:hover { background: ${p => p.theme.bg.hover}; }
+  &:hover { background: ${p => p.selected ? p.theme.bg.selection : p.theme.bg.hover}; }
 `;
 const ResultIcon = styled.span`font-size: 13px;`;
 const FileName = styled.span`flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: ${p => p.theme.text.primary};`;
@@ -319,7 +319,10 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
       onClose();
     } else if (actionKey === 'delete') {
       const r = await window.electronAPI.delete(file.path);
-      if (r.success) { setSelectedFile(null); await executeFilterScan(); }
+      if (r.success) {
+        setSelectedFile(null);
+        setScanResults(scanResults.filter(f => f.path !== file.path));
+      }
     }
   };
 

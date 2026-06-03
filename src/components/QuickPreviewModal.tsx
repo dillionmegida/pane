@@ -193,12 +193,36 @@ export default function QuickPreviewModal({ file, onClose }: QuickPreviewModalPr
   }, [onClose]);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); handleClose(); }
+      if (e.code === 'Space' && (isVideo || isAudio)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
     };
-    window.addEventListener('keydown', handler, true);
-    return () => window.removeEventListener('keydown', handler, true);
-  }, [handleClose]);
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && (isVideo || isAudio)) {
+        e.preventDefault();
+        e.stopPropagation();
+        const media = mediaRef.current;
+        if (media) {
+          if (media.paused) {
+            media.play().catch(() => {});
+          } else {
+            media.pause();
+          }
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
+    };
+  }, [handleClose, isVideo, isAudio]);
 
   if (!file) return null;
 
@@ -232,7 +256,7 @@ export default function QuickPreviewModal({ file, onClose }: QuickPreviewModalPr
 
           {isVideo && (
             <VideoWrapper>
-              <CustomVideo ref={mediaRef} src={`file://${file.path}`} type={getVideoMime(file.path)} autoPlay />
+              <CustomVideo ref={mediaRef} src={`file://${file.path}`} autoPlay />
             </VideoWrapper>
           )}
 

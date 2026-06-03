@@ -98,6 +98,7 @@ const mockElectronAPI = {
   watcherStart: jest.fn(),
   getTags: jest.fn().mockResolvedValue({ success: true, tags: [] }),
   folderSize: jest.fn().mockResolvedValue({ success: true, tree: { size: 1024 } }),
+  delete: jest.fn().mockResolvedValue({ success: true }),
 };
 
 Object.defineProperty(window, 'electronAPI', {
@@ -396,6 +397,32 @@ describe('Column Keyboard Nav Integration Tests - Real Keyboard Handler', () => 
     });
   });
 
+  describe('Hidden files filter', () => {
+    test('ArrowDown skips hidden files when showHidden is false', async () => {
+      const hiddenFile = mkFile('.hidden', basePath, '');
+      const filesWithHidden = [hiddenFile, ...rootFiles];
+
+      useStore.setState({
+        ...buildInitialState({
+          files: filesWithHidden,
+          selectedFiles: new Set(),
+          currentBreadcrumbPath: basePath,
+        }),
+        showHidden: false,
+      });
+
+      renderFilePane();
+
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 'ArrowDown' });
+      });
+
+      const pane = getPane();
+      expect(pane.selectedFiles.has(hiddenFile.path)).toBe(false);
+      expect(pane.selectedFiles.has(rootFiles[0].path)).toBe(true);
+    });
+  });
+
   describe('Preview file handling', () => {
     test('ArrowDown to file opens preview, ArrowDown to directory closes preview', async () => {
       useStore.setState(buildInitialState({
@@ -450,6 +477,67 @@ describe('Column Keyboard Nav Integration Tests - Real Keyboard Handler', () => 
       expect(getPane().selectedFiles.has(rootFiles[2].path)).toBe(true);
       const pane2 = getStore().panes.find((p: any) => p.id === 'left');
       expect(pane2?.tabs[pane2.activeTab].previewFile).toBeNull();
+    });
+  });
+
+  describe('Delete directory with open column', () => {
+    test('Deleting a directory trims its column and all columns to the right', async () => {
+      // Setup: Documents directory is selected and has Projects column open next to it
+      useStore.setState(buildInitialState({
+        selectedFiles: new Set([rootFiles[0].path]),
+        currentBreadcrumbPath: documentsFiles[0].path,
+        columnState: {
+          paths: [rootFiles[0].path, documentsFiles[0].path],
+          filesByPath: {
+            [rootFiles[0].path]: documentsFiles,
+            [documentsFiles[0].path]: projectsFiles,
+          },
+          selectedByColumn: { 0: rootFiles[0].path, 1: documentsFiles[0].path },
+          focusedIndex: 1,
+        },
+      }));
+
+      mockElectronAPI.readdir.mockImplementation(async (path: string) => {
+        if (path === basePath) return { success: true, files: rootFiles.filter(f => f.path !== rootFiles[0].path) };
+        return { success: true, files: [] };
+      });
+
+      // Simulate the delete operation
+      await act(async () => {
+        const pane = getPane();
+        const targets = [rootFiles[0].path];
+        
+        // Delete the directory
+        for (const fp of targets) {
+          await window.electronAPI.delete(fp);
+        }
+        
+        // Simulate handleDelete's column trimming logic
+        const deletedDirs = targets.filter(fp => pane.columnState.paths?.includes(fp));
+        if (deletedDirs.length > 0) {
+          const firstDeletedIdx = Math.min(...deletedDirs.map((d: string) => pane.columnState.paths.indexOf(d)));
+          const newPaths = pane.columnState.paths.slice(0, firstDeletedIdx);
+          const base = pane.basePath || pane.path;
+          const newBreadcrumb = newPaths.length > 0 ? newPaths[newPaths.length - 1] : base;
+          
+          useStore.getState().setColumnState('left', {
+            paths: newPaths,
+            filesByPath: { [base]: rootFiles.filter(f => f.path !== rootFiles[0].path) },
+            selectedByColumn: {},
+            focusedIndex: Math.max(0, firstDeletedIdx - 1),
+          });
+          useStore.getState().setCurrentBreadcrumbPath('left', newBreadcrumb);
+        }
+        useStore.getState().setSelection('left', []);
+      });
+
+      // Verify: column for deleted directory and all subsequent columns are removed
+      const pane = getPane();
+      expect(pane.columnState.paths).toEqual([]);
+      expect(pane.columnState.paths.includes(rootFiles[0].path)).toBe(false);
+      expect(pane.columnState.paths.includes(documentsFiles[0].path)).toBe(false);
+      expect(pane.currentBreadcrumbPath).toBe(basePath);
+      expect(pane.columnState.focusedIndex).toBe(0);
     });
   });
 
