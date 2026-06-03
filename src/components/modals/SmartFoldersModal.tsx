@@ -4,6 +4,7 @@ import { FixedSizeList as List } from 'react-window';
 import { useStore, formatSize, formatDate } from '../../store';
 import ModalPreviewPane from '../ModalPreviewPane';
 import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 import { DEFAULT_EXCLUDED_DIRECTORIES, createFilterDefinitions, parseFileSizeInput } from '../../helpers/smartFolders';
 import { useConcurrentDirectoryScanner } from '../../hooks/useDirectoryScanner';
 import { MODAL_TYPES, persistModalState as persistModalStateHelper, persistModalStateImmediate, loadModalState, createSmartFoldersModalState } from '../../helpers/modalPersistence';
@@ -20,7 +21,7 @@ const FilterItem = styled.div<{ $active?: boolean }>`
   border-left: ${p => p.$active ? `2px solid ${p.theme.text.accent}` : '2px solid transparent'};
 `;
 const Divider = styled.div`width: 1px; background: ${p => p.theme.border.normal}; cursor: col-resize; user-select: none;`;
-const ContentArea = styled.div`flex: 1; overflow: hidden; padding: 12px; border-right: 1px solid ${p => p.theme.border.normal};`;
+const ContentArea = styled.div`flex: 1; overflow: hidden; padding: 12px 0 12px 12px; border-right: 1px solid ${p => p.theme.border.normal};`;
 const FilterInfo = styled.div`font-size: 11px; color: ${p => p.theme.text.tertiary}; margin-left: 12px; flex: 1;`;
 const Options = styled.div`display: flex; gap: 6px; margin-bottom: 8px; align-items: center;`;
 const OptBtnWrapper = styled.div<{ $active?: boolean }>`
@@ -143,6 +144,7 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
   const [listHeight, setListHeight] = useState(400);
   const cachedResultsRef = useRef<Record<string, FileItem[]>>({});
   const lastCacheKeyRef = useRef('');
+  const [confirmDeleteData, setConfirmDeleteData] = useState<{ files: string[]; onConfirm: () => void } | null>(null);
 
   const { isScanning, scanResults, setScanResults, scanForLargeFiles, scanWithConcurrentWalking, scanWithGenericSearch, abortScan } = useConcurrentDirectoryScanner();
 
@@ -318,17 +320,27 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
       setRevealTarget({ paneId, filePath: file.path, fileDir: parentDir, isDirectory, triggerPreview: !isDirectory });
       onClose();
     } else if (actionKey === 'delete') {
-      const r = await window.electronAPI.delete(file.path);
-      if (r.success) {
-        setSelectedFile(null);
-        setScanResults(scanResults.filter(f => f.path !== file.path));
-      }
+      const performDelete = async () => {
+        const r = await window.electronAPI.delete(file.path);
+        if (r.success) {
+          setSelectedFile(null);
+          setScanResults(scanResults.filter(f => f.path !== file.path));
+        }
+      };
+
+      setConfirmDeleteData({
+        files: [file.path],
+        onConfirm: performDelete,
+      });
     }
   };
 
   return (
     <Overlay
-      onClick={e => { stopEventPropagation(e); onClose(); }}
+      onClick={e => { 
+        stopEventPropagation(e); 
+        if (e.target === e.currentTarget) onClose(); 
+      }}
       onMouseDown={stopEventPropagation}
       onKeyDown={stopEventPropagation}
       onKeyUp={stopEventPropagation}
@@ -459,6 +471,12 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
           <Btn primary onClick={onClose}>Close</Btn>
         </ModalFooter>
       </ResizableModalBox>
+      {confirmDeleteData && (
+        <ConfirmDeleteModal
+          data={confirmDeleteData}
+          onClose={() => setConfirmDeleteData(null)}
+        />
+      )}
     </Overlay>
   );
 }

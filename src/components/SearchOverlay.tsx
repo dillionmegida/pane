@@ -7,6 +7,7 @@ import { useConcurrentDirectoryScanner } from '../hooks/useDirectoryScanner';
 import { FileIcon as FileIconComponent } from './FileIcons';
 import { revealInColumns } from '../helpers/revealInColumns';
 import { createSearchModalState, MODAL_TYPES, loadModalState, persistModalStateImmediate } from '../helpers/modalPersistence';
+import ConfirmDeleteModal from './modals/ConfirmDeleteModal';
 
 const ResizableDivider = styled.div`
   width: 4px;
@@ -167,65 +168,6 @@ const StatusBar = styled.div`
   justify-content: space-between;
 `;
 
-const ConfirmOverlay = styled.div`
-  position: fixed;
-  inset: 0;
-  z-index: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,0.7);
-`;
-
-const ConfirmDialog = styled.div`
-  background: ${p => p.theme.bg.elevated};
-  border: 1px solid ${p => p.theme.border.strong};
-  border-radius: 10px;
-  padding: 24px 28px;
-  min-width: 320px;
-  max-width: 480px;
-  box-shadow: ${p => p.theme.shadow.lg};
-`;
-
-const ConfirmTitle = styled.div`
-  font-size: 0.875rem;
-  color: ${p => p.theme.text.primary};
-  margin-bottom: 8px;
-  font-weight: 600;
-`;
-
-const ConfirmMsg = styled.div`
-  font-size: 0.75rem;
-  color: ${p => p.theme.text.secondary};
-  margin-bottom: 20px;
-  word-break: break-all;
-`;
-
-const ConfirmActions = styled.div`
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-`;
-
-const CancelBtn = styled.button`
-  background: ${p => p.theme.bg.hover};
-  border: 1px solid ${p => p.theme.border.strong};
-  color: ${p => p.theme.text.primary};
-  border-radius: 6px;
-  padding: 6px 16px;
-  font-size: 0.75rem;
-  cursor: pointer;
-`;
-
-const DangerBtn = styled.button`
-  background: ${p => p.theme.text.error};
-  border: none;
-  color: #fff;
-  border-radius: 6px;
-  padding: 6px 16px;
-  font-size: 0.75rem;
-  cursor: pointer;
-`;
 
 const SearchIcon = styled.span`
   font-size: 1rem;
@@ -437,6 +379,7 @@ export default function SearchOverlay(): React.ReactElement {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [previewWidth, setPreviewWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
+  const [confirmDeleteData, setConfirmDeleteData] = useState<{ files: string[]; onConfirm: () => void } | null>(null);
 
   const [contentResults, setContentResults] = useState<any[]>([]);
   const [contentLoading, setContentLoading] = useState(false);
@@ -708,22 +651,22 @@ export default function SearchOverlay(): React.ReactElement {
     }
   };
 
-  const [confirmDelete, setConfirmDelete] = useState<any>(null);
-
   const handlePreviewAction = async (actionKey: string, file: any) => {
     if (actionKey === 'reveal') handleRevealInColumns(file.path);
-    else if (actionKey === 'delete') setConfirmDelete(file);
-  };
+    else if (actionKey === 'delete') {
+      const performDelete = async () => {
+        const r = await (window as any).electronAPI.delete(file.path);
+        if (r.success) {
+          if (contentSearch) setContentResults(prev => prev.filter((item: any) => item.path !== file.path));
+          else setScanResults((prev: any[]) => prev.filter((item: any) => item.path !== file.path));
+          setSelectedItem(null);
+        }
+      };
 
-  const doDelete = async () => {
-    if (!confirmDelete) return;
-    const file = confirmDelete;
-    setConfirmDelete(null);
-    const r = await (window as any).electronAPI.delete(file.path);
-    if (r.success) {
-      if (contentSearch) setContentResults(prev => prev.filter((item: any) => item.path !== file.path));
-      else setScanResults((prev: any[]) => prev.filter((item: any) => item.path !== file.path));
-      setSelectedItem(null);
+      setConfirmDeleteData({
+        files: [file.path],
+        onConfirm: performDelete,
+      });
     }
   };
 
@@ -757,20 +700,6 @@ export default function SearchOverlay(): React.ReactElement {
 
   return (
     <Overlay onKeyDown={e => e.stopPropagation()} onKeyUp={e => e.stopPropagation()}>
-      {confirmDelete && (
-        <ConfirmOverlay onClick={() => setConfirmDelete(null)}>
-          <ConfirmDialog onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-            <ConfirmTitle>Move to Trash?</ConfirmTitle>
-            <ConfirmMsg>
-              "{confirmDelete.name}" will be moved to Trash.
-            </ConfirmMsg>
-            <ConfirmActions>
-              <CancelBtn onClick={() => setConfirmDelete(null)}>Cancel</CancelBtn>
-              <DangerBtn onClick={doDelete}>Move to Trash</DangerBtn>
-            </ConfirmActions>
-          </ConfirmDialog>
-        </ConfirmOverlay>
-      )}
       <SearchBox onClick={(e: React.MouseEvent) => e.stopPropagation()}>
         <InputWrap>
           <SearchIcon>🔍</SearchIcon>
@@ -942,6 +871,12 @@ export default function SearchOverlay(): React.ReactElement {
           />
         </MainContent>
       </SearchBox>
+      {confirmDeleteData && (
+        <ConfirmDeleteModal
+          data={confirmDeleteData}
+          onClose={() => setConfirmDeleteData(null)}
+        />
+      )}
     </Overlay>
   );
 }

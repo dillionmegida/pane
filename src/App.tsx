@@ -13,6 +13,7 @@ import { AllTagsModal } from './components/modals/AllTagsModal';
 import { SizeVisualizerModal } from './components/modals/SizeVisualizerModal';
 import { SmartFoldersModal } from './components/modals/SmartFoldersModal';
 import { SettingsModal } from './components/modals/SettingsModal';
+import ConfirmDeleteModal from './components/modals/ConfirmDeleteModal';
 import ClipboardQueue from './components/Clipboardqueue';
 
 const GlobalStyle = createGlobalStyle`
@@ -221,6 +222,7 @@ export default function App() {
         {activeModal === 'sizeViz' && <SizeVisualizerModal data={modalData} onClose={closeModal} />}
         {activeModal === 'smartFolders' && <SmartFoldersModal data={modalData} onClose={closeModal} />}
         {activeModal === 'settings' && <SettingsModal onClose={closeModal} />}
+        {activeModal === 'confirmDelete' && <ConfirmDeleteModal data={modalData} onClose={closeModal} />}
 
         <Tooltip
           id="symlink-tooltip"

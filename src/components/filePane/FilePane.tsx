@@ -710,19 +710,21 @@ export default function FilePane({ paneId }: FilePaneProps) {
   const handleDelete = async (filesToDelete?: string[]) => {
     const targets = filesToDelete || [...selectedFiles];
     if (targets.length === 0) return;
-    for (const fp of targets) {
-      await window.electronAPI.delete(fp);
-    }
-    setSelection(paneId, []);
-    refreshPane(paneId);
-    if (viewMode === 'column') {
-      // Re-read every parent dir that had a deleted file so the list updates immediately
-      const affectedDirs = [...new Set(targets.map(fp => fp.substring(0, fp.lastIndexOf('/'))))];
-      const newFbp = { ...(columnState.filesByPath || {}) };
-      await Promise.all(affectedDirs.map(async dir => {
-        const result = await readDirSorted(dir, paneId);
-        if (result.success) newFbp[dir] = result.files;
-      }));
+
+    const performDelete = async () => {
+      for (const fp of targets) {
+        await window.electronAPI.delete(fp);
+      }
+      setSelection(paneId, []);
+      refreshPane(paneId);
+      if (viewMode === 'column') {
+        // Re-read every parent dir that had a deleted file so the list updates immediately
+        const affectedDirs = [...new Set(targets.map(fp => fp.substring(0, fp.lastIndexOf('/'))))];
+        const newFbp = { ...(columnState.filesByPath || {}) };
+        await Promise.all(affectedDirs.map(async dir => {
+          const result = await readDirSorted(dir, paneId);
+          if (result.success) newFbp[dir] = result.files;
+        }));
       
       // If any deleted item is a directory with an open column, trim that column and all to its right
       const deletedDirs = targets.filter(fp => columnState.paths?.includes(fp));
@@ -747,6 +749,12 @@ export default function FilePane({ paneId }: FilePaneProps) {
         updateColumnState(paneId, { filesByPath: newFbp });
       }
     }
+    };
+
+    openModal('confirmDelete', {
+      files: targets,
+      onConfirm: performDelete,
+    });
   };
 
   // ── Keyboard navigation ────────────────────────────────────────────────────

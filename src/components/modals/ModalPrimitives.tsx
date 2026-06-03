@@ -30,7 +30,6 @@ export const ModalBox = styled.div<{ width?: string; height?: string }>`
   background: ${p => p.theme.bg.secondary};
   border: 1px solid ${p => p.theme.border.normal};
   border-radius: ${p => p.theme.radius.xl};
-  box-shadow: ${p => p.theme.shadow.lg};
   display: flex;
   flex-direction: column;
   overflow: hidden;

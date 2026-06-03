@@ -18,17 +18,10 @@ interface ModalPreviewPaneProps {
   onActionClick?: (key: string, file: FileItem) => void;
 }
 
-const getVideoMime = (path: string): string => {
-  const ext = path.split('.').pop()?.toLowerCase() || '';
-  const map: Record<string, string> = { mp4: 'video/mp4', mov: 'video/quicktime', mkv: 'video/x-matroska', webm: 'video/webm', avi: 'video/x-msvideo' };
-  return map[ext] || 'video/mp4';
-};
-
 const PreviewPane = styled.div<{ width?: string }>`
   width: ${p => p.width || '320px'};
   display: flex; flex-direction: column;
   background: ${p => p.theme.bg.elevated};
-  border-left: 1px solid ${p => p.theme.border.normal};
   position: relative; height: 100%; flex-shrink: 0;
 `;
 const PreviewWrapper = styled.div`flex: 1; overflow-y: auto; display: flex; flex-direction: column;`;
