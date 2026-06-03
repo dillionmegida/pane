@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import styled from 'styled-components';
+import { useFloating, offset, flip, shift, type ReferenceType } from '@floating-ui/react';
 import { useStore } from '../store';
-import type { Bookmark, Tag } from '../types';
+import type { Bookmark, FileItem, Tag } from '../types';
+import PaneContextMenu from './filePane/PaneContextMenu';
 
 const SidebarWrap = styled.div<{ sidebarWidth: number }>`
   width: ${p => p.sidebarWidth}px;
@@ -155,6 +157,10 @@ const TagDot = styled.span<{ color: string }>`
 
 const BookmarkItem = styled(Item)`
   &.dragging { opacity: 0.4; }
+  &.context-menu-open {
+    background: ${p => p.theme.bg.selection} !important;
+    color: ${p => p.theme.text.primary};
+  }
 `;
 
 const DropIndicatorLine = styled.div`
@@ -162,6 +168,41 @@ const DropIndicatorLine = styled.div`
   background: ${p => p.theme.accent.blue};
   margin: 0 4px;
   border-radius: 1px;
+`;
+
+const CtxMenu = styled.div`
+  position: fixed;
+  z-index: 9999;
+  background: ${p => p.theme.bg.elevated};
+  border: 1px solid ${p => p.theme.border.normal};
+  border-radius: ${p => p.theme.radius.md};
+  box-shadow: ${p => p.theme.shadow.lg};
+  padding: 4px;
+  min-width: 180px;
+  font-size: 12px;
+  user-select: none;
+`;
+
+const CtxItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: ${p => p.theme.radius.sm};
+  cursor: pointer;
+  color: ${p => p.theme.text.primary};
+  &:hover { background: ${p => p.theme.bg.active}; }
+`;
+
+const CtxIcon = styled.span`
+  font-size: 13px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+`;
+
+const CtxLabel = styled.span`
+  flex: 1;
 `;
 
 const FOLDER_ICONS: Record<string, string> = {
@@ -221,6 +262,8 @@ export default function Sidebar() {
   const [reorderSrcIdx, setReorderSrcIdx] = useState<number | null>(null);
   const bookmarksListRef = useRef<HTMLDivElement>(null);
   const [expandedSections, setExpandedSections] = useState({ bookmarks: true, tags: true });
+  const [bookmarkContextMenu, setBookmarkContextMenu] = useState<{ x: number; y: number; bookmark: Bookmark } | null>(null);
+  const [driveContextMenu, setDriveContextMenu] = useState<{ x: number; y: number; drive: Drive } | null>(null);
 
   const activePath = getActivePath(activePane);
   const activeBookmark = useStore.getState().getActiveBookmark(activePane);
@@ -228,6 +271,28 @@ export default function Sidebar() {
   useEffect(() => {
     loadAllTags();
   }, []);
+
+  useEffect(() => {
+    if (!driveContextMenu) return;
+    const close = () => setDriveContextMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('contextmenu', close);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('contextmenu', close);
+    };
+  }, [driveContextMenu]);
+
+  useEffect(() => {
+    if (!bookmarkContextMenu) return;
+    const close = () => setBookmarkContextMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('contextmenu', close);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('contextmenu', close);
+    };
+  }, [bookmarkContextMenu]);
 
   const navigate = (p: string) => navigateTo(activePane, p);
 
@@ -300,6 +365,18 @@ export default function Sidebar() {
     }
   };
 
+  const handleBookmarkContextMenu = (e: React.MouseEvent, bm: Bookmark) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setBookmarkContextMenu({ x: e.clientX, y: e.clientY, bookmark: bm });
+  };
+
+  const handleDriveContextMenu = (e: React.MouseEvent, drive: Drive) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDriveContextMenu({ x: e.clientX, y: e.clientY, drive });
+  };
+
   const handleExternalDrop = (e: React.DragEvent) => {
     if (!isExternalFileDrag(e)) return;
     e.preventDefault();
@@ -325,6 +402,17 @@ export default function Sidebar() {
   const toggleSection = (key: 'bookmarks' | 'tags') =>
     setExpandedSections(s => ({ ...s, [key]: !s[key] }));
 
+  const driveVirtualEl = useMemo(() => driveContextMenu ? ({
+    getBoundingClientRect: () => DOMRect.fromRect({ x: driveContextMenu.x, y: driveContextMenu.y, width: 0, height: 0 }),
+  } as ReferenceType) : null, [driveContextMenu]);
+
+  const { refs: driveRefs, floatingStyles: driveFloatingStyles } = useFloating({
+    placement: 'bottom-start',
+    strategy: 'fixed',
+    middleware: [offset(2), flip(), shift({ padding: 8 })],
+    elements: { reference: driveVirtualEl as any },
+  });
+
   return (
     <SidebarWrap sidebarWidth={sidebarWidth}>
       <SidebarResizeHandle onMouseDown={handleResizeMouseDown} />
@@ -337,13 +425,18 @@ export default function Sidebar() {
               key={drive.path}
               className={activePath === drive.path ? 'active' : ''}
               onClick={() => navigate(drive.path)}
+              onContextMenu={(e) => handleDriveContextMenu(e, drive)}
             >
               <span className="icon">{drive.path === '/' ? '💻' : '💾'}</span>
               <span className="name">{drive.name}</span>
             </Item>
           ))}
           {drives.length === 0 && (
-            <Item className={activePath === '/' ? 'active' : ''} onClick={() => navigate('/')}>
+            <Item
+              className={activePath === '/' ? 'active' : ''}
+              onClick={() => navigate('/')}
+              onContextMenu={(e) => handleDriveContextMenu(e, { name: 'Macintosh HD', path: '/', type: 'disk' })}
+            >
               <span className="icon">💻</span>
               <span className="name">Macintosh HD</span>
             </Item>
@@ -372,11 +465,12 @@ export default function Sidebar() {
                   {insertLineIndex === idx && <DropIndicatorLine />}
                   <BookmarkItem
                     data-bookmark-idx={idx}
-                    className={`${reorderSrcIdx === idx ? 'dragging' : ''} ${activePath === bm.path ? 'active' : ''} ${activeBookmark && activeBookmark.id === bm.id ? 'bookmark-active' : ''}`}
+                    className={`${reorderSrcIdx === idx ? 'dragging' : ''} ${activeBookmark && activeBookmark.id === bm.id ? 'active' : ''} ${bookmarkContextMenu?.bookmark.id === bm.id ? 'context-menu-open' : ''}`}
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('bookmark-index', String(idx)); setReorderSrcIdx(idx); }}
                     onDragEnd={() => { setInsertLineIndex(null); setReorderSrcIdx(null); }}
                     onClick={() => navigateBookmark(bm.path)}
+                    onContextMenu={e => handleBookmarkContextMenu(e, bm)}
                   >
                     <span className="icon">{FOLDER_ICONS[bm.icon] || '📁'}</span>
                     <span className="name">{bm.name}</span>
@@ -430,6 +524,64 @@ export default function Sidebar() {
           )}
         </Section>
       </ScrollArea>
+
+      {driveContextMenu && (
+        <CtxMenu
+          ref={driveRefs.setFloating}
+          style={driveFloatingStyles}
+          onClick={e => e.stopPropagation()}
+          onContextMenu={e => e.preventDefault()}
+        >
+          <CtxItem onClick={() => {
+            openModal('sizeViz', { path: driveContextMenu.drive.path, paneId: activePane });
+            setDriveContextMenu(null);
+          }}>
+            <CtxIcon>📊</CtxIcon>
+            <CtxLabel>Disk Usage…</CtxLabel>
+          </CtxItem>
+        </CtxMenu>
+      )}
+
+      {bookmarkContextMenu && (() => {
+        const bm = bookmarkContextMenu.bookmark;
+        const fileItem: FileItem = {
+          path: bm.path,
+          name: bm.name,
+          isDirectory: true,
+          extension: '',
+          size: 0,
+          modified: '',
+        };
+        return (
+          <PaneContextMenu
+            x={bookmarkContextMenu.x}
+            y={bookmarkContextMenu.y}
+            file={fileItem}
+            paneId={activePane}
+            currentPath={bm.path}
+            selectedFiles={new Set([bm.path])}
+            onClose={() => setBookmarkContextMenu(null)}
+            onRename={async () => {
+              const newName = window.prompt('Rename bookmark:', bm.name);
+              if (newName && newName.trim() && newName.trim() !== bm.name) {
+                const dir = bm.path.substring(0, bm.path.lastIndexOf('/'));
+                const newPath = `${dir}/${newName.trim()}`;
+                await window.electronAPI.rename(bm.path, newPath);
+                setBookmarks(bookmarks.map(b =>
+                  b.id === bm.id ? { ...b, name: newName.trim(), path: newPath } : b
+                ));
+              }
+            }}
+            onDelete={async () => {
+              setBookmarks(bookmarks.filter(b => b.id !== bm.id));
+            }}
+            onNewFolder={() => {}}
+            onNewFile={() => {}}
+            onRefresh={() => {}}
+            onBatchRename={() => {}}
+          />
+        );
+      })()}
 
       <SidebarFooter>
         <FooterBtn onClick={() => openModal('settings')} title="Settings">⚙️</FooterBtn>

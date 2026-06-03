@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { useStore, formatSize } from '../../store';
 import { Overlay, ResizableModalBox, ModalHeader, ModalTitle, ModalBody, ModalFooter, Btn, CloseBtn } from './ModalPrimitives';
@@ -95,6 +95,59 @@ const EmptyFolder = styled.div`
 
 const COLORS = ['#4A9EFF', '#a78bfa', '#34d399', '#fb923c', '#f87171', '#fbbf24', '#f472b6', '#22d3ee', '#6ee7b7', '#fca5a5'];
 
+const CtxMenu = styled.div`
+  position: fixed;
+  z-index: 99999;
+  background: ${p => p.theme.bg.elevated};
+  border: 1px solid ${p => p.theme.border.normal};
+  border-radius: ${p => p.theme.radius.md};
+  box-shadow: ${p => p.theme.shadow.lg};
+  padding: 4px;
+  min-width: 190px;
+  font-size: 12px;
+  user-select: none;
+`;
+
+const CtxItem = styled.div<{ $danger?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: ${p => p.theme.radius.sm};
+  cursor: pointer;
+  color: ${p => p.$danger ? p.theme.text.error : p.theme.text.primary};
+  &:hover { background: ${p => p.theme.bg.active}; }
+`;
+
+const CtxIcon = styled.span`font-size: 13px; width: 16px; text-align: center; flex-shrink: 0;`;
+const CtxLabel = styled.span`flex: 1;`;
+const CtxDivider = styled.div`height: 1px; background: ${p => p.theme.border.normal}; margin: 3px 0;`;
+
+const ReloadBtn = styled.button`
+  background: transparent;
+  border: none;
+  color: ${p => p.theme.text.secondary};
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: ${p => p.theme.radius.sm};
+  transition: all 0.1s;
+  margin-right: 8px;
+  &:hover {
+    background: ${p => p.theme.bg.hover};
+    color: ${p => p.theme.text.primary};
+  }
+  &:active {
+    transform: rotate(180deg);
+  }
+`;
+
+interface CtxState {
+  node: FolderSizeNode;
+  x: number;
+  y: number;
+}
+
 interface SizeVisualizerModalProps {
   data?: { path?: string; paneId?: string };
   onClose: () => void;
@@ -107,12 +160,25 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
   const [tree, setTree] = useState<FolderSizeNode | null>(null);
   const [loading, setLoading] = useState(false);
   const [nodeStack, setNodeStack] = useState<FolderSizeNode[]>([]);
+  const [ctx, setCtx] = useState<CtxState | null>(null);
+  const ctxRef = useRef<HTMLDivElement>(null);
 
   const currentNode = nodeStack[nodeStack.length - 1] ?? null;
 
   useEffect(() => {
     if (data?.path) loadTree(data.path);
   }, []);
+
+  useEffect(() => {
+    if (!ctx) return;
+    const close = () => setCtx(null);
+    window.addEventListener('click', close);
+    window.addEventListener('contextmenu', close);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('contextmenu', close);
+    };
+  }, [ctx]);
 
   const loadTree = async (path: string) => {
     setLoading(true);
@@ -128,9 +194,49 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
   const navigateToIndex = (idx: number) => setNodeStack(s => s.slice(0, idx + 1));
 
   const handleFileClick = (child: FolderSizeNode) => {
-    const fileDir = child.path.split('/').slice(0, -1).join('/') || '/';
-    setRevealTarget({ paneId, filePath: child.path, fileDir, isDirectory: false });
+    setRevealTarget({ paneId, filePath: child.path, isDirectory: false });
     onClose();
+  };
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, child: FolderSizeNode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCtx({ node: child, x: e.clientX, y: e.clientY });
+  }, []);
+
+  const ctxReveal = () => {
+    if (!ctx) return;
+    setRevealTarget({ paneId, filePath: ctx.node.path, isDirectory: ctx.node.isDirectory });
+    onClose();
+  };
+
+  const ctxNavigate = () => {
+    if (!ctx) return;
+    setRevealTarget({ paneId, filePath: ctx.node.path, isDirectory: true });
+    onClose();
+  };
+
+  const ctxDrillInto = () => {
+    if (!ctx) return;
+    enterDir(ctx.node);
+    setCtx(null);
+  };
+
+  const ctxRescan = async () => {
+    if (!ctx) return;
+    setCtx(null);
+    setLoading(true);
+    const r = await window.electronAPI.folderSize(ctx.node.path);
+    if (r.success) {
+      setTree(r.tree);
+      setNodeStack([r.tree]);
+    }
+    setLoading(false);
+  };
+
+  const handleReload = async () => {
+    if (!tree) return;
+    await loadTree(tree.path);
   };
 
   const sorted = currentNode?.children
@@ -143,7 +249,12 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
       <ResizableModalBox width="640px" height="520px" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
         <ModalHeader>
           <ModalTitle>📊 Disk Usage Map</ModalTitle>
-          <CloseBtn onClick={onClose}>✕</CloseBtn>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <ReloadBtn onClick={handleReload} title="Reload">
+              🔄
+            </ReloadBtn>
+            <CloseBtn onClick={onClose}>✕</CloseBtn>
+          </div>
         </ModalHeader>
         <ModalBody pad="14px">
           {loading && (
@@ -185,13 +296,14 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
                     <ItemRow
                       key={child.path}
                       onClick={() => child.isDirectory ? enterDir(child) : handleFileClick(child)}
+                      onContextMenu={(e) => handleContextMenu(e, child)}
                       title={child.path}
                     >
                       <ItemIcon>{child.isDirectory ? '📁' : '📄'}</ItemIcon>
                       <ItemName>{child.name}</ItemName>
                       <BarTrack><BarFill pct={pct} color={color} /></BarTrack>
                       <ItemPct>{pct.toFixed(1)}%</ItemPct>
-                      <ItemSize>{formatSize(child.size)}</ItemSize>
+                      <ItemSize>{child.size > 0 ? formatSize(child.size) : '—'}</ItemSize>
                     </ItemRow>
                   );
                 })}
@@ -208,6 +320,39 @@ export function SizeVisualizerModal({ data, onClose }: SizeVisualizerModalProps)
           <Btn primary onClick={onClose}>Close</Btn>
         </ModalFooter>
       </ResizableModalBox>
+
+      {ctx && (
+        <CtxMenu
+          ref={ctxRef}
+          style={{ top: ctx.y, left: ctx.x }}
+          onClick={e => e.stopPropagation()}
+          onContextMenu={e => e.preventDefault()}
+        >
+          {ctx.node.isDirectory && (
+            <CtxItem onClick={ctxDrillInto}>
+              <CtxIcon>🔍</CtxIcon>
+              <CtxLabel>Drill Into</CtxLabel>
+            </CtxItem>
+          )}
+          {ctx.node.isDirectory && (
+            <CtxItem onClick={ctxRescan}>
+              <CtxIcon>🔄</CtxIcon>
+              <CtxLabel>Scan This Folder</CtxLabel>
+            </CtxItem>
+          )}
+          {ctx.node.isDirectory && <CtxDivider />}
+          <CtxItem onClick={ctxReveal}>
+            <CtxIcon>📍</CtxIcon>
+            <CtxLabel>Reveal in Pane</CtxLabel>
+          </CtxItem>
+          {ctx.node.isDirectory && (
+            <CtxItem onClick={ctxNavigate}>
+              <CtxIcon>📂</CtxIcon>
+              <CtxLabel>Navigate Here</CtxLabel>
+            </CtxItem>
+          )}
+        </CtxMenu>
+      )}
     </Overlay>
   );
 }

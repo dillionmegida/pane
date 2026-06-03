@@ -7,6 +7,7 @@ import type { MediaHandle } from './CustomAudio';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+import type { Breadcrumb } from '../types';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -44,12 +45,53 @@ const ResizeHandle = styled.div`
 
 const Header = styled.div`
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid ${p => p.theme.border.subtle};
+`;
+
+const HeaderTop = styled.div`
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  color: ${p => p.theme.text.secondary};
+`;
+
+const BreadcrumbWrap = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+`;
+
+const Crumb = styled.span<{ isLast: boolean }>`
+  font-size: 9px;
+  color: ${p => p.isLast ? p.theme.text.secondary : p.theme.text.tertiary};
+  cursor: ${p => p.isLast ? 'default' : 'pointer'};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+  padding: 1px 2px;
+  border-radius: ${p => p.theme.radius.sm};
+  transition: all 0.1s;
+  flex-shrink: ${p => p.isLast ? 0 : 1};
+
+  &:hover {
+    ${p => !p.isLast && `
+      background: ${p.theme.bg.hover};
+      color: ${p.theme.text.primary};
+    `}
+  }
+`;
+
+const Separator = styled.span`
+  color: ${p => p.theme.text.tertiary};
+  font-size: 8px;
+  flex-shrink: 0;
+  opacity: 0.5;
 `;
 
 const CloseBtn = styled.button`
@@ -275,7 +317,7 @@ function isTextContent(content: string): boolean {
 }
 
 export default function PreviewPane() {
-  const { closePreview, previewWidth, setPreviewWidth, panes, activePane } = useStore();
+  const { closePreview, previewWidth, setPreviewWidth, panes, activePane, navigateTo } = useStore();
   const mediaRef = useRef<MediaHandle>(null);
   const [pdfNumPages, setPdfNumPages] = useState<number | null>(null);
   const [pdfPage, setPdfPage] = useState(1);
@@ -372,6 +414,24 @@ export default function PreviewPane() {
     return icons[previewFile?.extension ?? ''] || '📄';
   };
 
+  const getBreadcrumbsForPath = (filePath: string): Breadcrumb[] => {
+    if (filePath === '/') return [{ name: '/', path: '/' }];
+    const parts = filePath.split('/').filter(Boolean);
+    return [
+      { name: '/', path: '/' },
+      ...parts.map((part, i) => ({
+        name: part,
+        path: '/' + parts.slice(0, i + 1).join('/'),
+      })),
+    ];
+  };
+
+  const handleBreadcrumbClick = (crumbPath: string) => {
+    if (!activePaneState) return;
+    closePreview();
+    navigateTo(activePaneState.id, crumbPath);
+  };
+
   if (!previewFile) {
     return (
       <Pane width={previewWidth}>
@@ -390,8 +450,27 @@ export default function PreviewPane() {
     <Pane width={previewWidth}>
       <ResizeHandle onMouseDown={onResizeMouseDown} />
       <Header>
-        <FileName>{previewFile.name}</FileName>
-        <CloseBtn onClick={closePreview}>✕</CloseBtn>
+        <HeaderTop>
+          <FileName>{previewFile.name}</FileName>
+          <CloseBtn onClick={closePreview}>✕</CloseBtn>
+        </HeaderTop>
+        <BreadcrumbWrap>
+          {getBreadcrumbsForPath(previewFile.path.substring(0, previewFile.path.lastIndexOf('/'))).map((crumb, index, arr) => {
+            const isLast = index === arr.length - 1;
+            return (
+              <React.Fragment key={crumb.path + index}>
+                {index > 0 && <Separator>›</Separator>}
+                <Crumb
+                  isLast={isLast}
+                  onClick={() => !isLast && handleBreadcrumbClick(crumb.path)}
+                  title={crumb.path}
+                >
+                  {crumb.name}
+                </Crumb>
+              </React.Fragment>
+            );
+          })}
+        </BreadcrumbWrap>
       </Header>
 
       <PreviewArea>

@@ -4,6 +4,7 @@ const fs = require('fs');
 const fsExtra = require('fs-extra');
 const crypto = require('crypto');
 const os = require('os');
+const { Worker } = require('worker_threads');
 
 // Set app name
 app.name = 'Pane';
@@ -813,43 +814,13 @@ ipcMain.handle('fs:moveDuplicates', async (event, { files, baseDir }) => {
 });
 
 // ─── IPC: Folder Size ─────────────────────────────────────────────────────────
-ipcMain.handle('fs:folderSize', async (event, dirPath) => {
-  function getSize(p) {
-    try {
-      const stat = fs.statSync(p);
-      if (stat.isDirectory()) {
-        const entries = fs.readdirSync(p);
-        return entries.reduce((sum, e) => sum + getSize(path.join(p, e)), 0);
-      }
-      return stat.size;
-    } catch { return 0; }
-  }
-
-  function buildTree(p, depth = 0) {
-    if (depth > 3) return null;
-    try {
-      const stat = fs.statSync(p);
-      const name = path.basename(p);
-      if (stat.isDirectory()) {
-        const children = [];
-        try {
-          const entries = fs.readdirSync(p);
-          for (const e of entries) {
-            if (e.startsWith('.')) continue;
-            const child = buildTree(path.join(p, e), depth + 1);
-            if (child) children.push(child);
-          }
-        } catch {}
-        const size = children.reduce((sum, c) => sum + c.size, 0);
-        return { name, path: p, size, isDirectory: true, children };
-      } else {
-        return { name, path: p, size: stat.size, isDirectory: false };
-      }
-    } catch { return null; }
-  }
-
-  const tree = buildTree(dirPath);
-  return { success: true, tree };
+ipcMain.handle('fs:folderSize', (event, dirPath) => {
+  return new Promise((resolve) => {
+    const workerPath = path.join(__dirname, 'folderSizeWorker.js');
+    const worker = new Worker(workerPath, { workerData: { dirPath } });
+    worker.once('message', resolve);
+    worker.once('error', (err) => resolve({ success: false, error: err.message }));
+  });
 });
 
 // ─── IPC: Tags ────────────────────────────────────────────────────────────────

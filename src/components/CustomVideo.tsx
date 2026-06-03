@@ -143,7 +143,7 @@ const CustomVideo = forwardRef<MediaHandle, CustomVideoProps>(function CustomVid
   const durationRef = useRef(0);
 
   useImperativeHandle(outerRef, () => ({
-    play: async () => { await videoRef.current?.play(); },
+    play: async () => { await videoRef.current?.play().catch(() => {}); },
     pause: () => { videoRef.current?.pause(); },
     stop: () => {
       if (videoRef.current) {
@@ -183,7 +183,7 @@ const CustomVideo = forwardRef<MediaHandle, CustomVideoProps>(function CustomVid
   const togglePlay = () => {
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused) v.play(); else v.pause();
+    if (v.paused) v.play().catch(() => {}); else v.pause();
   };
 
   const seekFromClientX = (clientX: number) => {

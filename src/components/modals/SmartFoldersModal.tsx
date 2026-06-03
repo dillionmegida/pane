@@ -21,7 +21,7 @@ const FilterItem = styled.div<{ $active?: boolean }>`
   border-left: ${p => p.$active ? `2px solid ${p.theme.text.accent}` : '2px solid transparent'};
 `;
 const Divider = styled.div`width: 1px; background: ${p => p.theme.border.normal}; cursor: col-resize; user-select: none;`;
-const ContentArea = styled.div`flex: 1; overflow: hidden; padding: 12px 0 12px 12px; border-right: 1px solid ${p => p.theme.border.normal};`;
+const ContentArea = styled.div`flex: 1; overflow: hidden; padding: 12px 0 200px 12px; border-right: 1px solid ${p => p.theme.border.normal};`;
 const FilterInfo = styled.div`font-size: 11px; color: ${p => p.theme.text.tertiary}; margin-left: 12px; flex: 1;`;
 const Options = styled.div`display: flex; gap: 6px; margin-bottom: 8px; align-items: center;`;
 const OptBtnWrapper = styled.div<{ $active?: boolean }>`
@@ -207,7 +207,7 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
     const updateHeight = () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
-        setListHeight(contentEl.clientHeight);
+        setListHeight(contentEl.clientHeight - 100);
         rafId = null;
       });
     };

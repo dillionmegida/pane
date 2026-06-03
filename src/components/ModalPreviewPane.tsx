@@ -32,6 +32,14 @@ const PreviewDetail = styled.div`
   strong { color: ${p => p.theme.text.secondary}; }
   span { font-family: ${p => p.theme.font.mono}; }
 `;
+const PreviewPath = styled.div`
+  font-size: 0.625rem;
+  color: ${p => p.theme.text.tertiary};
+  font-family: ${p => p.theme.font.mono};
+  margin-top: 6px;
+  word-break: break-all;
+  opacity: 0.7;
+`;
 const PreviewContent = styled.div`flex: 1; display: flex; flex-direction: column; overflow: hidden;`;
 const PreviewLabel = styled.div`
   font-size: 0.75rem; font-weight: 600; color: ${p => p.theme.text.secondary};
@@ -128,6 +136,7 @@ export default function ModalPreviewPane({ file, width, actions = [], onActionCl
       <PreviewWrapper>
         <PreviewHeader>
           <PreviewTitle>{file.name}</PreviewTitle>
+          <PreviewPath>{file.path}</PreviewPath>
           {!file.isDirectory && <PreviewDetail><strong>Size</strong><span>{formatSize(file.size)}</span></PreviewDetail>}
           {file.modified && <PreviewDetail><strong>Modified</strong><span>{formatDate(file.modified)}</span></PreviewDetail>}
           {file.extension && <PreviewDetail><strong>Kind</strong><span>{file.extension.toUpperCase()}</span></PreviewDetail>}
