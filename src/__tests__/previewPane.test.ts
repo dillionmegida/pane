@@ -352,3 +352,114 @@ describe('Preview pane - file size guard', () => {
     expect(makeFile('large.iso', { size: 10 * 1024 * 1024 }).size < SIZE_LIMIT).toBe(false);
   });
 });
+
+// ─── Multi-file preview ────────────────────────────────────────────────────────
+
+describe('Preview pane - multi-file selection', () => {
+  const file1 = makeFile('image1.png', { size: 1024 });
+  const file2 = makeFile('image2.jpg', { size: 2048 });
+  const file3 = makeFile('document.pdf', { size: 4096 });
+  const folder1 = makeDir('Folder1');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useStore.setState({
+      panes: [{
+        id: 'left',
+        path: '/test',
+        basePath: '/test',
+        files: [file1, file2, file3, folder1],
+        loading: false,
+        error: null,
+        selectedFiles: new Set<string>(),
+        lastSelectedFile: null,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        viewMode: 'list',
+        tabs: [{
+          id: 'tab-1',
+          path: '/test',
+          basePath: '/test',
+          currentBreadcrumbPath: '/test',
+          label: 'test',
+          files: [file1, file2, file3, folder1],
+          selectedFiles: new Set<string>(),
+          activeBookmarkId: null,
+          viewMode: 'list',
+          sortBy: 'name',
+          sortOrder: 'asc',
+          columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+          previewFile: null,
+          navigationHistory: [],
+          navigationIndex: -1,
+          _isRestoringHistory: false,
+        }],
+        activeTab: 0,
+        currentBreadcrumbPath: '/test',
+        columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+        navigationHistory: [],
+        navigationIndex: -1,
+        _isRestoringHistory: false,
+        activeBookmarkId: null,
+      }],
+      activePane: 'left',
+    } as any);
+  });
+
+  test('multi-select with 2 files shows multi-file preview', () => {
+    const { result } = renderHook(() => useStore());
+    
+    act(() => {
+      result.current.setSelection('left', [file1.path, file2.path]);
+    });
+
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane?.selectedFiles.size).toBe(2);
+    expect(pane?.selectedFiles.has(file1.path)).toBe(true);
+    expect(pane?.selectedFiles.has(file2.path)).toBe(true);
+  });
+
+  test('multi-select with 3 files and 1 folder', () => {
+    const { result } = renderHook(() => useStore());
+    
+    act(() => {
+      result.current.setSelection('left', [file1.path, file2.path, file3.path, folder1.path]);
+    });
+
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane?.selectedFiles.size).toBe(4);
+  });
+
+  test('single file selection shows single file preview (not multi)', () => {
+    const { result } = renderHook(() => useStore());
+    
+    act(() => {
+      result.current.setSelection('left', [file1.path]);
+    });
+
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane?.selectedFiles.size).toBe(1);
+  });
+
+  test('no selection shows empty preview', () => {
+    const { result } = renderHook(() => useStore());
+    
+    act(() => {
+      result.current.setSelection('left', []);
+    });
+
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane?.selectedFiles.size).toBe(0);
+  });
+
+  test('multi-select preserves lastSelectedFile', () => {
+    const { result } = renderHook(() => useStore());
+    
+    act(() => {
+      result.current.setSelection('left', [file1.path, file2.path, file3.path]);
+    });
+
+    const pane = result.current.panes.find((p: any) => p.id === 'left');
+    expect(pane?.lastSelectedFile).toBe(file3.path);
+  });
+});

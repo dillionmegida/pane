@@ -105,6 +105,7 @@ const CloseBtn = styled.button`
 
 const PreviewArea = styled.div`
   flex: 1;
+  max-height: max(400px, 50vh);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -259,6 +260,87 @@ const EmptyPreview = styled.div`
   font-size: 12px;
 `;
 
+const MultiFileStack = styled.div`
+  width: 100%;
+  flex: 1;
+  max-height: max(400px, 50vh);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: ${p => p.theme.bg.primary};
+  padding: 40px;
+  overflow: hidden;
+`;
+
+const StackedFile = styled.div<{ index: number; total: number }>`
+  position: absolute;
+  width: max(60%, 120px);
+  aspect-ratio: 4/ 5;
+  background: ${p => p.theme.bg.elevated};
+  border: 2px solid ${p => p.theme.border.normal};
+  border-radius: ${p => p.theme.radius.md};
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  transform: ${p => {
+    const offset = (p.index - Math.floor(p.total / 2)) * 12;
+    const rotation = (p.index - Math.floor(p.total / 2)) * 6;
+    return `translateX(${offset}px) rotate(${rotation}deg)`;
+  }};
+  z-index: ${p => p.total - p.index};
+  transition: transform 0.2s ease;
+  overflow: hidden;
+  
+  &:hover {
+    transform: ${p => {
+      const offset = (p.index - Math.floor(p.total / 2)) * 12;
+      const rotation = (p.index - Math.floor(p.total / 2)) * 6;
+      return `translateX(${offset}px) rotate(${rotation}deg) translateY(-4px)`;
+    }};
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+`;
+
+const StackedFileImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: ${p => p.theme.radius.md};
+`;
+
+const StackedFileIcon = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+`;
+
+const StackedFileName = styled.div`
+  font-size: 8px;
+  color: ${p => p.theme.text.tertiary};
+  margin-top: 4px;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+`;
+
+const MultiFileTitle = styled.div`
+  font-size: 14px;
+  font-weight: 600;
+  color: ${p => p.theme.text.primary};
+  text-align: center;
+  padding: 12px;
+  border-bottom: 1px solid ${p => p.theme.border.subtle};
+`;
+
 const VideoWrap = styled.div`
   width: 100%;
   padding: 0;
@@ -325,6 +407,24 @@ export default function PreviewPane() {
 
   const activePaneState = panes.find(p => p.id === activePane);
   const previewFile = activePaneState?.tabs[activePaneState.activeTab]?.previewFile || null;
+  const selectedFiles = activePaneState?.selectedFiles || new Set<string>();
+  const allFiles = activePaneState?.files || [];
+  const columnFiles = activePaneState?.columnState?.filesByPath || {};
+  
+  // Get selected file objects
+  const selectedFileObjects = Array.from(selectedFiles)
+    .map(path => {
+      const file = allFiles.find(f => f.path === path);
+      if (file) return file;
+      for (const colFiles of Object.values(columnFiles)) {
+        const found = (colFiles as any[]).find(f => f.path === path);
+        if (found) return found;
+      }
+      return null;
+    })
+    .filter(Boolean) as any[];
+  
+  const isMultiSelect = selectedFileObjects.length > 1;
 
   const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -432,7 +532,7 @@ export default function PreviewPane() {
     navigateTo(activePaneState.id, crumbPath);
   };
 
-  if (!previewFile) {
+  if (!previewFile && !isMultiSelect) {
     return (
       <Pane width={previewWidth}>
         <ResizeHandle onMouseDown={onResizeMouseDown} />
@@ -446,6 +546,69 @@ export default function PreviewPane() {
     );
   }
 
+  const MAX_STACK_FILES = 10;
+  
+  // Multi-file preview
+  if (isMultiSelect) {
+    const totalSize = selectedFileObjects.reduce((sum, f) => sum + (f.size || 0), 0);
+    const stackFiles = selectedFileObjects.slice(0, MAX_STACK_FILES);
+    
+    return (
+      <Pane width={previewWidth}>
+        <ResizeHandle onMouseDown={onResizeMouseDown} />
+        <Header>
+          {selectedFileObjects.length} selected
+          <CloseBtn onClick={closePreview}>✕</CloseBtn>
+        </Header>
+        
+        <MultiFileStack>
+          {stackFiles.map((file, index) => {
+            const ext = file.extension?.toLowerCase();
+            const isImage = PREVIEW_TYPES.imageExts.includes(ext as typeof PREVIEW_TYPES.imageExts[number]);
+            
+            return (
+              <StackedFile key={file.path} index={index} total={stackFiles.length}>
+                {isImage ? (
+                  <StackedFileImage src={`file://${file.path}`} alt={file.name} />
+                ) : (
+                  <StackedFileIcon>
+                    {file.isDirectory ? '📁' : '📄'}
+                    <StackedFileName>{file.name}</StackedFileName>
+                  </StackedFileIcon>
+                )}
+              </StackedFile>
+            );
+          })}
+        </MultiFileStack>
+        
+        <MetaSection>
+          <MetaRow>
+            <MetaKey>Total Size</MetaKey>
+            <MetaVal>{formatSize(totalSize)}</MetaVal>
+          </MetaRow>
+          <MetaRow>
+            <MetaKey>Files</MetaKey>
+            <MetaVal>{selectedFileObjects.filter(f => !f.isDirectory).length}</MetaVal>
+          </MetaRow>
+          <MetaRow>
+            <MetaKey>Folders</MetaKey>
+            <MetaVal>{selectedFileObjects.filter(f => f.isDirectory).length}</MetaVal>
+          </MetaRow>
+          {selectedFileObjects.length > MAX_STACK_FILES && (
+            <MetaRow>
+              <MetaKey>Showing</MetaKey>
+              <MetaVal>{MAX_STACK_FILES} of {selectedFileObjects.length}</MetaVal>
+            </MetaRow>
+          )}
+        </MetaSection>
+      </Pane>
+    );
+  }
+
+  // Single file preview - previewFile is guaranteed to be non-null here
+  if (!previewFile) return null;
+  const file = previewFile; // Type narrowing for TypeScript
+  
   return (
     <Pane width={previewWidth}>
       <ResizeHandle onMouseDown={onResizeMouseDown} />
@@ -475,14 +638,14 @@ export default function PreviewPane() {
 
       <PreviewArea>
         {isImage && (
-          <ImagePreview src={`file://${previewFile.path}`} alt={previewFile.name} />
+          <ImagePreview src={`file://${file.path}`} alt={file.name} />
         )}
         {isVideo && (
           <VideoWrap>
             <CustomVideo
               ref={mediaRef}
-              key={previewFile.path}
-              src={`file://${previewFile.path}`}
+              key={file.path}
+              src={`file://${file.path}`}
               maxHeight="300px"
             />
           </VideoWrap>
@@ -491,8 +654,8 @@ export default function PreviewPane() {
           <AudioWrap>
             <CustomAudio
               ref={mediaRef}
-              key={previewFile.path}
-              src={`file://${previewFile.path}`}
+              key={file.path}
+              src={`file://${file.path}`}
             />
           </AudioWrap>
         )}
@@ -556,11 +719,11 @@ export default function PreviewPane() {
       )}
 
       <MetaSection>
-        <MetaRow><MetaKey>Size</MetaKey><MetaVal>{formatSize(previewFile.size)}</MetaVal></MetaRow>
-        <MetaRow><MetaKey>Modified</MetaKey><MetaVal>{formatDate(previewFile.modified)}</MetaVal></MetaRow>
-        <MetaRow><MetaKey>Created</MetaKey><MetaVal>{formatDate((previewFile as unknown as Record<string, string>).created)}</MetaVal></MetaRow>
-        {previewFile.extension && <MetaRow><MetaKey>Kind</MetaKey><MetaVal>{previewFile.extension.toUpperCase()}</MetaVal></MetaRow>}
-        {previewFile.permissions && <MetaRow><MetaKey>Permissions</MetaKey><MetaVal>{typeof previewFile.permissions === 'object' ? (previewFile.permissions as Record<string, unknown>).octal as string : String(previewFile.permissions)}</MetaVal></MetaRow>}
+        <MetaRow><MetaKey>Size</MetaKey><MetaVal>{formatSize(file.size)}</MetaVal></MetaRow>
+        <MetaRow><MetaKey>Modified</MetaKey><MetaVal>{formatDate(file.modified)}</MetaVal></MetaRow>
+        <MetaRow><MetaKey>Created</MetaKey><MetaVal>{formatDate((file as unknown as Record<string, string>).created)}</MetaVal></MetaRow>
+        {file.extension && <MetaRow><MetaKey>Kind</MetaKey><MetaVal>{file.extension.toUpperCase()}</MetaVal></MetaRow>}
+        {file.permissions && <MetaRow><MetaKey>Permissions</MetaKey><MetaVal>{typeof file.permissions === 'object' ? (file.permissions as Record<string, unknown>).octal as string : String(file.permissions)}</MetaVal></MetaRow>}
       </MetaSection>
     </Pane>
   );
