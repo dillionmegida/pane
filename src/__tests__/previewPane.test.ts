@@ -254,7 +254,7 @@ describe('Preview state machine - loading → text OR icon', () => {
 describe('Column view - showPreview drives scroll-to-end (regression)', () => {
   const paneState = {
     id: 'left', path: '/Desktop', basePath: '/Desktop', files: [],
-    loading: false, error: null, selectedFiles: new Set<string>(),
+    loading: false, error: null, selectedFiles: new Set<string>(), lastSelectedFile: null,
     sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
     tabs: [{ id: 'tab-1', path: '/Desktop', basePath: '/Desktop', currentBreadcrumbPath: '/Desktop', label: 'Desktop', files: [], selectedFiles: new Set(), activeBookmarkId: null, viewMode: 'column', sortBy: 'name', sortOrder: 'asc', columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 }, previewFile: null, navigationHistory: [], navigationIndex: -1, _isRestoringHistory: false }],
     activeTab: 0, currentBreadcrumbPath: '/Desktop',

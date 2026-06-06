@@ -106,6 +106,7 @@ const createPane = (id: string, initialPath = '/'): Pane => {
     loading: false,
     error: null,
     selectedFiles: new Set(),
+    lastSelectedFile: null,
     sortBy: 'name',
     sortOrder: 'asc',
     viewMode: 'column',
@@ -486,21 +487,36 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setSelection: (paneId, files) => set(s => ({
-    panes: s.panes.map(p => p.id === paneId ? { ...p, selectedFiles: new Set(files) } : p),
+    panes: s.panes.map(p => p.id === paneId ? { 
+      ...p, 
+      selectedFiles: new Set(files),
+      lastSelectedFile: files.length > 0 ? files[files.length - 1] : null,
+    } : p),
   })),
 
   toggleSelection: (paneId, filePath, multi = false) => set(s => ({
     panes: s.panes.map(p => {
       if (p.id !== paneId) return p;
       const sel = new Set(p.selectedFiles);
+      let lastSelected = p.lastSelectedFile;
       if (multi) {
-        if (sel.has(filePath)) sel.delete(filePath);
-        else sel.add(filePath);
+        if (sel.has(filePath)) {
+          sel.delete(filePath);
+        } else {
+          sel.add(filePath);
+          lastSelected = filePath;
+        }
       } else {
-        if (sel.has(filePath) && sel.size === 1) sel.clear();
-        else { sel.clear(); sel.add(filePath); }
+        if (sel.has(filePath) && sel.size === 1) {
+          sel.clear();
+          lastSelected = null;
+        } else {
+          sel.clear();
+          sel.add(filePath);
+          lastSelected = filePath;
+        }
       }
-      return { ...p, selectedFiles: sel };
+      return { ...p, selectedFiles: sel, lastSelectedFile: lastSelected };
     }),
   })),
 

@@ -74,6 +74,7 @@ export interface Pane {
   loading: boolean;
   error: string | null;
   selectedFiles: Set<string>;
+  lastSelectedFile: string | null;
   sortBy: SortBy;
   sortOrder: SortOrder;
   viewMode: ViewMode;

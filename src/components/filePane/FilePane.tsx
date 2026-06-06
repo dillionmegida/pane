@@ -478,12 +478,13 @@ export default function FilePane({ paneId }: FilePaneProps) {
     const multi = e.metaKey || e.ctrlKey;
     if (multi) {
       toggleSelection(paneId, file.path, true);
-    } else if (e.shiftKey && selectedFiles.size > 0) {
-      const lastSel = [...selectedFiles].pop()!;
-      const lastIdx = files.findIndex(f => f.path === lastSel);
+    } else if (e.shiftKey && pane.lastSelectedFile) {
+      const lastIdx = files.findIndex(f => f.path === pane.lastSelectedFile);
       const curIdx = files.findIndex(f => f.path === file.path);
       const [lo, hi] = lastIdx < curIdx ? [lastIdx, curIdx] : [curIdx, lastIdx];
-      setSelection(paneId, files.slice(lo, hi + 1).map(f => f.path));
+      const rangeFiles = files.slice(lo, hi + 1).map(f => f.path);
+      const newSelection = new Set([...selectedFiles, ...rangeFiles]);
+      setSelection(paneId, Array.from(newSelection));
     } else {
       setSelection(paneId, [file.path]);
     }
@@ -514,6 +515,26 @@ export default function FilePane({ paneId }: FilePaneProps) {
     if (clickType === 'meta') {
       toggleSelection(paneId, file.path, true);
       return;
+    }
+
+    if (clickType === 'shift' && pane.lastSelectedFile) {
+      const columnPaths = getColumnPaths(paneId);
+      const base = pane.basePath || pane.path;
+      const colPath = columnPaths[columnIndex] ?? base;
+      const colFiles = columnIndex === 0 
+        ? files 
+        : (columnState.filesByPath?.[colPath] || []);
+      
+      const lastIdx = colFiles.findIndex(f => f.path === pane.lastSelectedFile);
+      const curIdx = colFiles.findIndex(f => f.path === file.path);
+      
+      if (lastIdx !== -1 && curIdx !== -1) {
+        const [lo, hi] = lastIdx < curIdx ? [lastIdx, curIdx] : [curIdx, lastIdx];
+        const rangeFiles = colFiles.slice(lo, hi + 1).map(f => f.path);
+        const newSelection = new Set([...selectedFiles, ...rangeFiles]);
+        setSelection(paneId, Array.from(newSelection));
+        return;
+      }
     }
 
     setSelection(paneId, [file.path]);

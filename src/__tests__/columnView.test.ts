@@ -23,6 +23,7 @@ describe('Column View - Basic Navigation', () => {
           loading: false,
           error: null,
           selectedFiles: new Set(),
+          lastSelectedFile: null,
           sortBy: 'name',
           sortOrder: 'asc',
           viewMode: 'column',
@@ -166,6 +167,7 @@ describe('Column View - Complex Navigation Scenarios', () => {
           loading: false,
           error: null,
           selectedFiles: new Set(),
+          lastSelectedFile: null,
           sortBy: 'name',
           sortOrder: 'asc',
           viewMode: 'column',
@@ -317,6 +319,7 @@ describe('Column View - File Selection in Columns', () => {
           loading: false,
           error: null,
           selectedFiles: new Set(),
+          lastSelectedFile: null,
           sortBy: 'name',
           sortOrder: 'asc',
           viewMode: 'column',
@@ -401,6 +404,7 @@ describe('Column View - Edge Cases', () => {
           loading: false,
           error: null,
           selectedFiles: new Set(),
+          lastSelectedFile: null,
           sortBy: 'name',
           sortOrder: 'asc',
           viewMode: 'column',
@@ -492,7 +496,7 @@ describe('Column View - empty space click deselects and trims columns (regressio
 
   const mkPane = (overrides = {}) => ({
     id: 'left', path: BASE, basePath: BASE, files: [],
-    loading: false, error: null, selectedFiles: new Set<string>(),
+    loading: false, error: null, selectedFiles: new Set<string>(), lastSelectedFile: null,
     sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
     tabs: [], activeTab: 0, currentBreadcrumbPath: BASE,
     columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
@@ -655,7 +659,7 @@ describe('Column View - paths array is child-only (regression)', () => {
           { name: 'john', path: `${BASE}/john`, isDirectory: true, size: 0, modified: '', extension: '' },
           { name: 'jane', path: `${BASE}/jane`, isDirectory: true, size: 0, modified: '', extension: '' },
         ],
-        loading: false, error: null, selectedFiles: new Set(),
+        loading: false, error: null, selectedFiles: new Set(), lastSelectedFile: null,
         sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
         tabs: [{ id: 't1', path: BASE, basePath: BASE, label: 'Users' }],
         activeTab: 0,
@@ -737,7 +741,7 @@ describe('Column View - exact column count via getColumnPaths (regression)', () 
     useStore.setState({
       panes: [{
         id: 'left', path: BASE, basePath: BASE, files: [],
-        loading: false, error: null, selectedFiles: new Set(),
+        loading: false, error: null, selectedFiles: new Set(), lastSelectedFile: null,
         sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
         tabs: [], activeTab: 0, currentBreadcrumbPath: BASE,
         columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
@@ -797,7 +801,7 @@ describe('Column View - toggleHiddenFiles (regression)', () => {
       showHidden: false,
       panes: [{
         id: 'left', path: '/Users', basePath: '/Users', files: [],
-        loading: false, error: null, selectedFiles: new Set(),
+        loading: false, error: null, selectedFiles: new Set(), lastSelectedFile: null,
         sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
         tabs: [], activeTab: 0, currentBreadcrumbPath: '/Users',
         columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
@@ -828,7 +832,7 @@ describe('Column View - toggleHiddenFiles (regression)', () => {
     useStore.setState({
       panes: [{
         id: 'left', path: '/Users', basePath: '/Users', files: [],
-        loading: false, error: null, selectedFiles: new Set(),
+        loading: false, error: null, selectedFiles: new Set(), lastSelectedFile: null,
         sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
         tabs: [], activeTab: 0, currentBreadcrumbPath: '/Users',
         columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
@@ -845,7 +849,7 @@ describe('Column View - toggleHiddenFiles (regression)', () => {
     useStore.setState({
       panes: [{
         id: 'left', path: '/Users', basePath: '/Users', files: [],
-        loading: false, error: null, selectedFiles: new Set(),
+        loading: false, error: null, selectedFiles: new Set(), lastSelectedFile: null,
         sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
         tabs: [], activeTab: 0, currentBreadcrumbPath: '/Users/john',
         columnState: {

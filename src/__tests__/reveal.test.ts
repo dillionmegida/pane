@@ -26,6 +26,7 @@ const defaultPaneState = () => ({
     loading: false,
     error: null,
     selectedFiles: new Set<string>(),
+    lastSelectedFile: null,
     sortBy: 'name' as const,
     sortOrder: 'asc' as const,
     viewMode: 'column' as const,
