@@ -168,12 +168,8 @@ export default function ColumnItem({
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     const clickType = e.shiftKey ? 'shift' : e.metaKey || e.ctrlKey ? 'meta' : 'normal';
-    if (clickType === 'meta') {
-      toggleSelection(paneId, file.path, true);
-    } else {
-      updateColumnState(paneId, { focusedIndex: columnIndex });
-      onItemClick(e, file, columnIndex, clickType);
-    }
+    updateColumnState(paneId, { focusedIndex: columnIndex });
+    onItemClick(e, file, columnIndex, clickType);
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {

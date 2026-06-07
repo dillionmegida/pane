@@ -512,12 +512,20 @@ export default function FilePane({ paneId }: FilePaneProps) {
   ) => {
     if (!isActive) setActivePane(paneId);
 
+    // Check if clicking in a different column - if so, clear existing selections
+    const isDifferentColumn = pane.selectionColumnIndex !== null && pane.selectionColumnIndex !== columnIndex;
+
     if (clickType === 'meta') {
-      toggleSelection(paneId, file.path, true);
+      // If clicking in a different column with Cmd, treat as single click
+      if (isDifferentColumn) {
+        setSelection(paneId, [file.path], columnIndex);
+      } else {
+        toggleSelection(paneId, file.path, true, columnIndex);
+      }
       return;
     }
 
-    if (clickType === 'shift' && pane.lastSelectedFile) {
+    if (clickType === 'shift' && pane.lastSelectedFile && !isDifferentColumn) {
       const columnPaths = getColumnPaths(paneId);
       const base = pane.basePath || pane.path;
       const colPath = columnPaths[columnIndex] ?? base;
@@ -532,12 +540,12 @@ export default function FilePane({ paneId }: FilePaneProps) {
         const [lo, hi] = lastIdx < curIdx ? [lastIdx, curIdx] : [curIdx, lastIdx];
         const rangeFiles = colFiles.slice(lo, hi + 1).map(f => f.path);
         const newSelection = new Set([...selectedFiles, ...rangeFiles]);
-        setSelection(paneId, Array.from(newSelection));
+        setSelection(paneId, Array.from(newSelection), columnIndex);
         return;
       }
     }
 
-    setSelection(paneId, [file.path]);
+    setSelection(paneId, [file.path], columnIndex);
     updateColumnState(paneId, {
       selectedByColumn: { ...(columnState.selectedByColumn || {}), [columnIndex]: file.path },
       focusedIndex: columnIndex,

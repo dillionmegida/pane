@@ -115,9 +115,9 @@ when i click an item in a previous column, don't do scroll into view (scroll int
 
 at the same time, don't resize the horizontal width yet...so if i open 7 columns, keep that same width and don't resize it...when i click an item in the first column, then now you can resize back to original
 
-* i should be able to drag a folder to the bookmarks section in left sidebar (there should be a visual indication when i'm dragging in the bookmarks tab)
 
-* reveal functionality is broken as well
+<!--  -->
+* test history
 
 * add support for in a file tree, being able to type to search for a file...so it debounces..and waits until i'm done so if i type "hello" it waits until i stop typing for a bit and then searches, and auto selects the first result
 * shift cmd selection broken
@@ -141,3 +141,12 @@ i expect that if i have this columns a/b/c/d/e/f, if i delete e, then f should b
 * should ensure that important directories "delete", "rename", "move" and all those things are disabled
 
 * sometimes i click a directory and its content doesn't load yet, so the content of theprevioius directory still shows...ensure that clicking a directory always overwrites the content ofr the column even if it's with just "lolading...."
+* cmd + up or down, to go the first or the last
+* shift plus up or down to multiselect
+
+
+* app should show connected drives as well
+
+* smart folders...if i previously clicked to preview, then i search and that search doesn't contain the same file, remove from preview\
+
+* multi selecting files between different columns should work 

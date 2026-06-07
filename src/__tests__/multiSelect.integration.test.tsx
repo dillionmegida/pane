@@ -54,6 +54,7 @@ const buildInitialState = (overrides: Record<string, any> = {}): any => ({
   panes: [{
     id: 'left', path: basePath, basePath, files: testFiles,
     loading: false, error: null, selectedFiles: new Set(), lastSelectedFile: null,
+    selectionColumnIndex: null,
     sortBy: 'name', sortOrder: 'asc', viewMode: 'list',
     tabs: [{ 
       id: 'tab-1', path: basePath, basePath, currentBreadcrumbPath: basePath,
@@ -115,6 +116,7 @@ describe('Multi-Select Integration - Column View with Real Mouse Events', () => 
         panes: [{
           id: 'left', path: basePath, basePath, files: columnFiles,
           loading: false, error: null, selectedFiles: new Set(), lastSelectedFile: null,
+          selectionColumnIndex: null,
           sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
           tabs: [{ 
             id: 'tab-1', path: basePath, basePath, currentBreadcrumbPath: basePath,
@@ -208,5 +210,66 @@ describe('Multi-Select Integration - Column View with Real Mouse Events', () => 
     expect(getPane().selectedFiles.has(columnFiles[4].path)).toBe(true); // file2
     expect(getPane().selectedFiles.has(columnFiles[5].path)).toBe(true); // file3
     expect(getPane().selectedFiles.has(columnFiles[6].path)).toBe(true); // file4
+  });
+
+  test('Cross-column multi-selection should be restricted', async () => {
+    // Mock readdir to return files for folder1
+    const folder1Files = [
+      mkFile('nested1.txt', '/Users/test/folder1', 'txt'),
+      mkFile('nested2.txt', '/Users/test/folder1', 'txt'),
+      mkFile('nested3.txt', '/Users/test/folder1', 'txt'),
+    ];
+    
+    (window.electronAPI.readdir as jest.Mock).mockResolvedValue({
+      success: true,
+      files: folder1Files,
+    });
+
+    renderFilePane();
+    
+    // Select file1.txt in column 0
+    const file1 = screen.getByText('file1.txt');
+    await act(async () => {
+      fireEvent.click(file1);
+    });
+    
+    expect(getPane().selectedFiles.size).toBe(1);
+    expect(getPane().selectedFiles.has(columnFiles[3].path)).toBe(true);
+    expect(getPane().selectionColumnIndex).toBe(0);
+    
+    // Cmd+click file2.txt in same column - should add to selection
+    const file2 = screen.getByText('file2.txt');
+    await act(async () => {
+      fireEvent.click(file2, { metaKey: true });
+    });
+    
+    expect(getPane().selectedFiles.size).toBe(2);
+    expect(getPane().selectedFiles.has(columnFiles[3].path)).toBe(true);
+    expect(getPane().selectedFiles.has(columnFiles[4].path)).toBe(true);
+    expect(getPane().selectionColumnIndex).toBe(0);
+    
+    // Click folder1 to open column 1
+    const folder1 = screen.getByText('folder1');
+    await act(async () => {
+      fireEvent.click(folder1);
+    });
+    
+    // Wait for column to populate
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+    
+    // Now try to Cmd+click a file in column 1 - should clear column 0 selections
+    const nested1 = await screen.findByText('nested1.txt');
+    await act(async () => {
+      fireEvent.click(nested1, { metaKey: true });
+    });
+    
+    // Should only have nested1.txt selected (column 0 selections cleared)
+    expect(getPane().selectedFiles.size).toBe(1);
+    expect(getPane().selectedFiles.has(folder1Files[0].path)).toBe(true);
+    expect(getPane().selectedFiles.has(columnFiles[3].path)).toBe(false);
+    expect(getPane().selectedFiles.has(columnFiles[4].path)).toBe(false);
+    expect(getPane().selectionColumnIndex).toBe(1);
   });
 });

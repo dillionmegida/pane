@@ -50,6 +50,7 @@ const defaultPane = (overrides: Record<string, any> = {}) => ({
   error: null,
   selectedFiles: new Set<string>(),
   lastSelectedFile: null,
+  selectionColumnIndex: null,
   sortBy: 'name' as const,
   sortOrder: 'asc' as const,
   viewMode: 'column' as const,

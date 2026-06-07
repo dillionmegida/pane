@@ -87,6 +87,7 @@ const restoreFromTab = (tab: Tab): Partial<Pane> => ({
   currentBreadcrumbPath: tab.currentBreadcrumbPath,
   files: tab.files || [],
   selectedFiles: new Set(tab.selectedFiles || []),
+  selectionColumnIndex: null,
   activeBookmarkId: tab.activeBookmarkId || null,
   viewMode: tab.viewMode || 'column',
   sortBy: tab.sortBy || 'name',
@@ -107,6 +108,7 @@ const createPane = (id: string, initialPath = '/'): Pane => {
     error: null,
     selectedFiles: new Set(),
     lastSelectedFile: null,
+    selectionColumnIndex: null,
     sortBy: 'name',
     sortOrder: 'asc',
     viewMode: 'column',
@@ -146,8 +148,8 @@ interface StoreState {
   navigateToReveal: (paneId: string, dirPath: string, revealBasePath: string, revealBreadcrumb: string) => Promise<void>;
   navigateToBookmark: (paneId: string, dirPath: string, bookmarkId: string, options?: NavigateOptions) => Promise<void>;
 
-  setSelection: (paneId: string, files: string[]) => void;
-  toggleSelection: (paneId: string, filePath: string, multi?: boolean) => void;
+  setSelection: (paneId: string, files: string[], columnIndex?: number | null) => void;
+  toggleSelection: (paneId: string, filePath: string, multi?: boolean, columnIndex?: number | null) => void;
 
   // ── Directory-specific sorts ───────────────────────────────────────────────
   directorySorts: Record<string, SortBy>;
@@ -486,37 +488,42 @@ export const useStore = create<StoreState>((set, get) => ({
     get().saveSession();
   },
 
-  setSelection: (paneId, files) => set(s => ({
+  setSelection: (paneId, files, columnIndex = null) => set(s => ({
     panes: s.panes.map(p => p.id === paneId ? { 
       ...p, 
       selectedFiles: new Set(files),
       lastSelectedFile: files.length > 0 ? files[files.length - 1] : null,
+      selectionColumnIndex: columnIndex,
     } : p),
   })),
 
-  toggleSelection: (paneId, filePath, multi = false) => set(s => ({
+  toggleSelection: (paneId, filePath, multi = false, columnIndex = null) => set(s => ({
     panes: s.panes.map(p => {
       if (p.id !== paneId) return p;
       const sel = new Set(p.selectedFiles);
       let lastSelected = p.lastSelectedFile;
+      let newColumnIndex = p.selectionColumnIndex;
       if (multi) {
         if (sel.has(filePath)) {
           sel.delete(filePath);
         } else {
           sel.add(filePath);
           lastSelected = filePath;
+          newColumnIndex = columnIndex;
         }
       } else {
         if (sel.has(filePath) && sel.size === 1) {
           sel.clear();
           lastSelected = null;
+          newColumnIndex = null;
         } else {
           sel.clear();
           sel.add(filePath);
           lastSelected = filePath;
+          newColumnIndex = columnIndex;
         }
       }
-      return { ...p, selectedFiles: sel, lastSelectedFile: lastSelected };
+      return { ...p, selectedFiles: sel, lastSelectedFile: lastSelected, selectionColumnIndex: newColumnIndex };
     }),
   })),
 
