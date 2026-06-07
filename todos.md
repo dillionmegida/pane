@@ -133,3 +133,11 @@ at the same time, don't resize the horizontal width yet...so if i open 7 columns
 * back to root in disk usage map doesn't work while the app is still scanning...even breadcrumbs don't show up
 
 * add listener for when removable volume is plugged in (just like the watcher for files)
+
+* i just deleted a directory, but then the column to the right does not trim...why
+
+i expect that if i have this columns a/b/c/d/e/f, if i delete e, then f should be trimmed away
+
+* should ensure that important directories "delete", "rename", "move" and all those things are disabled
+
+* sometimes i click a directory and its content doesn't load yet, so the content of theprevioius directory still shows...ensure that clicking a directory always overwrites the content ofr the column even if it's with just "lolading...."
