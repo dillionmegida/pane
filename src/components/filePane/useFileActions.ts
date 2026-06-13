@@ -1,0 +1,221 @@
+import { useState, useEffect, useRef } from 'react';
+import path from 'path-browserify';
+import { toast } from 'react-toastify';
+import type { FileItem } from '../../types';
+
+interface UseFileActionsParams {
+  paneId: string;
+  pane: any;
+  files: FileItem[];
+  columnState: any;
+  viewMode: string;
+  selectedFiles: Set<string>;
+  readDirSorted: (dirPath: string, paneId: string) => Promise<any>;
+  updateColumnState: (paneId: string, update: any) => void;
+  setColumnState: (paneId: string, state: any) => void;
+  setCurrentBreadcrumbPath: (paneId: string, path: string) => void;
+  setSelection: (paneId: string, files: string[], columnIndex?: number | null) => void;
+  refreshPane: (paneId: string) => void;
+  openModal: (id: string, props: any) => void;
+}
+
+export function useFileActions({
+  paneId,
+  pane,
+  files,
+  columnState,
+  viewMode,
+  selectedFiles,
+  readDirSorted,
+  updateColumnState,
+  setColumnState,
+  setCurrentBreadcrumbPath,
+  setSelection,
+  refreshPane,
+  openModal,
+}: UseFileActionsParams) {
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [newItemMode, setNewItemMode] = useState<'file' | 'folder' | null>(null);
+  const [newItemName, setNewItemName] = useState('');
+  const newItemInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if ((newItemMode || renaming) && newItemInputRef.current) {
+      newItemInputRef.current.focus();
+      newItemInputRef.current.select();
+    }
+  }, [newItemMode, renaming]);
+
+  const startRename = (file: FileItem) => {
+    setRenaming(file.path);
+    setRenameValue(file.name);
+  };
+
+  const commitRename = async () => {
+    if (!renaming) return;
+    const file = files.find(f => f.path === renaming)
+      || (Object.values(columnState?.filesByPath || {}).flat() as FileItem[]).find(f => f.path === renaming);
+    if (!file) { setRenaming(null); return; }
+
+    const newName = renameValue.trim();
+    if (!newName || newName === file.name) { setRenaming(null); return; }
+
+    const dir = file.path.substring(0, file.path.lastIndexOf('/'));
+    const newPath = `${dir}/${newName}`;
+    await window.electronAPI.rename(file.path, newPath);
+    setRenaming(null);
+    refreshPane(paneId);
+    setSelection(paneId, [newPath]);
+    if (viewMode === 'column') {
+      const result = await readDirSorted(dir, paneId);
+      if (result.success) {
+        updateColumnState(paneId, {
+          filesByPath: { ...(columnState?.filesByPath || {}), [dir]: result.files },
+        });
+      }
+    }
+  };
+
+  const createFolder = async () => {
+    const dir = pane.currentBreadcrumbPath || pane.path;
+    let untitledPath = `${dir}/untitled folder`;
+    let counter = 1;
+    while (true) {
+      const statResult = await window.electronAPI.stat(untitledPath);
+      if (!statResult.success) break;
+      untitledPath = `${dir}/untitled folder ${counter++}`;
+    }
+    await window.electronAPI.mkdir(untitledPath);
+    if (viewMode === 'column') {
+      const result = await readDirSorted(dir, paneId);
+      if (result.success) {
+        updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: result.files } });
+      }
+    }
+    refreshPane(paneId);
+    const newFolder: FileItem = { path: untitledPath, name: untitledPath.split('/').pop()!, extension: '', size: 0, modified: Date.now().toString(), isDirectory: true };
+    startRename(newFolder);
+  };
+
+  const commitNewItem = async () => {
+    const name = newItemName.trim();
+    if (!name) { setNewItemMode(null); setNewItemName(''); return; }
+
+    const dir = pane.currentBreadcrumbPath || pane.path;
+    const newPath = `${dir}/${name}`;
+    if (newItemMode === 'folder') {
+      await window.electronAPI.mkdir(newPath);
+    } else {
+      await window.electronAPI.writeFile(newPath, '');
+    }
+    setNewItemMode(null);
+    setNewItemName('');
+    refreshPane(paneId);
+    if (viewMode === 'column') {
+      const result = await readDirSorted(dir, paneId);
+      if (result.success) {
+        updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: result.files } });
+      }
+    }
+  };
+
+  const handleDelete = async (filesToDelete?: string[]) => {
+    const targets = filesToDelete || [...selectedFiles];
+    if (targets.length === 0) return;
+
+    const performDelete = async () => {
+      const errors: string[] = [];
+      for (const fp of targets) {
+        const result = await window.electronAPI.delete(fp);
+        if (!result.success) {
+          errors.push(`${path.basename(fp)}: ${result.error}`);
+        }
+      }
+      
+      if (errors.length > 0) {
+        console.error('Failed to delete some files:\n' + errors.join('\n'));
+        toast.error(`Failed to delete ${errors.length} file(s):\n\n${errors.join('\n')}`);
+      }
+      
+      setSelection(paneId, []);
+      refreshPane(paneId);
+      if (viewMode === 'column') {
+        // Re-read every parent dir that had a deleted file so the list updates immediately
+        const affectedDirs = [...new Set(targets.map(fp => fp.substring(0, fp.lastIndexOf('/'))))];
+        const newFbp = { ...(columnState.filesByPath || {}) };
+        await Promise.all(affectedDirs.map(async dir => {
+          const result = await readDirSorted(dir, paneId);
+          if (result.success) newFbp[dir] = result.files;
+        }));
+      
+      // If any deleted item is a directory with an open column, trim that column and all to its right
+      const deletedDirs = targets.filter(fp => columnState.paths?.includes(fp));
+      if (deletedDirs.length > 0) {
+        const firstDeletedIdx = Math.min(...deletedDirs.map(d => columnState.paths.indexOf(d)));
+        const newPaths = columnState.paths.slice(0, firstDeletedIdx);
+        const base = pane.basePath || pane.path;
+        const keepSet = new Set([base, ...newPaths]);
+        const trimmedFbp: Record<string, FileItem[]> = {};
+        for (const [k, v] of Object.entries(newFbp)) {
+          if (keepSet.has(k)) trimmedFbp[k] = v as FileItem[];
+        }
+        const newBreadcrumb = newPaths.length > 0 ? newPaths[newPaths.length - 1] : base;
+        setColumnState(paneId, {
+          paths: newPaths,
+          filesByPath: trimmedFbp,
+          selectedByColumn: {},
+          focusedIndex: Math.max(0, firstDeletedIdx - 1),
+        });
+        setCurrentBreadcrumbPath(paneId, newBreadcrumb);
+      } else {
+        updateColumnState(paneId, { filesByPath: newFbp });
+      }
+    }
+    };
+
+    openModal('confirmDelete', {
+      files: targets,
+      onConfirm: performDelete,
+    });
+  };
+
+  const createNewFile = async () => {
+    const dir = pane.currentBreadcrumbPath || pane.path;
+    let untitledPath = `${dir}/untitled`;
+    let counter = 1;
+    while (true) {
+      const statResult = await window.electronAPI.stat(untitledPath);
+      if (!statResult.success) break;
+      untitledPath = `${dir}/untitled ${counter++}`;
+    }
+    await window.electronAPI.writeFile(untitledPath, '');
+    if (viewMode === 'column') {
+      const result = await readDirSorted(dir, paneId);
+      if (result.success) {
+        updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: result.files } });
+      }
+    }
+    refreshPane(paneId);
+    const newFile: FileItem = { path: untitledPath, name: untitledPath.split('/').pop()!, extension: '', size: 0, modified: Date.now().toString(), isDirectory: false };
+    startRename(newFile);
+  };
+
+  return {
+    renaming,
+    setRenaming,
+    renameValue,
+    setRenameValue,
+    newItemMode,
+    setNewItemMode,
+    newItemName,
+    setNewItemName,
+    newItemInputRef,
+    startRename,
+    commitRename,
+    createFolder,
+    commitNewItem,
+    handleDelete,
+    createNewFile,
+  };
+}

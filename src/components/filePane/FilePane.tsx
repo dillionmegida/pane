@@ -1,19 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
-import path from 'path-browserify';
-import { toast } from 'react-toastify';
-import { useStore, formatSize, formatDate, getFileIcon, isPreviewable } from '../../store';
-import Column from './Column';
-import FileListItem from './FileListItem';
+import { useStore, formatSize, formatDate, getFileIcon } from '../../store';
 import FileGridItem from './FileGridItem';
 import PaneBreadcrumb from './PaneBreadcrumb';
 import PaneContextMenu from './PaneContextMenu';
 import InlineTagPicker from './InlineTagPicker';
 import PreviewPane from '../PreviewPane';
 import QuickPreviewModal from '../QuickPreviewModal';
-import { PREVIEW_TYPES } from '../../store';
 import type { FileItem, Tag, ViewMode } from '../../types';
 import { KEYBOARD_SEARCH_IN_FILE_TREE_DEBOUNCE_TIME } from '../../constants';
+import { useKeyboardNavigation } from './useKeyboardNavigation';
+import { useFileActions } from './useFileActions';
+import { useColumnItemClick } from './useColumnItemClick';
+import { useNavigation } from './useNavigation';
+import { useDragDrop } from './useDragDrop';
+import { useQuickPreview } from './useQuickPreview';
+import ColumnView from './ColumnView';
+import ListView from './ListView';
 
 // ─── Styled ───────────────────────────────────────────────────────────────────
 
@@ -100,25 +103,11 @@ const NavBtn = styled.button<{ disabled?: boolean }>`
   align-items: center;
 `;
 
-const FileListArea = styled.div`
-  flex: 1;
-  overflow: auto;
-  padding: 4px 0;
-`;
-
 const ContentArea = styled.div`
   flex: 1;
   display: flex;
   flex-direction: row;
   overflow: hidden;
-`;
-
-const ColumnViewArea = styled.div`
-  flex: 1;
-  overflow-x: auto;
-  overflow-y: hidden;
-  display: flex;
-  position: relative;
 `;
 
 const GridArea = styled.div`
@@ -129,36 +118,6 @@ const GridArea = styled.div`
   gap: 4px;
   padding: 8px;
   align-content: start;
-`;
-
-const ListHeader = styled.div`
-  display: grid;
-  grid-template-columns: 20px 1fr 70px 100px 60px;
-  padding: 2px 8px;
-  height: 22px;
-  align-items: center;
-  border-bottom: 1px solid ${p => p.theme.border.subtle};
-  flex-shrink: 0;
-`;
-
-const ListHeaderCell = styled.span`
-  font-size: 10px;
-  font-weight: 600;
-  color: ${p => p.theme.text.tertiary};
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-`;
-
-const EmptyState = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: ${p => p.theme.text.tertiary};
-  font-size: 12px;
-  gap: 8px;
-  pointer-events: none;
 `;
 
 const StatusBar = styled.div`
@@ -172,44 +131,6 @@ const StatusBar = styled.div`
   border-top: 1px solid ${p => p.theme.border.subtle};
   background: ${p => p.theme.bg.secondary};
   flex-shrink: 0;
-`;
-
-const RenameInput = styled.input`
-  background: ${p => p.theme.bg.primary};
-  border: 1px solid ${p => p.theme.border.focus};
-  color: ${p => p.theme.text.primary};
-  font-size: 12px;
-  padding: 2px 6px;
-  border-radius: ${p => p.theme.radius.sm};
-  outline: none;
-  width: 100%;
-`;
-
-const NewItemRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 10px;
-  height: 28px;
-`;
-
-const SizeHeaderCell = styled(ListHeaderCell)`
-  text-align: right;
-`;
-
-const NewItemInput = styled.input`
-  flex: 1;
-  background: transparent;
-  border: 1px solid #4A9EFF;
-  color: inherit;
-  font-size: 12px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  outline: none;
-`;
-
-const EmptyFolderIcon = styled.span`
-  font-size: 28px;
 `;
 
 const TabLabel = styled.span`
@@ -267,14 +188,6 @@ export default function FilePane({ paneId }: FilePaneProps) {
   } = store;
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: FileItem | null } | null>(null);
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
-  const [newItemMode, setNewItemMode] = useState<'file' | 'folder' | null>(null);
-  const [newItemName, setNewItemName] = useState('');
-  const [draggedFiles, setDraggedFiles] = useState<string[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOver, setDragOver] = useState<string | null>(null);
-  const [quickPreviewFile, setQuickPreviewFile] = useState<FileItem | null>(null);
   const [columnWidths, setColumnWidths] = useState<number[]>([]);
   const [fileTags, setFileTags] = useState<Record<string, Tag[]>>({});
   const [tagPickerState, setTagPickerState] = useState<{ filePath: string; position: { x: number; y: number } } | null>(null);
@@ -286,7 +199,6 @@ export default function FilePane({ paneId }: FilePaneProps) {
   const showPreview = previewFile !== null;
   const [folderSizes, setFolderSizes] = useState<Record<string, number>>({});
   const columnViewRef = useRef<HTMLDivElement>(null);
-  const newItemInputRef = useRef<HTMLInputElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingBufferRef = useRef('');
@@ -298,6 +210,11 @@ export default function FilePane({ paneId }: FilePaneProps) {
   const getColumnPathsRef = useRef<any>(() => []);
   const shiftAnchorPathRef = useRef<string | null>(null);
   const shiftCursorPathRef = useRef<string | null>(null);
+
+  const clearShiftState = () => {
+    shiftAnchorPathRef.current = null;
+    shiftCursorPathRef.current = null;
+  };
 
   if (!pane) return null;
 
@@ -398,88 +315,18 @@ export default function FilePane({ paneId }: FilePaneProps) {
   };
 
   // ── Navigation ─────────────────────────────────────────────────────────────
-  const navigate = useCallback(async (dirPath: string, opts?: { skipHistory?: boolean }) => {
-    if (viewMode === 'column') {
-      const result = await readDirSorted(dirPath, paneId);
-      if (!result.success) return;
-
-      const base = pane.basePath || pane.path;
-      let newPaths: string[] = [];
-
-      if (dirPath === base || !dirPath.startsWith(base)) {
-        newPaths = [dirPath];
-        const newBase = dirPath;
-        setColumnState(paneId, {
-          paths: newPaths,
-          filesByPath: { [dirPath]: result.files },
-          selectedByColumn: {},
-          focusedIndex: 0,
-        });
-        setCurrentBreadcrumbPath(paneId, newBase);
-      } else {
-        const existingIdx = columnState.paths.indexOf(dirPath);
-        if (existingIdx >= 0) {
-          newPaths = columnState.paths.slice(0, existingIdx + 1);
-        } else {
-          newPaths = [...(columnState.paths || []), dirPath];
-        }
-        const newFbp = { ...(columnState.filesByPath || {}), [dirPath]: result.files };
-        setColumnState(paneId, {
-          paths: newPaths,
-          filesByPath: newFbp,
-          selectedByColumn: { ...(columnState.selectedByColumn || {}) },
-          focusedIndex: newPaths.length - 1,
-        });
-        setCurrentBreadcrumbPath(paneId, dirPath);
-      }
-
-      if (!opts?.skipHistory) {
-        pushNavHistory(paneId, {
-          basePath: base,
-          currentBreadcrumbPath: dirPath,
-          selectedFiles: [...selectedFiles],
-          previewFilePath: previewFile?.path || null,
-          selectedByColumn: { ...(columnState.selectedByColumn || {}) },
-        });
-      }
-    } else {
-      await navigateTo(paneId, dirPath, opts);
-    }
-  }, [viewMode, paneId, pane, columnState, selectedFiles, previewFile]);
-
-  const handleBreadcrumbNavigate = (crumbPath: string) => {
-    if (viewMode === 'column') {
-      navigate(crumbPath);
-    } else {
-      navigateTo(paneId, crumbPath);
-    }
-  };
-
-  // ── Item activation ────────────────────────────────────────────────────────
-  const activateFile = useCallback(async (file: FileItem) => {
-    if (file.isDirectory) {
-      await navigate(file.path);
-    } else {
-      if (isPreviewable(file)) {
-        setPreviewFile(file);
-        pushNavHistory(paneId, {
-          basePath: pane.basePath || pane.path,
-          currentBreadcrumbPath: pane.currentBreadcrumbPath,
-          selectedFiles: [file.path],
-          previewFilePath: file.path,
-          selectedByColumn: { ...(columnState.selectedByColumn || {}) },
-        });
-      }
-    }
-  }, [navigate, pane, paneId, previewFile]);
+  const { navigate, handleBreadcrumbNavigate } = useNavigation({
+    paneId, pane, viewMode, columnState, selectedFiles, previewFile,
+    navigateTo, readDirSorted, setColumnState, setCurrentBreadcrumbPath,
+    setPreviewFile, pushNavHistory,
+  });
 
   // ── Click handling ─────────────────────────────────────────────────────────
   const handleFileClick = (e: React.MouseEvent, file: FileItem) => {
     if (!isActive) setActivePane(paneId);
     e.stopPropagation();
     if (!e.shiftKey) {
-      shiftAnchorPathRef.current = null;
-      shiftCursorPathRef.current = null;
+      clearShiftState();
     }
     const multi = e.metaKey || e.ctrlKey;
     if (multi) {
@@ -498,7 +345,9 @@ export default function FilePane({ paneId }: FilePaneProps) {
 
   // ── Double-click handling ──────────────────────────────────────────────────
   const handleFileDoubleClick = useCallback(async (file: FileItem) => {
-    if (!file.isDirectory) {
+    if (file.isDirectory) {
+      await navigate(file.path);
+    } else {
       const ext = file.extension || '';
       const r = await window.electronAPI.getDefaultApp(ext);
       if (r.success && r.app) {
@@ -507,124 +356,15 @@ export default function FilePane({ paneId }: FilePaneProps) {
         window.electronAPI.openPath(file.path);
       }
     }
-  }, []);
+  }, [navigate]);
 
   // ── Column item click ──────────────────────────────────────────────────────
-  const handleColumnItemClick = useCallback(async (
-    e: React.MouseEvent,
-    file: FileItem,
-    columnIndex: number,
-    clickType: string,
-  ) => {
-    if (!isActive) setActivePane(paneId);
-
-    if (clickType !== 'shift') {
-      shiftAnchorPathRef.current = null;
-      shiftCursorPathRef.current = null;
-    }
-
-    // Check if clicking in a different column - if so, clear existing selections
-    const isDifferentColumn = pane.selectionColumnIndex !== null && pane.selectionColumnIndex !== columnIndex;
-
-    if (clickType === 'meta') {
-      // If clicking in a different column with Cmd, treat as single click
-      if (isDifferentColumn) {
-        setSelection(paneId, [file.path], columnIndex);
-      } else {
-        toggleSelection(paneId, file.path, true, columnIndex);
-      }
-      return;
-    }
-
-    if (clickType === 'shift' && pane.lastSelectedFile && !isDifferentColumn) {
-      const columnPaths = getColumnPaths(paneId);
-      const base = pane.basePath || pane.path;
-      const colPath = columnPaths[columnIndex] ?? base;
-      const colFiles = columnIndex === 0 
-        ? files 
-        : (columnState.filesByPath?.[colPath] || []);
-      
-      const lastIdx = colFiles.findIndex(f => f.path === pane.lastSelectedFile);
-      const curIdx = colFiles.findIndex(f => f.path === file.path);
-      
-      if (lastIdx !== -1 && curIdx !== -1) {
-        const [lo, hi] = lastIdx < curIdx ? [lastIdx, curIdx] : [curIdx, lastIdx];
-        const rangeFiles = colFiles.slice(lo, hi + 1).map(f => f.path);
-        const newSelection = new Set([...selectedFiles, ...rangeFiles]);
-        setSelection(paneId, Array.from(newSelection), columnIndex);
-        return;
-      }
-    }
-
-    setSelection(paneId, [file.path], columnIndex);
-    updateColumnState(paneId, {
-      selectedByColumn: { ...(columnState.selectedByColumn || {}), [columnIndex]: file.path },
-      focusedIndex: columnIndex,
-    });
-
-    if (file.isDirectory) {
-      // paths holds child columns (index 1+). Clicking at columnIndex opens a new
-      // child at columnIndex+1, so keep only paths[0..columnIndex-1] then append.
-      const keptPaths = (columnState.paths || []).slice(0, columnIndex);
-      const result = await readDirSorted(file.path, paneId);
-      if (result.success) {
-        const newPaths = [...keptPaths, file.path];
-        const newFbp: Record<string, FileItem[]> = {};
-        const base = pane.basePath || pane.path;
-        // Keep base files and entries for kept paths
-        const keepSet = new Set([base, ...newPaths]);
-        for (const [k, v] of Object.entries(columnState.filesByPath || {})) {
-          if (keepSet.has(k)) newFbp[k] = v;
-        }
-        newFbp[file.path] = result.files;
-        setColumnState(paneId, {
-          paths: newPaths,
-          filesByPath: newFbp,
-          selectedByColumn: { ...(columnState.selectedByColumn || {}), [columnIndex]: file.path },
-          focusedIndex: columnIndex,
-        });
-        setCurrentBreadcrumbPath(paneId, file.path);
-        setPreviewFile(null);
-        const newSelByCol = { ...(columnState.selectedByColumn || {}), [columnIndex]: file.path };
-        pushNavHistory(paneId, {
-          basePath: pane.basePath || pane.path,
-          currentBreadcrumbPath: file.path,
-          selectedFiles: [file.path],
-          previewFilePath: null,
-          selectedByColumn: newSelByCol,
-        });
-      }
-    } else {
-      // File click: truncate paths to only what's needed up to this column
-      const keptPaths = (columnState.paths || []).slice(0, columnIndex);
-      const base = pane.basePath || pane.path;
-      const keepSet = new Set([base, ...keptPaths]);
-      const newFbp: Record<string, FileItem[]> = {};
-      for (const [k, v] of Object.entries(columnState.filesByPath || {})) {
-        if (keepSet.has(k)) newFbp[k] = v;
-      }
-      const parentPath = file.path.split('/').slice(0, -1).join('/') || '/';
-      setColumnState(paneId, {
-        paths: keptPaths,
-        filesByPath: newFbp,
-        selectedByColumn: { ...(columnState.selectedByColumn || {}), [columnIndex]: file.path },
-        focusedIndex: columnIndex,
-      });
-      setCurrentBreadcrumbPath(paneId, parentPath);
-      if (isPreviewable(file)) {
-        setPreviewFile(file);
-      } else {
-        setPreviewFile(null);
-      }
-      pushNavHistory(paneId, {
-        basePath: pane.basePath || pane.path,
-        currentBreadcrumbPath: parentPath,
-        selectedFiles: [file.path],
-        previewFilePath: isPreviewable(file) ? file.path : null,
-        selectedByColumn: { ...(columnState.selectedByColumn || {}), [columnIndex]: file.path },
-      });
-    }
-  }, [paneId, columnState, pane, selectedFiles, previewFile, isActive]);
+  const handleColumnItemClick = useColumnItemClick({
+    paneId, pane, files, columnState, selectedFiles, previewFile, isActive,
+    clearShiftState, setActivePane, setSelection, toggleSelection,
+    setColumnState, updateColumnState, setCurrentBreadcrumbPath,
+    setPreviewFile, pushNavHistory, readDirSorted, getColumnPaths,
+  });
 
   // ── Context menu ───────────────────────────────────────────────────────────
   const handleContextMenu = (e: React.MouseEvent, file: FileItem | null = null) => {
@@ -637,365 +377,31 @@ export default function FilePane({ paneId }: FilePaneProps) {
     setContextMenu({ x: e.clientX, y: e.clientY, file });
   };
 
-  // ── Drop ───────────────────────────────────────────────────────────────────
-  const handleDrop = useCallback(async (e: React.DragEvent, file: FileItem | null, path?: string) => {
-    e.preventDefault();
-    setDragOver(null);
-    const rawPaths = e.dataTransfer.getData('file-paths');
-    if (!rawPaths) return;
-    const srcPaths: string[] = JSON.parse(rawPaths);
-    const destDir = file?.isDirectory ? file.path : (path || pane.path);
+  // ── Drag & drop ────────────────────────────────────────────────────────────
+  const { draggedFiles, setDraggedFiles, isDragging, setIsDragging, dragOver, setDragOver, handleDrop } = useDragDrop({
+    paneId, pane, viewMode, columnState, refreshPane, readDirSorted, updateColumnState,
+  });
 
-    const isCopy = e.altKey;
-    const ops = srcPaths.map(src => {
-      const dest = `${destDir}/${src.split('/').pop()}`;
-      return isCopy
-        ? window.electronAPI.copy(src, dest)
-        : window.electronAPI.move(src, dest);
-    });
-    await Promise.all(ops);
-    refreshPane(paneId);
-    if (viewMode === 'column') {
-      const result = await readDirSorted(destDir, paneId);
-      if (result.success) {
-        updateColumnState(paneId, {
-          filesByPath: { ...(columnState.filesByPath || {}), [destDir]: result.files },
-        });
-      }
-    }
-  }, [pane, paneId, columnState, viewMode]);
-
-  // ── Rename ─────────────────────────────────────────────────────────────────
-  const startRename = (file: FileItem) => {
-    setRenaming(file.path);
-    setRenameValue(file.name);
-  };
-
-  const commitRename = async () => {
-    if (!renaming) return;
-    const file = files.find(f => f.path === renaming)
-      || Object.values(columnState?.filesByPath || {}).flat().find(f => f.path === renaming);
-    if (!file) { setRenaming(null); return; }
-
-    const newName = renameValue.trim();
-    if (!newName || newName === file.name) { setRenaming(null); return; }
-
-    const dir = file.path.substring(0, file.path.lastIndexOf('/'));
-    const newPath = `${dir}/${newName}`;
-    await window.electronAPI.rename(file.path, newPath);
-    setRenaming(null);
-    refreshPane(paneId);
-    setSelection(paneId, [newPath]);
-    if (viewMode === 'column') {
-      const result = await readDirSorted(dir, paneId);
-      if (result.success) {
-        updateColumnState(paneId, {
-          filesByPath: { ...(columnState?.filesByPath || {}), [dir]: result.files },
-        });
-      }
-    }
-  };
-
-  // ── New folder (create + rename) ────────────────────────────────────────
-  const createFolder = async () => {
-    const dir = pane.currentBreadcrumbPath || pane.path;
-    let untitledPath = `${dir}/untitled folder`;
-    let counter = 1;
-    while (true) {
-      const statResult = await window.electronAPI.stat(untitledPath);
-      if (!statResult.success) break;
-      untitledPath = `${dir}/untitled folder ${counter++}`;
-    }
-    await window.electronAPI.mkdir(untitledPath);
-    if (viewMode === 'column') {
-      const result = await readDirSorted(dir, paneId);
-      if (result.success) {
-        updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: result.files } });
-      }
-    }
-    refreshPane(paneId);
-    const newFolder: FileItem = { path: untitledPath, name: untitledPath.split('/').pop()!, extension: '', size: 0, modified: Date.now().toString(), isDirectory: true };
-    startRename(newFolder);
-  };
-
-  // ── New item (legacy inline input for list view folder) ────────────────────
-  const commitNewItem = async () => {
-    const name = newItemName.trim();
-    if (!name) { setNewItemMode(null); setNewItemName(''); return; }
-
-    const dir = pane.currentBreadcrumbPath || pane.path;
-    const newPath = `${dir}/${name}`;
-    if (newItemMode === 'folder') {
-      await window.electronAPI.mkdir(newPath);
-    } else {
-      await window.electronAPI.writeFile(newPath, '');
-    }
-    setNewItemMode(null);
-    setNewItemName('');
-    refreshPane(paneId);
-    if (viewMode === 'column') {
-      const result = await readDirSorted(dir, paneId);
-      if (result.success) {
-        updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: result.files } });
-      }
-    }
-  };
-
-  useEffect(() => {
-    if ((newItemMode || renaming) && newItemInputRef.current) {
-      newItemInputRef.current.focus();
-      newItemInputRef.current.select();
-    }
-  }, [newItemMode, renaming]);
-
-  // ── Delete ─────────────────────────────────────────────────────────────────
-  const handleDelete = async (filesToDelete?: string[]) => {
-    const targets = filesToDelete || [...selectedFiles];
-    if (targets.length === 0) return;
-
-    const performDelete = async () => {
-      const errors: string[] = [];
-      for (const fp of targets) {
-        const result = await window.electronAPI.delete(fp);
-        if (!result.success) {
-          errors.push(`${path.basename(fp)}: ${result.error}`);
-        }
-      }
-      
-      if (errors.length > 0) {
-        console.error('Failed to delete some files:\n' + errors.join('\n'));
-        toast.error(`Failed to delete ${errors.length} file(s):\n\n${errors.join('\n')}`);
-      }
-      
-      setSelection(paneId, []);
-      refreshPane(paneId);
-      if (viewMode === 'column') {
-        // Re-read every parent dir that had a deleted file so the list updates immediately
-        const affectedDirs = [...new Set(targets.map(fp => fp.substring(0, fp.lastIndexOf('/'))))];
-        const newFbp = { ...(columnState.filesByPath || {}) };
-        await Promise.all(affectedDirs.map(async dir => {
-          const result = await readDirSorted(dir, paneId);
-          if (result.success) newFbp[dir] = result.files;
-        }));
-      
-      // If any deleted item is a directory with an open column, trim that column and all to its right
-      const deletedDirs = targets.filter(fp => columnState.paths?.includes(fp));
-      if (deletedDirs.length > 0) {
-        const firstDeletedIdx = Math.min(...deletedDirs.map(d => columnState.paths.indexOf(d)));
-        const newPaths = columnState.paths.slice(0, firstDeletedIdx);
-        const base = pane.basePath || pane.path;
-        const keepSet = new Set([base, ...newPaths]);
-        const trimmedFbp: Record<string, FileItem[]> = {};
-        for (const [k, v] of Object.entries(newFbp)) {
-          if (keepSet.has(k)) trimmedFbp[k] = v;
-        }
-        const newBreadcrumb = newPaths.length > 0 ? newPaths[newPaths.length - 1] : base;
-        setColumnState(paneId, {
-          paths: newPaths,
-          filesByPath: trimmedFbp,
-          selectedByColumn: {},
-          focusedIndex: Math.max(0, firstDeletedIdx - 1),
-        });
-        setCurrentBreadcrumbPath(paneId, newBreadcrumb);
-      } else {
-        updateColumnState(paneId, { filesByPath: newFbp });
-      }
-    }
-    };
-
-    openModal('confirmDelete', {
-      files: targets,
-      onConfirm: performDelete,
-    });
-  };
+  // ── File actions (rename, create, delete) ─────────────────────────────────
+  const {
+    renaming, setRenaming, renameValue, setRenameValue,
+    newItemMode, setNewItemMode, newItemName, setNewItemName,
+    newItemInputRef, startRename, commitRename, createFolder,
+    commitNewItem, handleDelete, createNewFile,
+  } = useFileActions({
+    paneId, pane, files, columnState, viewMode, selectedFiles,
+    readDirSorted, updateColumnState, setColumnState,
+    setCurrentBreadcrumbPath, setSelection, refreshPane, openModal,
+  });
 
   // ── Keyboard navigation ────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isActive) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      // Type-to-search: capture alphanumeric keystrokes, space, dot, underscore, and hyphen
-      // Special case: if space is pressed and buffer is empty, let it fall through to quick preview
-      if (e.key.length === 1 && /[a-zA-Z0-9 ._\-]/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        // If space is pressed and buffer is empty, skip type-to-search (allow quick preview)
-        if (e.key === ' ' && typingBufferRef.current === '') {
-          return;
-        }
-        e.preventDefault();
-        const newBuffer = typingBufferRef.current + e.key.toLowerCase();
-        typingBufferRef.current = newBuffer;
-        setTypingBuffer(newBuffer);
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.key === '.') {
-        e.preventDefault();
-        toggleHiddenFiles();
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'N') {
-        e.preventDefault();
-        createFolder();
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.key === '[') {
-        e.preventDefault();
-        goBackInHistory(paneId);
-        return;
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === ']') {
-        e.preventDefault();
-        goForwardInHistory(paneId);
-        return;
-      }
-
-      if (e.key === 'Enter' && selectedFiles.size === 1) {
-        const file = files.find(f => selectedFiles.has(f.path))
-          || Object.values(columnState?.filesByPath || {}).flat().find(f => selectedFiles.has(f.path));
-        if (file) startRename(file);
-        return;
-      }
-
-      const focusedIdx = columnState.focusedIndex ?? 0;
-      const base = pane.basePath || pane.path;
-      const columnPaths = getColumnPaths(paneId);
-      const focusedColPath = columnPaths[focusedIdx] ?? base;
-      const filterHiddenNav = (arr: FileItem[]) => showHidden ? arr : arr.filter((f: FileItem) => !f.name.startsWith('.'));
-      const displayFiles = viewMode === 'column'
-        ? filterHiddenNav(columnState.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? files : []))
-        : files;
-
-      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') {
-        e.preventDefault();
-        shiftAnchorPathRef.current = null;
-        shiftCursorPathRef.current = null;
-        if (displayFiles.length === 0) return;
-        const firstFile = displayFiles[0];
-        if (!firstFile) return;
-        handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, firstFile, focusedIdx, 'keyboard');
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown') {
-        e.preventDefault();
-        shiftAnchorPathRef.current = null;
-        shiftCursorPathRef.current = null;
-        if (displayFiles.length === 0) return;
-        const lastFile = displayFiles[displayFiles.length - 1];
-        if (!lastFile) return;
-        handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, lastFile, focusedIdx, 'keyboard');
-        return;
-      }
-
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (displayFiles.length === 0) return;
-
-        if (e.shiftKey) {
-          // Initialize anchor on first shift+arrow press
-          if (!shiftAnchorPathRef.current) {
-            const curPath = [...selectedFiles].pop();
-            const anchorIdx = curPath !== undefined ? displayFiles.findIndex((f: FileItem) => f.path === curPath) : -1;
-            const effectiveAnchorIdx = anchorIdx >= 0 ? anchorIdx : 0;
-            const anchorFile = displayFiles[effectiveAnchorIdx];
-            if (!anchorFile) return;
-            shiftAnchorPathRef.current = anchorFile.path;
-            shiftCursorPathRef.current = anchorFile.path;
-          }
-
-          const anchorPath = shiftAnchorPathRef.current!;
-          const anchorIdx = displayFiles.findIndex((f: FileItem) => f.path === anchorPath);
-          if (anchorIdx === -1) {
-            shiftAnchorPathRef.current = null;
-            shiftCursorPathRef.current = null;
-            return;
-          }
-
-          const cursorPath = shiftCursorPathRef.current ?? anchorPath;
-          const rawCursorIdx = displayFiles.findIndex((f: FileItem) => f.path === cursorPath);
-          const cursorIdx = rawCursorIdx >= 0 ? rawCursorIdx : anchorIdx;
-
-          let newCursorIdx: number;
-          if (e.key === 'ArrowDown') {
-            newCursorIdx = Math.min(cursorIdx + 1, displayFiles.length - 1);
-          } else {
-            // ArrowUp: move cursor upward (selection always includes anchor, so never < 1 item)
-            newCursorIdx = Math.max(cursorIdx - 1, 0);
-          }
-
-          shiftCursorPathRef.current = displayFiles[newCursorIdx]?.path ?? null;
-
-          const lo = Math.min(anchorIdx, newCursorIdx);
-          const hi = Math.max(anchorIdx, newCursorIdx);
-          const rangeFiles = displayFiles.slice(lo, hi + 1).map((f: FileItem) => f.path);
-          setSelection(paneId, rangeFiles, viewMode === 'column' ? focusedIdx : null);
-          return;
-        }
-
-        // Non-shift: clear shift state and navigate normally
-        shiftAnchorPathRef.current = null;
-        shiftCursorPathRef.current = null;
-
-        const curPath = [...selectedFiles].pop();
-        const curIdx = displayFiles.findIndex((f: FileItem) => f.path === curPath);
-        let nextIdx: number;
-        if (e.key === 'ArrowDown') {
-          nextIdx = curIdx < 0 || curIdx >= displayFiles.length - 1 ? 0 : curIdx + 1;
-        } else {
-          nextIdx = curIdx <= 0 ? displayFiles.length - 1 : curIdx - 1;
-        }
-        const nextFile = displayFiles[nextIdx];
-        if (!nextFile) return;
-        handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, nextFile, focusedIdx, 'keyboard');
-        return;
-      }
-
-      if (e.key === 'ArrowRight' && viewMode === 'column') {
-        e.preventDefault();
-        shiftAnchorPathRef.current = null;
-        shiftCursorPathRef.current = null;
-        const selPath = [...selectedFiles].pop();
-        const sel = displayFiles.find((f: FileItem) => f.path === selPath);
-        if (!sel?.isDirectory) return;
-        const childFiles = columnState.filesByPath?.[sel.path] || [];
-        if (!childFiles.length) return;
-        const firstChild = childFiles[0];
-        handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, firstChild, focusedIdx + 1, 'keyboard');
-        return;
-      }
-
-      if (e.key === 'ArrowLeft' && viewMode === 'column') {
-        e.preventDefault();
-        shiftAnchorPathRef.current = null;
-        shiftCursorPathRef.current = null;
-        if (focusedIdx <= 0) return;
-        const newFocusedIdx = focusedIdx - 1;
-        // Find what was selected in the target column, fall back to the column's path
-        const targetSelPath = columnState.selectedByColumn?.[newFocusedIdx] ?? columnPaths[newFocusedIdx];
-        if (!targetSelPath) return;
-        const targetColPath = columnPaths[newFocusedIdx] ?? base;
-        const targetColFiles = columnState.filesByPath?.[targetColPath] ?? (newFocusedIdx === 0 ? files : []);
-        const targetFile = targetColFiles.find((f: FileItem) => f.path === targetSelPath);
-        if (!targetFile) return;
-        handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, targetFile, newFocusedIdx, 'keyboard');
-        return;
-      }
-
-      if (e.key === 'Delete' || (e.key === 'Backspace' && e.metaKey)) {
-        e.preventDefault();
-        handleDelete();
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isActive, paneId, selectedFiles, files, viewMode, columnState, pane, toggleHiddenFiles, getColumnPaths]);
+  useKeyboardNavigation({
+    isActive, paneId, selectedFiles, files, viewMode, columnState, pane,
+    showHidden, getColumnPaths, toggleHiddenFiles, setSelection,
+    handleColumnItemClick, startRename, createFolder, handleDelete,
+    goBackInHistory, goForwardInHistory, typingBufferRef, setTypingBuffer,
+    shiftAnchorPathRef, shiftCursorPathRef,
+  });
 
   // ── Type-to-search debounce ─────────────────────────────────────────────────
   useEffect(() => {
@@ -1048,39 +454,10 @@ export default function FilePane({ paneId }: FilePaneProps) {
     };
   }, [typingBuffer, paneId]);
 
-  // ── Spacebar quick preview ────────────────────────────────────────────────
-  useEffect(() => {
-    if (activePane !== paneId) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.code !== 'Space') return;
-      const tag = (document.activeElement as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      if (activeModal || showSearch) return;
-      if (useStore.getState().activePane !== paneId) return;
-      const selArray = [...selectedFiles];
-      if (selArray.length === 0) return;
-      const filePath = selArray[0];
-      let fileObj: FileItem | undefined = files.find(f => f.path === filePath);
-      if (!fileObj) {
-        for (const colFiles of Object.values(columnState?.filesByPath || {})) {
-          const found = (colFiles as FileItem[]).find(f => f.path === filePath);
-          if (found) { fileObj = found; break; }
-        }
-      }
-      if (!fileObj || fileObj.isDirectory) return;
-      const ext = fileObj.extension || '';
-      const canPreview =
-        (PREVIEW_TYPES.imageExts as unknown as string[]).includes(ext) ||
-        (PREVIEW_TYPES.videoExts as unknown as string[]).includes(ext) ||
-        (PREVIEW_TYPES.audioExts as unknown as string[]).includes(ext) ||
-        ext === 'pdf';
-      if (!canPreview) return;
-      e.preventDefault();
-      setQuickPreviewFile(fileObj);
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [activePane, paneId, selectedFiles, files, columnState, activeModal, showSearch]);
+  // ── Quick preview (spacebar) ──────────────────────────────────────────────
+  const { quickPreviewFile, setQuickPreviewFile } = useQuickPreview({
+    paneId, activePane, selectedFiles, files, columnState, activeModal, showSearch,
+  });
 
   // ── Column resizer ─────────────────────────────────────────────────────────
   const handleColumnResizerMouseDown = (columnIndex: number) => (e: React.MouseEvent) => {
@@ -1128,227 +505,41 @@ export default function FilePane({ paneId }: FilePaneProps) {
     });
   }
 
-  // ── Rendering ──────────────────────────────────────────────────────────────
-  const renderListView = () => (
-    <>
-      <ListHeader>
-        <ListHeaderCell />
-        <ListHeaderCell>Name</ListHeaderCell>
-        <SizeHeaderCell>Size</SizeHeaderCell>
-        <ListHeaderCell>Modified</ListHeaderCell>
-        <ListHeaderCell>Kind</ListHeaderCell>
-      </ListHeader>
-      <FileListArea onClick={() => setSelection(paneId, [])}>
-        {newItemMode && (
-          <NewItemRow>
-            <span>{newItemMode === 'folder' ? '📁' : '📄'}</span>
-            <NewItemInput
-              ref={newItemInputRef}
-              value={newItemName}
-              onChange={e => setNewItemName(e.target.value)}
-              onBlur={commitNewItem}
-              onKeyDown={e => {
-                if (e.key === 'Enter') commitNewItem();
-                if (e.key === 'Escape') { setNewItemMode(null); setNewItemName(''); }
-              }}
-              placeholder={newItemMode === 'folder' ? 'Folder name' : 'File name'}
-            />
-          </NewItemRow>
-        )}
-        {files.length === 0 && !newItemMode ? (
-          <EmptyState>
-            <EmptyFolderIcon>📂</EmptyFolderIcon>
-            <span>Empty folder</span>
-          </EmptyState>
-        ) : (
-          files.map(file => (
-            <FileListItem
-              key={file.path}
-              file={file}
-              isSelected={selectedFiles.has(file.path)}
-              isRenaming={renaming === file.path}
-              isContextMenuSelected={contextMenu?.file?.path === file.path}
-              isDragOver={dragOver === file.path}
-              selectedFiles={selectedFiles}
-              draggedFiles={draggedFiles}
-              paneId={paneId}
-              fileTags={fileTags}
-              renameValue={renameValue}
-              setRenameValue={setRenameValue}
-              onRenameCommit={commitRename}
-              onRenameCancel={() => setRenaming(null)}
-              onClick={e => handleFileClick(e, file)}
-              onDoubleClick={handleFileDoubleClick}
-              onContextMenu={e => handleContextMenu(e, file)}
-              onDrop={(e, f) => handleDrop(e, f)}
-              setSelection={setSelection}
-              setDraggedFiles={setDraggedFiles}
-              setIsDragging={setIsDragging}
-              setDragOver={setDragOver}
-            />
-          ))
-        )}
-      </FileListArea>
-    </>
-  );
-
-  const renderGridView = () => (
-    <GridArea onClick={() => setSelection(paneId, [])}>
-      {files.map(file => (
-        <FileGridItem
-          key={file.path}
-          file={file}
-          isSelected={selectedFiles.has(file.path)}
-          isDragOver={dragOver === file.path}
-          selectedFiles={selectedFiles}
-          draggedFiles={draggedFiles}
-          paneId={paneId}
-          fileTags={fileTags}
-          onClick={e => handleFileClick(e, file)}
-          onDoubleClick={handleFileDoubleClick}
-          onContextMenu={e => handleContextMenu(e, file)}
-          onDrop={(e, f) => handleDrop(e, f)}
-          setSelection={setSelection}
-          setDraggedFiles={setDraggedFiles}
-          setIsDragging={setIsDragging}
-          setDragOver={setDragOver}
-        />
-      ))}
-    </GridArea>
-  );
-
-  const renderColumnView = () => {
-    const paths = columnState?.paths || [];
-    const filesByPath = columnState?.filesByPath || {};
+  // ── Column empty-click handlers ───────────────────────────────────────────
+  const handleBaseColumnEmptyClick = () => {
     const base = pane.basePath || pane.path;
-    const filterHidden = (arr: FileItem[]) => showHidden ? arr : arr.filter(f => !f.name.startsWith('.'));
-    const baseDirFiles = filterHidden(filesByPath[base] || files);
+    setSelection(paneId, []);
+    setColumnState(paneId, {
+      paths: [],
+      filesByPath: { [base]: columnState.filesByPath?.[base] || files },
+      selectedByColumn: {},
+      focusedIndex: 0,
+    });
+    setCurrentBreadcrumbPath(paneId, base);
+    setPreviewFile(null);
+    pushNavHistory(paneId, { basePath: base, currentBreadcrumbPath: base, selectedFiles: [], previewFilePath: null });
+  };
 
-    return (
-      <ColumnViewArea ref={columnViewRef} onClick={() => setSelection(paneId, [])}>
-        <Column
-          key={base}
-          colPath={base}
-          columnIndex={0}
-          colFiles={baseDirFiles}
-          isFocused={(columnState?.focusedIndex ?? 0) === 0}
-          width={`${columnWidths[0] ?? DEFAULT_COLUMN_WIDTH}px`}
-          columnPaths={paths}
-          derivedSelections={derivedSelections}
-          selectedFiles={selectedFiles}
-          draggedFiles={draggedFiles}
-          dragOver={dragOver}
-          contextMenuFile={contextMenu?.file ?? null}
-          paneId={paneId}
-          fileTags={fileTags}
-          renamingPath={renaming}
-          renameValue={renameValue}
-          onRenameValueChange={setRenameValue}
-          onRenameCommit={commitRename}
-          onRenameCancel={() => setRenaming(null)}
-          onItemClick={handleColumnItemClick}
-          onItemDoubleClick={handleFileDoubleClick}
-          onItemContextMenu={(e, f) => handleContextMenu(e, f)}
-          onDrop={handleDrop}
-          onEmptyClick={() => {
-            const base = pane.basePath || pane.path;
-            setSelection(paneId, []);
-            setColumnState(paneId, {
-              paths: [],
-              filesByPath: { [base]: columnState.filesByPath?.[base] || files },
-              selectedByColumn: {},
-              focusedIndex: 0,
-            });
-            setCurrentBreadcrumbPath(paneId, base);
-            setPreviewFile(null);
-            pushNavHistory(paneId, {
-              basePath: base,
-              currentBreadcrumbPath: base,
-              selectedFiles: [],
-              previewFilePath: null,
-            });
-          }}
-          setSelection={setSelection}
-          setDraggedFiles={setDraggedFiles}
-          setIsDragging={setIsDragging}
-          setDragOver={setDragOver}
-          updateColumnState={updateColumnState}
-          toggleSelection={toggleSelection}
-          onResizerMouseDown={handleColumnResizerMouseDown(0)}
-        />
-        {paths.map((colPath, idx) => {
-          const colFiles = filterHidden(filesByPath[colPath] || []);
-          const colIndex = idx + 1;
-          return (
-            <Column
-              key={colPath}
-              colPath={colPath}
-              columnIndex={colIndex}
-              colFiles={colFiles}
-              isFocused={(columnState?.focusedIndex ?? 0) === colIndex}
-              width={`${columnWidths[colIndex] ?? DEFAULT_COLUMN_WIDTH}px`}
-              columnPaths={paths}
-              derivedSelections={derivedSelections}
-              selectedFiles={selectedFiles}
-              draggedFiles={draggedFiles}
-              dragOver={dragOver}
-              contextMenuFile={contextMenu?.file ?? null}
-              paneId={paneId}
-              fileTags={fileTags}
-              renamingPath={renaming}
-              renameValue={renameValue}
-              onRenameValueChange={setRenameValue}
-              onRenameCommit={commitRename}
-              onRenameCancel={() => setRenaming(null)}
-              onItemClick={handleColumnItemClick}
-              onItemDoubleClick={handleFileDoubleClick}
-              onItemContextMenu={(e, f) => handleContextMenu(e, f)}
-              onDrop={handleDrop}
-              onEmptyClick={() => {
-                // Keep paths up to and including this column (colIndex maps to paths[colIndex-1]),
-                // remove only columns to the right.
-                const keptPaths = (columnState.paths || []).slice(0, colIndex);
-                const base = pane.basePath || pane.path;
-                const keepSet = new Set([base, ...keptPaths]);
-                const newFbp: Record<string, FileItem[]> = {};
-                for (const [k, v] of Object.entries(columnState.filesByPath || {})) {
-                  if (keepSet.has(k)) newFbp[k] = v;
-                }
-                const newSelByCol: Record<number, string> = {};
-                for (let i = 0; i < colIndex; i++) {
-                  if (columnState.selectedByColumn?.[i]) newSelByCol[i] = columnState.selectedByColumn[i];
-                }
-                // Deselect the item in this column specifically
-                delete newSelByCol[colIndex];
-                const newBreadcrumb = keptPaths.length > 0 ? keptPaths[keptPaths.length - 1] : base;
-                setSelection(paneId, []);
-                setColumnState(paneId, {
-                  paths: keptPaths,
-                  filesByPath: newFbp,
-                  selectedByColumn: newSelByCol,
-                  focusedIndex: colIndex,
-                });
-                setCurrentBreadcrumbPath(paneId, newBreadcrumb);
-                setPreviewFile(null);
-                pushNavHistory(paneId, {
-                  basePath: base,
-                  currentBreadcrumbPath: newBreadcrumb,
-                  selectedFiles: [],
-                  previewFilePath: null,
-                });
-              }}
-              setSelection={setSelection}
-              setDraggedFiles={setDraggedFiles}
-              setIsDragging={setIsDragging}
-              setDragOver={setDragOver}
-              updateColumnState={updateColumnState}
-              toggleSelection={toggleSelection}
-              onResizerMouseDown={handleColumnResizerMouseDown(colIndex)}
-            />
-          );
-        })}
-      </ColumnViewArea>
-    );
+  const handleColumnEmptyClick = (colIndex: number) => {
+    // Keep paths up to and including this column, remove only columns to the right.
+    const keptPaths = (columnState.paths || []).slice(0, colIndex);
+    const base = pane.basePath || pane.path;
+    const keepSet = new Set([base, ...keptPaths]);
+    const newFbp: Record<string, FileItem[]> = {};
+    for (const [k, v] of Object.entries(columnState.filesByPath || {})) {
+      if (keepSet.has(k)) newFbp[k] = v as FileItem[];
+    }
+    const newSelByCol: Record<number, string> = {};
+    for (let i = 0; i < colIndex; i++) {
+      if (columnState.selectedByColumn?.[i]) newSelByCol[i] = columnState.selectedByColumn[i];
+    }
+    delete newSelByCol[colIndex];
+    const newBreadcrumb = keptPaths.length > 0 ? keptPaths[keptPaths.length - 1] : base;
+    setSelection(paneId, []);
+    setColumnState(paneId, { paths: keptPaths, filesByPath: newFbp, selectedByColumn: newSelByCol, focusedIndex: colIndex });
+    setCurrentBreadcrumbPath(paneId, newBreadcrumb);
+    setPreviewFile(null);
+    pushNavHistory(paneId, { basePath: base, currentBreadcrumbPath: newBreadcrumb, selectedFiles: [], previewFilePath: null });
   };
 
   const _focusedIdx = columnState?.focusedIndex ?? 0;
@@ -1403,9 +594,68 @@ export default function FilePane({ paneId }: FilePaneProps) {
 
       {/* File area + Preview Pane (side by side) */}
       <ContentArea>
-        {viewMode === 'list' && renderListView()}
-        {viewMode === 'grid' && renderGridView()}
-        {viewMode === 'column' && renderColumnView()}
+        {viewMode === 'list' && (
+          <ListView
+            paneId={paneId} files={files}
+            newItemMode={newItemMode} newItemName={newItemName}
+            newItemInputRef={newItemInputRef} setNewItemName={setNewItemName}
+            setNewItemMode={setNewItemMode} commitNewItem={commitNewItem}
+            selectedFiles={selectedFiles} renaming={renaming}
+            contextMenuFilePath={contextMenu?.file?.path ?? null}
+            dragOver={dragOver} draggedFiles={draggedFiles} fileTags={fileTags}
+            renameValue={renameValue} setRenameValue={setRenameValue}
+            commitRename={commitRename} setRenaming={setRenaming}
+            handleFileClick={handleFileClick} handleFileDoubleClick={handleFileDoubleClick}
+            handleContextMenu={handleContextMenu} handleDrop={handleDrop}
+            setSelection={setSelection} setDraggedFiles={setDraggedFiles}
+            setIsDragging={setIsDragging} setDragOver={setDragOver}
+          />
+        )}
+        {viewMode === 'grid' && (
+          <GridArea onClick={() => setSelection(paneId, [])}>
+            {files.map(file => (
+              <FileGridItem
+                key={file.path}
+                file={file}
+                isSelected={selectedFiles.has(file.path)}
+                isDragOver={dragOver === file.path}
+                selectedFiles={selectedFiles}
+                draggedFiles={draggedFiles}
+                paneId={paneId}
+                fileTags={fileTags}
+                onClick={e => handleFileClick(e, file)}
+                onDoubleClick={handleFileDoubleClick}
+                onContextMenu={e => handleContextMenu(e, file)}
+                onDrop={(e, f) => handleDrop(e, f)}
+                setSelection={setSelection}
+                setDraggedFiles={setDraggedFiles}
+                setIsDragging={setIsDragging}
+                setDragOver={setDragOver}
+              />
+            ))}
+          </GridArea>
+        )}
+        {viewMode === 'column' && (
+          <ColumnView
+            paneId={paneId} pane={pane} files={files} columnState={columnState}
+            showHidden={showHidden} columnViewRef={columnViewRef}
+            columnWidths={columnWidths} defaultColumnWidth={DEFAULT_COLUMN_WIDTH}
+            derivedSelections={derivedSelections} selectedFiles={selectedFiles}
+            draggedFiles={draggedFiles} dragOver={dragOver}
+            contextMenuFile={contextMenu?.file ?? null}
+            fileTags={fileTags} renaming={renaming} renameValue={renameValue}
+            setRenameValue={setRenameValue} commitRename={commitRename} setRenaming={setRenaming}
+            handleColumnItemClick={handleColumnItemClick}
+            handleFileDoubleClick={handleFileDoubleClick}
+            handleContextMenu={handleContextMenu} handleDrop={handleDrop}
+            handleColumnResizerMouseDown={handleColumnResizerMouseDown}
+            setSelection={setSelection} setDraggedFiles={setDraggedFiles}
+            setIsDragging={setIsDragging} setDragOver={setDragOver}
+            updateColumnState={updateColumnState} toggleSelection={toggleSelection}
+            onBaseEmptyClick={handleBaseColumnEmptyClick}
+            onColumnEmptyClick={handleColumnEmptyClick}
+          />
+        )}
         {showPreview && activePane === paneId && previewFile && (
           <PreviewPane />
         )}
@@ -1434,26 +684,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
           onClose={() => setContextMenu(null)}
           onRename={() => contextMenu.file && startRename(contextMenu.file)}
           onNewFolder={createFolder}
-          onNewFile={async () => {
-            const dir = pane.currentBreadcrumbPath || pane.path;
-            let untitledPath = `${dir}/untitled`;
-            let counter = 1;
-            while (true) {
-              const statResult = await window.electronAPI.stat(untitledPath);
-              if (!statResult.success) break;
-              untitledPath = `${dir}/untitled ${counter++}`;
-            }
-            await window.electronAPI.writeFile(untitledPath, '');
-            if (viewMode === 'column') {
-              const result = await readDirSorted(dir, paneId);
-              if (result.success) {
-                updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: result.files } });
-              }
-            }
-            refreshPane(paneId);
-            const newFile: FileItem = { path: untitledPath, name: untitledPath.split('/').pop()!, extension: '', size: 0, modified: Date.now().toString(), isDirectory: false };
-            startRename(newFile);
-          }}
+          onNewFile={createNewFile}
           onDelete={handleDelete}
           onRefresh={() => refreshPane(paneId)}
           onBatchRename={() => openModal('batchRename', { files: [...selectedFiles] })}
