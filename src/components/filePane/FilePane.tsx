@@ -296,6 +296,8 @@ export default function FilePane({ paneId }: FilePaneProps) {
   const viewModeRef = useRef<ViewMode>('list');
   const filesRef = useRef<FileItem[]>([]);
   const getColumnPathsRef = useRef<any>(() => []);
+  const shiftAnchorPathRef = useRef<string | null>(null);
+  const shiftCursorPathRef = useRef<string | null>(null);
 
   if (!pane) return null;
 
@@ -475,6 +477,10 @@ export default function FilePane({ paneId }: FilePaneProps) {
   const handleFileClick = (e: React.MouseEvent, file: FileItem) => {
     if (!isActive) setActivePane(paneId);
     e.stopPropagation();
+    if (!e.shiftKey) {
+      shiftAnchorPathRef.current = null;
+      shiftCursorPathRef.current = null;
+    }
     const multi = e.metaKey || e.ctrlKey;
     if (multi) {
       toggleSelection(paneId, file.path, true);
@@ -511,6 +517,11 @@ export default function FilePane({ paneId }: FilePaneProps) {
     clickType: string,
   ) => {
     if (!isActive) setActivePane(paneId);
+
+    if (clickType !== 'shift') {
+      shiftAnchorPathRef.current = null;
+      shiftCursorPathRef.current = null;
+    }
 
     // Check if clicking in a different column - if so, clear existing selections
     const isDifferentColumn = pane.selectionColumnIndex !== null && pane.selectionColumnIndex !== columnIndex;
@@ -859,6 +870,8 @@ export default function FilePane({ paneId }: FilePaneProps) {
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') {
         e.preventDefault();
+        shiftAnchorPathRef.current = null;
+        shiftCursorPathRef.current = null;
         if (displayFiles.length === 0) return;
         const firstFile = displayFiles[0];
         if (!firstFile) return;
@@ -868,6 +881,8 @@ export default function FilePane({ paneId }: FilePaneProps) {
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown') {
         e.preventDefault();
+        shiftAnchorPathRef.current = null;
+        shiftCursorPathRef.current = null;
         if (displayFiles.length === 0) return;
         const lastFile = displayFiles[displayFiles.length - 1];
         if (!lastFile) return;
@@ -878,6 +893,52 @@ export default function FilePane({ paneId }: FilePaneProps) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         if (displayFiles.length === 0) return;
+
+        if (e.shiftKey) {
+          // Initialize anchor on first shift+arrow press
+          if (!shiftAnchorPathRef.current) {
+            const curPath = [...selectedFiles].pop();
+            const anchorIdx = curPath !== undefined ? displayFiles.findIndex((f: FileItem) => f.path === curPath) : -1;
+            const effectiveAnchorIdx = anchorIdx >= 0 ? anchorIdx : 0;
+            const anchorFile = displayFiles[effectiveAnchorIdx];
+            if (!anchorFile) return;
+            shiftAnchorPathRef.current = anchorFile.path;
+            shiftCursorPathRef.current = anchorFile.path;
+          }
+
+          const anchorPath = shiftAnchorPathRef.current!;
+          const anchorIdx = displayFiles.findIndex((f: FileItem) => f.path === anchorPath);
+          if (anchorIdx === -1) {
+            shiftAnchorPathRef.current = null;
+            shiftCursorPathRef.current = null;
+            return;
+          }
+
+          const cursorPath = shiftCursorPathRef.current ?? anchorPath;
+          const rawCursorIdx = displayFiles.findIndex((f: FileItem) => f.path === cursorPath);
+          const cursorIdx = rawCursorIdx >= 0 ? rawCursorIdx : anchorIdx;
+
+          let newCursorIdx: number;
+          if (e.key === 'ArrowDown') {
+            newCursorIdx = Math.min(cursorIdx + 1, displayFiles.length - 1);
+          } else {
+            // ArrowUp: move cursor upward (selection always includes anchor, so never < 1 item)
+            newCursorIdx = Math.max(cursorIdx - 1, 0);
+          }
+
+          shiftCursorPathRef.current = displayFiles[newCursorIdx]?.path ?? null;
+
+          const lo = Math.min(anchorIdx, newCursorIdx);
+          const hi = Math.max(anchorIdx, newCursorIdx);
+          const rangeFiles = displayFiles.slice(lo, hi + 1).map((f: FileItem) => f.path);
+          setSelection(paneId, rangeFiles, viewMode === 'column' ? focusedIdx : null);
+          return;
+        }
+
+        // Non-shift: clear shift state and navigate normally
+        shiftAnchorPathRef.current = null;
+        shiftCursorPathRef.current = null;
+
         const curPath = [...selectedFiles].pop();
         const curIdx = displayFiles.findIndex((f: FileItem) => f.path === curPath);
         let nextIdx: number;
@@ -894,6 +955,8 @@ export default function FilePane({ paneId }: FilePaneProps) {
 
       if (e.key === 'ArrowRight' && viewMode === 'column') {
         e.preventDefault();
+        shiftAnchorPathRef.current = null;
+        shiftCursorPathRef.current = null;
         const selPath = [...selectedFiles].pop();
         const sel = displayFiles.find((f: FileItem) => f.path === selPath);
         if (!sel?.isDirectory) return;
@@ -906,6 +969,8 @@ export default function FilePane({ paneId }: FilePaneProps) {
 
       if (e.key === 'ArrowLeft' && viewMode === 'column') {
         e.preventDefault();
+        shiftAnchorPathRef.current = null;
+        shiftCursorPathRef.current = null;
         if (focusedIdx <= 0) return;
         const newFocusedIdx = focusedIdx - 1;
         // Find what was selected in the target column, fall back to the column's path
