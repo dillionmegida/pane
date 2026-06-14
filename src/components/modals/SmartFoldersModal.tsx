@@ -123,7 +123,7 @@ interface SmartFoldersModalProps {
 }
 
 export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
-  const { panes, activePane, setRevealTarget, setViewMode, zoom } = useStore();
+  const { panes, activePane, setRevealTarget, zoom } = useStore();
   const currentPane = panes.find(p => p.id === activePane);
 
   const [selectedFilterType, setSelectedFilterType] = useState(data?.id || 'large');
@@ -155,9 +155,7 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
     return parsed === null ? 0 : parsed;
   }, [fileSizeInputMB]);
 
-  const currentDirectoryPath = currentPane?.viewMode === 'column'
-    ? currentPane?.currentBreadcrumbPath || currentPane?.path
-    : currentPane?.path;
+  const currentDirectoryPath = currentPane?.currentBreadcrumbPath || currentPane?.path;
 
   const filterDefinitions = createFilterDefinitions(displaySizeLabel);
   const visibleResults = useMemo(() => scanResults.slice(0, 200), [scanResults]);
@@ -315,9 +313,6 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
       const isDirectory = file.isDirectory;
       const parentDir = file.path.includes('/') ? file.path.substring(0, file.path.lastIndexOf('/')) : '/';
       const paneId = activePane;
-      if (panes.find(p => p.id === paneId)?.viewMode !== 'column') {
-        setViewMode(paneId, 'column');
-      }
       setRevealTarget({ paneId, filePath: file.path, fileDir: parentDir, isDirectory, triggerPreview: !isDirectory });
       onClose();
     } else if (actionKey === 'delete') {

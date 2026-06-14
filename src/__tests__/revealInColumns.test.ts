@@ -18,7 +18,6 @@ describe('revealInColumns helper', () => {
           viewMode: 'column',
         } as any,
       ],
-      setViewMode: jest.fn(),
       setRevealTarget: jest.fn().mockResolvedValue(undefined),
     });
   });
@@ -33,22 +32,4 @@ describe('revealInColumns helper', () => {
     });
   });
 
-  test('switches to column view if needed', async () => {
-    useStore.setState({
-      activePane: 'left',
-      panes: [
-        {
-          id: 'left',
-          viewMode: 'list',
-        } as any,
-      ],
-      setViewMode: jest.fn(),
-      setRevealTarget: jest.fn().mockResolvedValue(undefined),
-    });
-
-    await revealInColumns('/Users/john/file.txt', 'left');
-
-    const store = useStore.getState();
-    expect(store.setViewMode).toHaveBeenCalledWith('left', 'column');
-  });
 });

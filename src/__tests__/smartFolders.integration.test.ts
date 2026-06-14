@@ -315,10 +315,19 @@ describe('SmartFoldersModal Integration Tests', () => {
         fireEvent.click(getByText(/huge\.bin/));
       });
 
-      // Click delete button
+      // Click delete button (opens confirmation dialog)
       const deleteButtons = getAllByText(/Delete/i);
       await act(async () => {
         fireEvent.click(deleteButtons[0]);
+      });
+
+      // Confirm deletion in the confirmation dialog
+      await waitFor(() => {
+        expect(getAllByText(/Delete/i).length).toBeGreaterThan(1);
+      });
+      const confirmDeleteButtons = getAllByText(/Delete/i);
+      await act(async () => {
+        fireEvent.click(confirmDeleteButtons[confirmDeleteButtons.length - 1]);
       });
 
       // Verify delete was called

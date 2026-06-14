@@ -362,7 +362,7 @@ const MatchHighlight = styled.span`
 `;
 
 export default function SearchOverlay(): React.ReactElement {
-  const { panes, activePane, navigateTo, navigateToFile, toggleSearch, setViewMode, setSelection, getActivePath, getBreadcrumbs, homeDir, searchInitContentMode, persistModalState } = useStore() as any;
+  const { panes, activePane, navigateTo, navigateToFile, toggleSearch, getActivePath, homeDir, searchInitContentMode, persistModalState } = useStore() as any;
   const pane = panes.find((p: any) => p.id === activePane);
 
   const [query, setQuery] = useState('');

@@ -63,7 +63,7 @@ export interface Tab {
 
 // ─── Pane ─────────────────────────────────────────────────────────────────────
 
-export type ViewMode = 'list' | 'grid' | 'column';
+export type ViewMode = 'column';
 export type SortBy = 'name' | 'size' | 'modified' | 'added' | 'extension';
 export type SortOrder = 'asc' | 'desc';
 

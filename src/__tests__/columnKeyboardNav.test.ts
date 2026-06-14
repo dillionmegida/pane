@@ -577,11 +577,6 @@ describe('Column Keyboard Nav - getColumnPaths derivation', () => {
     expect(getStore().getColumnPaths('left')).toEqual([basePath]);
   });
 
-  test('getColumnPaths returns empty for non-column viewMode', () => {
-    useStore.setState(buildInitialState({ viewMode: 'list', currentBreadcrumbPath: basePath, basePath }));
-    expect(getStore().getColumnPaths('left')).toEqual([]);
-  });
-
   test('getColumnPaths trims when breadcrumb is shortened', () => {
     useStore.setState(buildInitialState({ currentBreadcrumbPath: `${basePath}/Documents/Projects/WebApp`, basePath }));
     expect(getStore().getColumnPaths('left').length).toBe(4);

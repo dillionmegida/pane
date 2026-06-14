@@ -157,7 +157,7 @@ describe('Column View - Basic Navigation', () => {
     leftPane = result.current.panes.find((p: any) => p.id === 'left');
     expect(leftPane.currentBreadcrumbPath).toBe('/Users/john');
     const breadcrumbs = result.current.getBreadcrumbs('left');
-    expect(breadcrumbs).toHaveLength(3); // /, Users, john
+    expect(breadcrumbs).toHaveLength(2); // Users, john
   });
 });
 

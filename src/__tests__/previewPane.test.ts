@@ -375,7 +375,7 @@ describe('Preview pane - multi-file selection', () => {
         lastSelectedFile: null,
         sortBy: 'name',
         sortOrder: 'asc',
-        viewMode: 'list',
+        viewMode: 'column',
         tabs: [{
           id: 'tab-1',
           path: '/test',
@@ -385,7 +385,7 @@ describe('Preview pane - multi-file selection', () => {
           files: [file1, file2, file3, folder1],
           selectedFiles: new Set<string>(),
           activeBookmarkId: null,
-          viewMode: 'list',
+          viewMode: 'column',
           sortBy: 'name',
           sortOrder: 'asc',
           columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },

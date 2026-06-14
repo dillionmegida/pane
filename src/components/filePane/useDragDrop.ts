@@ -1,10 +1,9 @@
 import { useState, useCallback } from 'react';
-import type { FileItem, ViewMode } from '../../types';
+import type { FileItem } from '../../types';
 
 interface UseDragDropParams {
   paneId: string;
   pane: any;
-  viewMode: ViewMode;
   columnState: any;
   refreshPane: (paneId: string) => void;
   readDirSorted: (dirPath: string, paneId: string) => Promise<any>;
@@ -12,7 +11,7 @@ interface UseDragDropParams {
 }
 
 export function useDragDrop({
-  paneId, pane, viewMode, columnState, refreshPane, readDirSorted, updateColumnState,
+  paneId, pane, columnState, refreshPane, readDirSorted, updateColumnState,
 }: UseDragDropParams) {
   const [draggedFiles, setDraggedFiles] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -35,15 +34,13 @@ export function useDragDrop({
     });
     await Promise.all(ops);
     refreshPane(paneId);
-    if (viewMode === 'column') {
-      const result = await readDirSorted(destDir, paneId);
-      if (result.success) {
-        updateColumnState(paneId, {
-          filesByPath: { ...(columnState.filesByPath || {}), [destDir]: result.files },
-        });
-      }
+    const result = await readDirSorted(destDir, paneId);
+    if (result.success) {
+      updateColumnState(paneId, {
+        filesByPath: { ...(columnState.filesByPath || {}), [destDir]: result.files },
+      });
     }
-  }, [pane, paneId, columnState, viewMode]);
+  }, [pane, paneId, columnState]);
 
   return { draggedFiles, setDraggedFiles, isDragging, setIsDragging, dragOver, setDragOver, handleDrop };
 }

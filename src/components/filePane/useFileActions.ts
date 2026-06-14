@@ -8,7 +8,6 @@ interface UseFileActionsParams {
   pane: any;
   files: FileItem[];
   columnState: any;
-  viewMode: string;
   selectedFiles: Set<string>;
   readDirSorted: (dirPath: string, paneId: string) => Promise<any>;
   updateColumnState: (paneId: string, update: any) => void;
@@ -24,7 +23,6 @@ export function useFileActions({
   pane,
   files,
   columnState,
-  viewMode,
   selectedFiles,
   readDirSorted,
   updateColumnState,
@@ -67,13 +65,11 @@ export function useFileActions({
     setRenaming(null);
     refreshPane(paneId);
     setSelection(paneId, [newPath]);
-    if (viewMode === 'column') {
-      const result = await readDirSorted(dir, paneId);
-      if (result.success) {
-        updateColumnState(paneId, {
-          filesByPath: { ...(columnState?.filesByPath || {}), [dir]: result.files },
-        });
-      }
+    const result = await readDirSorted(dir, paneId);
+    if (result.success) {
+      updateColumnState(paneId, {
+        filesByPath: { ...(columnState?.filesByPath || {}), [dir]: result.files },
+      });
     }
   };
 
@@ -87,11 +83,9 @@ export function useFileActions({
       untitledPath = `${dir}/untitled folder ${counter++}`;
     }
     await window.electronAPI.mkdir(untitledPath);
-    if (viewMode === 'column') {
-      const result = await readDirSorted(dir, paneId);
-      if (result.success) {
-        updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: result.files } });
-      }
+    const result0 = await readDirSorted(dir, paneId);
+    if (result0.success) {
+      updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: result0.files } });
     }
     refreshPane(paneId);
     const newFolder: FileItem = { path: untitledPath, name: untitledPath.split('/').pop()!, extension: '', size: 0, modified: Date.now().toString(), isDirectory: true };
@@ -112,11 +106,9 @@ export function useFileActions({
     setNewItemMode(null);
     setNewItemName('');
     refreshPane(paneId);
-    if (viewMode === 'column') {
-      const result = await readDirSorted(dir, paneId);
-      if (result.success) {
-        updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: result.files } });
-      }
+    const resultNew = await readDirSorted(dir, paneId);
+    if (resultNew.success) {
+      updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: resultNew.files } });
     }
   };
 
@@ -140,7 +132,7 @@ export function useFileActions({
       
       setSelection(paneId, []);
       refreshPane(paneId);
-      if (viewMode === 'column') {
+      {
         // Re-read every parent dir that had a deleted file so the list updates immediately
         const affectedDirs = [...new Set(targets.map(fp => fp.substring(0, fp.lastIndexOf('/'))))];
         const newFbp = { ...(columnState.filesByPath || {}) };
@@ -190,11 +182,9 @@ export function useFileActions({
       untitledPath = `${dir}/untitled ${counter++}`;
     }
     await window.electronAPI.writeFile(untitledPath, '');
-    if (viewMode === 'column') {
-      const result = await readDirSorted(dir, paneId);
-      if (result.success) {
-        updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: result.files } });
-      }
+    const resultFile = await readDirSorted(dir, paneId);
+    if (resultFile.success) {
+      updateColumnState(paneId, { filesByPath: { ...(columnState.filesByPath || {}), [dir]: resultFile.files } });
     }
     refreshPane(paneId);
     const newFile: FileItem = { path: untitledPath, name: untitledPath.split('/').pop()!, extension: '', size: 0, modified: Date.now().toString(), isDirectory: false };

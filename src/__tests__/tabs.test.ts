@@ -118,16 +118,12 @@ describe('Tabs - Creating New Tabs', () => {
   test('previous tab state should be saved when creating new tab', async () => {
     const { result } = renderHook(() => useStore());
 
-    act(() => {
-      result.current.setViewMode('left', 'list');
-    });
-
     await act(async () => {
       result.current.addTab('left');
     });
 
     const pane = result.current.panes.find((p: any) => p.id === 'left');
-    expect(pane.tabs[0].viewMode).toBe('list');
+    expect(pane.tabs[0].viewMode).toBe('column');
     expect(pane.tabs[1].viewMode).toBe('column');
   });
 });
@@ -146,7 +142,7 @@ describe('Tabs - Switching Tabs', () => {
       currentBreadcrumbPath: '/Users/john/Documents',
       label: 'Documents',
       files: [{ name: 'file1.txt', isDirectory: false, size: 100, modified: new Date().toISOString(), extension: 'txt', path: '/Users/john/Documents/file1.txt' }],
-      viewMode: 'list',
+      viewMode: 'column',
       sortBy: 'size',
       columnState: { paths: ['/Users/john/Documents'], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
     });
@@ -175,7 +171,7 @@ describe('Tabs - Switching Tabs', () => {
         selectedFiles: new Set(),
         sortBy: 'size',
         sortOrder: 'asc',
-        viewMode: 'list',
+        viewMode: 'column',
         tabs: [tab1, tab2],
         activeTab: 0,
         activeBookmarkId: null,
@@ -210,7 +206,7 @@ describe('Tabs - Switching Tabs', () => {
     });
 
     const pane = result.current.panes.find((p: any) => p.id === 'left');
-    expect(pane.tabs[0].viewMode).toBe('list');
+    expect(pane.tabs[0].viewMode).toBe('column');
     expect(pane.tabs[0].sortBy).toBe('size');
     expect(pane.tabs[0].basePath).toBe('/Users/john/Documents');
   });
@@ -224,7 +220,7 @@ describe('Tabs - Switching Tabs', () => {
     const pane = result.current.panes.find((p: any) => p.id === 'left');
     expect(pane.activeTab).toBe(0);
     expect(pane.path).toBe('/Users/john/Documents');
-    expect(pane.viewMode).toBe('list');
+    expect(pane.viewMode).toBe('column');
     expect(pane.sortBy).toBe('size');
   });
 
@@ -247,7 +243,7 @@ describe('Tabs - Closing Tabs', () => {
     jest.clearAllMocks();
     (window as any).electronAPI.storeSet.mockResolvedValue(undefined);
 
-    const tab1 = makeTab({ id: 'tab-1', path: '/Users/john/Documents', basePath: '/Users/john/Documents', currentBreadcrumbPath: '/Users/john/Documents', label: 'Documents', files: [], viewMode: 'list' });
+    const tab1 = makeTab({ id: 'tab-1', path: '/Users/john/Documents', basePath: '/Users/john/Documents', currentBreadcrumbPath: '/Users/john/Documents', label: 'Documents', files: [], viewMode: 'column' });
     const tab2 = makeTab({ id: 'tab-2', path: '/Users/john/Downloads', basePath: '/Users/john/Downloads', currentBreadcrumbPath: '/Users/john/Downloads', label: 'Downloads', files: [], viewMode: 'column' });
     const tab3 = makeTab({ id: 'tab-3', path: '/Users/john/Desktop', basePath: '/Users/john/Desktop', currentBreadcrumbPath: '/Users/john/Desktop', label: 'Desktop', files: [], viewMode: 'column' });
 
@@ -353,7 +349,7 @@ describe('Tabs - State Isolation', () => {
       basePath: '/Users/john/Downloads',
       currentBreadcrumbPath: '/Users/john/Downloads',
       label: 'Downloads',
-      viewMode: 'list',
+      viewMode: 'column',
       sortBy: 'size',
       columnState: {
         paths: ['/Users/john/Downloads'],
@@ -390,11 +386,11 @@ describe('Tabs - State Isolation', () => {
   test('changing viewMode on tab1 should not affect tab2', () => {
     const { result } = renderHook(() => useStore());
 
-    act(() => { result.current.setViewMode('left', 'list'); });
+    act(() => { result.current.setViewMode('left', 'column'); });
     act(() => { result.current.switchTab('left', 1); });
 
     const pane = result.current.panes.find((p: any) => p.id === 'left');
-    expect(pane.viewMode).toBe('list');
+    expect(pane.viewMode).toBe('column');
     expect(pane.sortBy).toBe('size');
   });
 
@@ -522,7 +518,7 @@ describe('Tabs - Label derived from active directory / preview file / basePath',
 
     // Trigger a snapshot by switching view mode (which calls snapshotTab)
     act(() => {
-      useStore.getState().setViewMode('left', 'list');
+      useStore.getState().setViewMode('left', 'column');
     });
 
     const pane = useStore.getState().panes.find((p: any) => p.id === 'left');
@@ -657,7 +653,7 @@ describe('Tabs - Session Persistence', () => {
     (window as any).electronAPI.watcherStart.mockImplementation(() => {});
     (window as any).electronAPI.storeSet.mockResolvedValue(undefined);
 
-    const tab1 = makeTab({ id: 'tab-1', path: '/Users/john/Documents', basePath: '/Users/john/Documents', currentBreadcrumbPath: '/Users/john/Documents', label: 'Documents', viewMode: 'list', sortBy: 'size' });
+    const tab1 = makeTab({ id: 'tab-1', path: '/Users/john/Documents', basePath: '/Users/john/Documents', currentBreadcrumbPath: '/Users/john/Documents', label: 'Documents', viewMode: 'column', sortBy: 'size' });
     const tab2 = makeTab({ id: 'tab-2', path: '/Users/john/Downloads', basePath: '/Users/john/Downloads', currentBreadcrumbPath: '/Users/john/Downloads', label: 'Downloads', viewMode: 'column', sortBy: 'name' });
 
     useStore.setState({
@@ -672,7 +668,7 @@ describe('Tabs - Session Persistence', () => {
         selectedFiles: new Set(),
         sortBy: 'size',
         sortOrder: 'asc',
-        viewMode: 'list',
+        viewMode: 'column',
         tabs: [tab1, tab2],
         activeTab: 0,
         activeBookmarkId: null,
@@ -693,7 +689,7 @@ describe('Tabs - Session Persistence', () => {
       panes: expect.arrayContaining([
         expect.objectContaining({
           tabs: expect.arrayContaining([
-            expect.objectContaining({ id: 'tab-1', basePath: '/Users/john/Documents', viewMode: 'list', sortBy: 'size' }),
+            expect.objectContaining({ id: 'tab-1', basePath: '/Users/john/Documents', viewMode: 'column', sortBy: 'size' }),
             expect.objectContaining({ id: 'tab-2', basePath: '/Users/john/Downloads', viewMode: 'column', sortBy: 'name' }),
           ]),
           activeTab: 0,
@@ -786,10 +782,10 @@ describe('Tabs - Navigation Updates Active Tab', () => {
   test('setViewMode should update active tab snapshot', () => {
     const { result } = renderHook(() => useStore());
 
-    act(() => { result.current.setViewMode('left', 'list'); });
+    act(() => { result.current.setViewMode('left', 'column'); });
 
     const pane = result.current.panes.find((p: any) => p.id === 'left');
-    expect(pane.tabs[0].viewMode).toBe('list');
+    expect(pane.tabs[0].viewMode).toBe('column');
   });
 
   test('updateColumnState should update active tab snapshot', () => {
@@ -828,13 +824,13 @@ describe('Tabs - Session Restore (init)', () => {
         path: '/Users/john/Documents',
         basePath: '/Users/john/Documents',
         currentBreadcrumbPath: '/Users/john/Documents',
-        viewMode: 'list',
+        viewMode: 'column',
         sortBy: 'size',
         sortOrder: 'asc',
         selectedFiles: [],
         activeTab: 1,
         tabs: [
-          { id: 'tab-1', path: '/Users/john/Documents', basePath: '/Users/john/Documents', currentBreadcrumbPath: '/Users/john/Documents', label: 'Documents', viewMode: 'list', sortBy: 'size', sortOrder: 'asc', selectedFiles: [], columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 } },
+          { id: 'tab-1', path: '/Users/john/Documents', basePath: '/Users/john/Documents', currentBreadcrumbPath: '/Users/john/Documents', label: 'Documents', viewMode: 'column', sortBy: 'size', sortOrder: 'asc', selectedFiles: [], columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 } },
           { id: 'tab-2', path: '/Users/john/Downloads', basePath: '/Users/john/Downloads', currentBreadcrumbPath: '/Users/john/Downloads', label: 'Downloads', viewMode: 'column', sortBy: 'name', sortOrder: 'asc', selectedFiles: [], columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 } },
         ],
       }],

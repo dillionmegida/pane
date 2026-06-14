@@ -18,10 +18,6 @@ export async function revealInColumns(
   const pane = state.panes.find((p: any) => p.id === activePaneId);
   if (!pane) return;
 
-  if (pane.viewMode !== 'column') {
-    state.setViewMode(activePaneId, 'column');
-  }
-
   await state.setRevealTarget({
     paneId: activePaneId,
     filePath,

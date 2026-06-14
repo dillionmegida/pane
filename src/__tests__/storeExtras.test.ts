@@ -605,20 +605,7 @@ describe('Store - ViewMode', () => {
     useStore.setState(basePaneState());
   });
 
-  test('setViewMode changes the pane view mode', () => {
-    act(() => useStore.getState().setViewMode('left', 'list'));
-    const pane = useStore.getState().panes.find(p => p.id === 'left');
-    expect(pane!.viewMode).toBe('list');
-  });
-
-  test('setViewMode to grid', () => {
-    act(() => useStore.getState().setViewMode('left', 'grid'));
-    const pane = useStore.getState().panes.find(p => p.id === 'left');
-    expect(pane!.viewMode).toBe('grid');
-  });
-
-  test('setViewMode back to column', () => {
-    act(() => useStore.getState().setViewMode('left', 'list'));
+  test('setViewMode to column', () => {
     act(() => useStore.getState().setViewMode('left', 'column'));
     const pane = useStore.getState().panes.find(p => p.id === 'left');
     expect(pane!.viewMode).toBe('column');
@@ -982,11 +969,6 @@ describe('Store - getActiveBookmark', () => {
 describe('Store - getColumnPaths', () => {
   beforeEach(() => {
     useStore.setState(basePaneState());
-  });
-
-  test('returns empty for non-column view mode', () => {
-    act(() => useStore.getState().setViewMode('left', 'list'));
-    expect(useStore.getState().getColumnPaths('left')).toEqual([]);
   });
 
   test('returns basePath when breadcrumb equals basePath', () => {

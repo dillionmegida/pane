@@ -868,7 +868,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
     // Also refresh column state filesByPath if in column view
     let updatedColumnState = pane.columnState;
-    if (pane.viewMode === 'column' && pane.columnState?.filesByPath) {
+    if (pane.columnState?.filesByPath) {
       const colPaths = Object.keys(pane.columnState.filesByPath);
       const refreshedEntries = await Promise.all(
         colPaths.map(async (colPath) => {
@@ -1262,7 +1262,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const { panes } = get();
     const pane = panes.find(p => p.id === paneId);
     if (!pane) return '/';
-    return pane.viewMode === 'column' ? pane.currentBreadcrumbPath : pane.path;
+    return pane.currentBreadcrumbPath;
   },
 
   getBreadcrumbs: (paneId) => {
@@ -1270,7 +1270,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const pane = panes.find(p => p.id === paneId);
     const activePath = get().getActivePath(paneId);
 
-    if (pane && pane.viewMode === 'column' && pane.basePath) {
+    if (pane && pane.basePath) {
       const base = pane.basePath;
       const baseName = base === '/' ? '/' : base.split('/').filter(Boolean).pop() ?? base;
 
@@ -1304,7 +1304,7 @@ export const useStore = create<StoreState>((set, get) => ({
   getColumnPaths: (paneId) => {
     const { panes } = get();
     const pane = panes.find(p => p.id === paneId);
-    if (!pane || pane.viewMode !== 'column') return [];
+    if (!pane) return [];
 
     const fullPath = pane.currentBreadcrumbPath;
     const base = pane.basePath;
@@ -1640,7 +1640,7 @@ export const useStore = create<StoreState>((set, get) => ({
             }
 
             // If it's a directory in column view, trim columns
-            if (p.viewMode === 'column' && p.columnState?.paths) {
+            if (p.columnState?.paths) {
               const dirIndex = p.columnState.paths.indexOf(change.path);
               if (dirIndex !== -1) {
                 updateColumnState(p.id, {

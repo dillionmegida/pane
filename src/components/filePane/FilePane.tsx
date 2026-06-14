@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { useStore, formatSize, formatDate, getFileIcon } from '../../store';
-import FileGridItem from './FileGridItem';
 import PaneBreadcrumb from './PaneBreadcrumb';
 import PaneContextMenu from './PaneContextMenu';
 import InlineTagPicker from './InlineTagPicker';
 import PreviewPane from '../PreviewPane';
 import QuickPreviewModal from '../QuickPreviewModal';
-import type { FileItem, Tag, ViewMode } from '../../types';
+import type { FileItem, Tag } from '../../types';
 import { KEYBOARD_SEARCH_IN_FILE_TREE_DEBOUNCE_TIME } from '../../constants';
 import { useKeyboardNavigation } from './useKeyboardNavigation';
 import { useFileActions } from './useFileActions';
@@ -16,7 +15,6 @@ import { useNavigation } from './useNavigation';
 import { useDragDrop } from './useDragDrop';
 import { useQuickPreview } from './useQuickPreview';
 import ColumnView from './ColumnView';
-import ListView from './ListView';
 
 // ─── Styled ───────────────────────────────────────────────────────────────────
 
@@ -110,16 +108,6 @@ const ContentArea = styled.div`
   overflow: hidden;
 `;
 
-const GridArea = styled.div`
-  flex: 1;
-  overflow: auto;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-  gap: 4px;
-  padding: 8px;
-  align-content: start;
-`;
-
 const StatusBar = styled.div`
   display: flex;
   align-items: center;
@@ -156,7 +144,6 @@ export default function FilePane({ paneId }: FilePaneProps) {
   const {
     navigateTo,
     setCurrentBreadcrumbPath,
-    setViewMode,
     setColumnState,
     updateColumnState,
     clearColumnState,
@@ -205,7 +192,6 @@ export default function FilePane({ paneId }: FilePaneProps) {
   const selectedFilesRef = useRef<Set<string>>(new Set());
   const paneRefForSearch = useRef<any>(null);
   const columnStateRef = useRef<any>(null);
-  const viewModeRef = useRef<ViewMode>('list');
   const filesRef = useRef<FileItem[]>([]);
   const getColumnPathsRef = useRef<any>(() => []);
   const shiftAnchorPathRef = useRef<string | null>(null);
@@ -236,7 +222,6 @@ export default function FilePane({ paneId }: FilePaneProps) {
   selectedFilesRef.current = selectedFiles;
   paneRefForSearch.current = pane;
   columnStateRef.current = columnState;
-  viewModeRef.current = viewMode;
   filesRef.current = files;
   getColumnPathsRef.current = getColumnPaths;
 
@@ -253,7 +238,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
 
   // ── Scroll column view to end on path change, preview open/close, or file change
   useEffect(() => {
-    if (viewMode === 'column' && columnViewRef.current) {
+    if (columnViewRef.current) {
       columnViewRef.current.scrollLeft = columnViewRef.current.scrollWidth;
     }
     // Clear typing buffer on navigation or view change
@@ -262,7 +247,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
     }
-  }, [columnState?.paths?.join(','), viewMode, showPreview, previewFile?.path]);
+  }, [columnState?.paths?.join(','), showPreview, previewFile?.path]);
 
   // ── Reveal target (from search/tag browser) ───────────────────────────────
   useEffect(() => {
@@ -273,9 +258,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
 
   // ── Load tags for visible files ────────────────────────────────────────────
   useEffect(() => {
-    const visibleFiles = viewMode === 'column'
-      ? Object.values(columnState?.filesByPath || {}).flat()
-      : files;
+    const visibleFiles = Object.values(columnState?.filesByPath || {}).flat();
 
     const toLoad = visibleFiles.filter(f => !fileTags[f.path]);
     if (toLoad.length === 0) return;
@@ -290,7 +273,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
       setFileTags(prev => ({ ...prev, ...Object.fromEntries(results) }));
     };
     loadBatch();
-  }, [files.length, columnState?.paths?.join(','), viewMode]);
+  }, [files.length, columnState?.paths?.join(',')]);
 
   // ── Calculate folder size when a folder is selected ───────────────────────
   useEffect(() => {
@@ -316,7 +299,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   const { navigate, handleBreadcrumbNavigate } = useNavigation({
-    paneId, pane, viewMode, columnState, selectedFiles, previewFile,
+    paneId, pane, columnState, selectedFiles, previewFile,
     navigateTo, readDirSorted, setColumnState, setCurrentBreadcrumbPath,
     setPreviewFile, pushNavHistory,
   });
@@ -378,8 +361,8 @@ export default function FilePane({ paneId }: FilePaneProps) {
   };
 
   // ── Drag & drop ────────────────────────────────────────────────────────────
-  const { draggedFiles, setDraggedFiles, isDragging, setIsDragging, dragOver, setDragOver, handleDrop } = useDragDrop({
-    paneId, pane, viewMode, columnState, refreshPane, readDirSorted, updateColumnState,
+  const { draggedFiles, setDraggedFiles, setIsDragging, dragOver, setDragOver, handleDrop } = useDragDrop({
+    paneId, pane, columnState, refreshPane, readDirSorted, updateColumnState,
   });
 
   // ── File actions (rename, create, delete) ─────────────────────────────────
@@ -389,14 +372,14 @@ export default function FilePane({ paneId }: FilePaneProps) {
     newItemInputRef, startRename, commitRename, createFolder,
     commitNewItem, handleDelete, createNewFile,
   } = useFileActions({
-    paneId, pane, files, columnState, viewMode, selectedFiles,
+    paneId, pane, files, columnState, selectedFiles,
     readDirSorted, updateColumnState, setColumnState,
     setCurrentBreadcrumbPath, setSelection, refreshPane, openModal,
   });
 
   // ── Keyboard navigation ────────────────────────────────────────────────────
   useKeyboardNavigation({
-    isActive, paneId, selectedFiles, files, viewMode, columnState, pane,
+    isActive, paneId, selectedFiles, files, columnState, pane,
     showHidden, getColumnPaths, toggleHiddenFiles, setSelection,
     handleColumnItemClick, startRename, createFolder, handleDelete,
     goBackInHistory, goForwardInHistory, typingBufferRef, setTypingBuffer,
@@ -414,33 +397,23 @@ export default function FilePane({ paneId }: FilePaneProps) {
     }
 
     typingTimeoutRef.current = setTimeout(() => {
-      const currentViewMode = viewModeRef.current;
       const currentColumnState = columnStateRef.current;
       const currentPane = paneRefForSearch.current;
       const currentFiles = filesRef.current;
       const currentGetColumnPaths = getColumnPathsRef.current;
 
-      // Determine which files to search based on view mode
-      let searchFiles: FileItem[] = [];
-      if (currentViewMode === 'column') {
-        const focusedIdx = currentColumnState?.focusedIndex ?? 0;
-        const base = currentPane?.basePath || currentPane?.path || '';
-        const columnPaths = currentGetColumnPaths(paneId);
-        const focusedColPath = columnPaths[focusedIdx] ?? base;
-        searchFiles = currentColumnState?.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? currentFiles : []);
-      } else {
-        searchFiles = currentFiles;
-      }
+      // Determine which files to search in the focused column
+      const focusedIdx = currentColumnState?.focusedIndex ?? 0;
+      const base = currentPane?.basePath || currentPane?.path || '';
+      const columnPaths = currentGetColumnPaths(paneId);
+      const focusedColPath = columnPaths[focusedIdx] ?? base;
+      const searchFiles: FileItem[] = currentColumnState?.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? currentFiles : []);
 
       // Find first match
       const match = searchFiles.find(f => f.name.toLowerCase().startsWith(buffer));
       if (match) {
-        if (currentViewMode === 'column') {
-          const focusedIdx = currentColumnState?.focusedIndex ?? 0;
-          handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, match, focusedIdx, 'keyboard');
-        } else {
-          setSelection(paneId, [match.path]);
-        }
+        const focusedIdx2 = currentColumnState?.focusedIndex ?? 0;
+        handleColumnItemClick({ stopPropagation: () => {} } as React.MouseEvent, match, focusedIdx2, 'keyboard');
       }
       // Clear buffer after search attempt
       typingBufferRef.current = '';
@@ -499,7 +472,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
 
   // ── Derived column selections ──────────────────────────────────────────────
   const derivedSelections: Record<number, string | null> = {};
-  if (viewMode === 'column' && columnState?.paths) {
+  if (columnState?.paths) {
     columnState.paths.forEach((p, i) => {
       derivedSelections[i] = columnState.selectedByColumn?.[i] ?? null;
     });
@@ -545,9 +518,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
   const _focusedIdx = columnState?.focusedIndex ?? 0;
   const _base = pane?.basePath || pane?.path || '';
   const _focusedPath = _focusedIdx === 0 ? _base : (columnState?.paths?.[((_focusedIdx) - 1)] ?? '');
-  const totalFiles = viewMode === 'column'
-    ? (_focusedIdx === 0 ? files.length : (showHidden ? columnState?.filesByPath?.[_focusedPath] || [] : (columnState?.filesByPath?.[_focusedPath] || []).filter((f: FileItem) => !f.name.startsWith('.'))).length)
-    : files.length;
+  const totalFiles = _focusedIdx === 0 ? files.length : (showHidden ? columnState?.filesByPath?.[_focusedPath] || [] : (columnState?.filesByPath?.[_focusedPath] || []).filter((f: FileItem) => !f.name.startsWith('.'))).length;
   const selCount = selectedFiles.size;
 
   const canGoBack = navigationIndex > 0;
@@ -594,49 +565,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
 
       {/* File area + Preview Pane (side by side) */}
       <ContentArea>
-        {viewMode === 'list' && (
-          <ListView
-            paneId={paneId} files={files}
-            newItemMode={newItemMode} newItemName={newItemName}
-            newItemInputRef={newItemInputRef} setNewItemName={setNewItemName}
-            setNewItemMode={setNewItemMode} commitNewItem={commitNewItem}
-            selectedFiles={selectedFiles} renaming={renaming}
-            contextMenuFilePath={contextMenu?.file?.path ?? null}
-            dragOver={dragOver} draggedFiles={draggedFiles} fileTags={fileTags}
-            renameValue={renameValue} setRenameValue={setRenameValue}
-            commitRename={commitRename} setRenaming={setRenaming}
-            handleFileClick={handleFileClick} handleFileDoubleClick={handleFileDoubleClick}
-            handleContextMenu={handleContextMenu} handleDrop={handleDrop}
-            setSelection={setSelection} setDraggedFiles={setDraggedFiles}
-            setIsDragging={setIsDragging} setDragOver={setDragOver}
-          />
-        )}
-        {viewMode === 'grid' && (
-          <GridArea onClick={() => setSelection(paneId, [])}>
-            {files.map(file => (
-              <FileGridItem
-                key={file.path}
-                file={file}
-                isSelected={selectedFiles.has(file.path)}
-                isDragOver={dragOver === file.path}
-                selectedFiles={selectedFiles}
-                draggedFiles={draggedFiles}
-                paneId={paneId}
-                fileTags={fileTags}
-                onClick={e => handleFileClick(e, file)}
-                onDoubleClick={handleFileDoubleClick}
-                onContextMenu={e => handleContextMenu(e, file)}
-                onDrop={(e, f) => handleDrop(e, f)}
-                setSelection={setSelection}
-                setDraggedFiles={setDraggedFiles}
-                setIsDragging={setIsDragging}
-                setDragOver={setDragOver}
-              />
-            ))}
-          </GridArea>
-        )}
-        {viewMode === 'column' && (
-          <ColumnView
+        <ColumnView
             paneId={paneId} pane={pane} files={files} columnState={columnState}
             showHidden={showHidden} columnViewRef={columnViewRef}
             columnWidths={columnWidths} defaultColumnWidth={DEFAULT_COLUMN_WIDTH}
@@ -655,7 +584,6 @@ export default function FilePane({ paneId }: FilePaneProps) {
             onBaseEmptyClick={handleBaseColumnEmptyClick}
             onColumnEmptyClick={handleColumnEmptyClick}
           />
-        )}
         {showPreview && activePane === paneId && previewFile && (
           <PreviewPane />
         )}

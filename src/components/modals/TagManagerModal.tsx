@@ -133,7 +133,7 @@ interface TagManagerModalProps {
 }
 
 export function TagManagerModal({ data, onClose }: TagManagerModalProps) {
-  const { loadAllTags, currentTheme, setViewMode, panes, activePane } = useStore();
+  const { loadAllTags, currentTheme, activePane } = useStore();
   const TAG_COLORS = getTagColors(currentTheme);
   const file = data?.file;
 

@@ -1,12 +1,11 @@
 import { useEffect } from 'react';
-import type { FileItem, ViewMode } from '../../types';
+import type { FileItem } from '../../types';
 
 interface UseKeyboardNavigationParams {
   isActive: boolean;
   paneId: string;
   selectedFiles: Set<string>;
   files: FileItem[];
-  viewMode: ViewMode;
   columnState: any;
   pane: any;
   showHidden: boolean;
@@ -30,7 +29,6 @@ export function useKeyboardNavigation({
   paneId,
   selectedFiles,
   files,
-  viewMode,
   columnState,
   pane,
   showHidden,
@@ -102,9 +100,7 @@ export function useKeyboardNavigation({
       const columnPaths = getColumnPaths(paneId);
       const focusedColPath = columnPaths[focusedIdx] ?? base;
       const filterHiddenNav = (arr: FileItem[]) => showHidden ? arr : arr.filter((f: FileItem) => !f.name.startsWith('.'));
-      const displayFiles = viewMode === 'column'
-        ? filterHiddenNav(columnState.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? files : []))
-        : files;
+      const displayFiles = filterHiddenNav(columnState.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? files : []));
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') {
         e.preventDefault();
@@ -169,7 +165,7 @@ export function useKeyboardNavigation({
           const lo = Math.min(anchorIdx, newCursorIdx);
           const hi = Math.max(anchorIdx, newCursorIdx);
           const rangeFiles = displayFiles.slice(lo, hi + 1).map((f: FileItem) => f.path);
-          setSelection(paneId, rangeFiles, viewMode === 'column' ? focusedIdx : null);
+          setSelection(paneId, rangeFiles, focusedIdx);
           return;
         }
 
@@ -191,7 +187,7 @@ export function useKeyboardNavigation({
         return;
       }
 
-      if (e.key === 'ArrowRight' && viewMode === 'column') {
+      if (e.key === 'ArrowRight') {
         e.preventDefault();
         shiftAnchorPathRef.current = null;
         shiftCursorPathRef.current = null;
@@ -205,7 +201,7 @@ export function useKeyboardNavigation({
         return;
       }
 
-      if (e.key === 'ArrowLeft' && viewMode === 'column') {
+      if (e.key === 'ArrowLeft') {
         e.preventDefault();
         shiftAnchorPathRef.current = null;
         shiftCursorPathRef.current = null;
@@ -233,6 +229,6 @@ export function useKeyboardNavigation({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isActive, paneId, selectedFiles, files, viewMode, columnState, pane, toggleHiddenFiles, getColumnPaths]);
+  }, [isActive, paneId, selectedFiles, files, columnState, pane, toggleHiddenFiles, getColumnPaths]);
 
 }

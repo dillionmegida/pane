@@ -55,11 +55,11 @@ const buildInitialState = (overrides: Record<string, any> = {}): any => ({
     id: 'left', path: basePath, basePath, files: testFiles,
     loading: false, error: null, selectedFiles: new Set(), lastSelectedFile: null,
     selectionColumnIndex: null,
-    sortBy: 'name', sortOrder: 'asc', viewMode: 'list',
+    sortBy: 'name', sortOrder: 'asc', viewMode: 'column',
     tabs: [{ 
       id: 'tab-1', path: basePath, basePath, currentBreadcrumbPath: basePath,
       label: 'test', files: testFiles, selectedFiles: new Set(),
-      activeBookmarkId: null, viewMode: 'list', sortBy: 'name', sortOrder: 'asc',
+      activeBookmarkId: null, viewMode: 'column', sortBy: 'name', sortOrder: 'asc',
       columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
       previewFile: null, navigationHistory: [], navigationIndex: -1, _isRestoringHistory: false,
     }],

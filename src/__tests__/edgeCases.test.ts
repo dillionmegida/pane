@@ -576,29 +576,13 @@ describe('getBreadcrumbs - derives breadcrumbs for column/list/root', () => {
     expect(crumbs[1]).toEqual({ name: 'Users', path: '/Users' });
   });
 
-  test('list view: full path from root', () => {
-    useStore.setState({
-      panes: [defaultPane({
-        path: '/Users/john/Documents',
-        basePath: '/Users/john/Documents',
-        currentBreadcrumbPath: '/Users/john/Documents',
-        viewMode: 'list',
-      })],
-    });
-    const crumbs = useStore.getState().getBreadcrumbs('left');
-    expect(crumbs[0]).toEqual({ name: '/', path: '/' });
-    expect(crumbs[1]).toEqual({ name: 'Users', path: '/Users' });
-    expect(crumbs[2]).toEqual({ name: 'john', path: '/Users/john' });
-    expect(crumbs[3]).toEqual({ name: 'Documents', path: '/Users/john/Documents' });
-  });
-
   test('root path returns single / breadcrumb', () => {
     useStore.setState({
       panes: [defaultPane({
         path: '/',
         basePath: '/',
         currentBreadcrumbPath: '/',
-        viewMode: 'list',
+        viewMode: 'column',
       })],
     });
     const crumbs = useStore.getState().getBreadcrumbs('left');
@@ -644,14 +628,6 @@ describe('getColumnPaths - derives column paths from breadcrumb', () => {
     });
     const paths = useStore.getState().getColumnPaths('left');
     expect(paths).toEqual(['/Users/john']);
-  });
-
-  test('returns empty for non-column view mode', () => {
-    useStore.setState({
-      panes: [defaultPane({ viewMode: 'list' })],
-    });
-    const paths = useStore.getState().getColumnPaths('left');
-    expect(paths).toEqual([]);
   });
 
   test('returns empty for unknown pane', () => {

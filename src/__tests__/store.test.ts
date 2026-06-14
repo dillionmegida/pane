@@ -838,7 +838,7 @@ describe('Store - pasteClipboard', () => {
     expect(activePath).toBe('/home/user/Documents');
   });
 
-  test('getActivePath returns pane.path in list view', () => {
+  test('getActivePath returns currentBreadcrumbPath', () => {
     act(() => {
       useStore.setState({
       panes: [{
@@ -852,7 +852,7 @@ describe('Store - pasteClipboard', () => {
         selectedFiles: new Set(),
         sortBy: 'name',
         sortOrder: 'asc',
-        viewMode: 'list',
+        viewMode: 'column',
         tabs: [{ id: 'tab-1', path: '/home/user', label: 'user' }],
         activeTab: 0,
       }],
@@ -861,7 +861,7 @@ describe('Store - pasteClipboard', () => {
     })
     const { result } = renderHook(() => useStore());
     const activePath = result.current.getActivePath('left');
-    expect(activePath).toBe('/home/user');
+    expect(activePath).toBe('/home/user/Documents');
   });
 
   test('paste constructs correct dest path using filename from src', async () => {
