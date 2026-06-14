@@ -28,6 +28,7 @@ export interface ColumnState {
   filesByPath: Record<string, FileItem[]>;
   selectedByColumn: Record<number, string>;
   focusedIndex: number;
+  loadingPath: string | null;
 }
 
 // ─── Navigation History ───────────────────────────────────────────────────────

@@ -487,6 +487,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
       filesByPath: { [base]: columnState.filesByPath?.[base] || files },
       selectedByColumn: {},
       focusedIndex: 0,
+      loadingPath: null,
     });
     setCurrentBreadcrumbPath(paneId, base);
     setPreviewFile(null);
@@ -509,7 +510,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
     delete newSelByCol[colIndex];
     const newBreadcrumb = keptPaths.length > 0 ? keptPaths[keptPaths.length - 1] : base;
     setSelection(paneId, []);
-    setColumnState(paneId, { paths: keptPaths, filesByPath: newFbp, selectedByColumn: newSelByCol, focusedIndex: colIndex });
+    setColumnState(paneId, { paths: keptPaths, filesByPath: newFbp, selectedByColumn: newSelByCol, focusedIndex: colIndex, loadingPath: null });
     setCurrentBreadcrumbPath(paneId, newBreadcrumb);
     setPreviewFile(null);
     pushNavHistory(paneId, { basePath: base, currentBreadcrumbPath: newBreadcrumb, selectedFiles: [], previewFilePath: null });

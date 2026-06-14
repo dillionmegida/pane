@@ -26,6 +26,12 @@ const ColumnList = styled.div`
   &::-webkit-scrollbar-thumb { background: ${p => p.theme.border.subtle}; border-radius: 1px; }
 `;
 
+const LoadingMessage = styled.div`
+  padding: 2px 6px;
+  font-size: 11px;
+  color: ${p => p.theme.text.tertiary};
+`;
+
 const ColumnResizer = styled.div`
   position: absolute;
   right: -2px;
@@ -68,6 +74,7 @@ interface ColumnProps {
   updateColumnState: (paneId: string, updates: Partial<ColumnState>) => void;
   toggleSelection: (paneId: string, filePath: string, multi?: boolean) => void;
   onResizerMouseDown: (e: React.MouseEvent) => void;
+  isLoading?: boolean;
 }
 
 export default function Column({
@@ -101,6 +108,7 @@ export default function Column({
   updateColumnState,
   toggleSelection,
   onResizerMouseDown,
+  isLoading,
 }: ColumnProps) {
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -120,7 +128,8 @@ export default function Column({
       onDrop={handleDrop}
     >
       <ColumnList data-column-list onClick={() => onEmptyClick(columnIndex)}>
-        {colFiles.map(file => {
+        {isLoading && <LoadingMessage>Loading…</LoadingMessage>}
+        {!isLoading && colFiles.map(file => {
           const isSelected = selectedFiles.has(file.path);
           const isDerived = derivedSelections[columnIndex] === file.path;
           const isDragOver = dragOver === file.path;

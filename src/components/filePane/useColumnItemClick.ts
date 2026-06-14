@@ -98,22 +98,30 @@ export function useColumnItemClick({
       // paths holds child columns (index 1+). Clicking at columnIndex opens a new
       // child at columnIndex+1, so keep only paths[0..columnIndex-1] then append.
       const keptPaths = (columnState.paths || []).slice(0, columnIndex);
+      const base = pane.basePath || pane.path;
+      const newPaths = [...keptPaths, file.path];
+      // Immediately clear stale child columns so old content doesn't linger while loading.
+      const immediateKeepSet = new Set([base, ...keptPaths]);
+      const immediateFbp: Record<string, FileItem[]> = {};
+      for (const [k, v] of Object.entries(columnState.filesByPath || {})) {
+        if (immediateKeepSet.has(k)) immediateFbp[k] = v as FileItem[];
+      }
+      setColumnState(paneId, {
+        paths: newPaths,
+        filesByPath: immediateFbp,
+        selectedByColumn: { ...(columnState.selectedByColumn || {}), [columnIndex]: file.path },
+        focusedIndex: columnIndex,
+        loadingPath: file.path,
+      });
       const result = await readDirSorted(file.path, paneId);
       if (result.success) {
-        const newPaths = [...keptPaths, file.path];
-        const newFbp: Record<string, FileItem[]> = {};
-        const base = pane.basePath || pane.path;
-        // Keep base files and entries for kept paths
-        const keepSet = new Set([base, ...newPaths]);
-        for (const [k, v] of Object.entries(columnState.filesByPath || {})) {
-          if (keepSet.has(k)) newFbp[k] = v as FileItem[];
-        }
-        newFbp[file.path] = result.files;
+        const newFbp = { ...immediateFbp, [file.path]: result.files };
         setColumnState(paneId, {
           paths: newPaths,
           filesByPath: newFbp,
           selectedByColumn: { ...(columnState.selectedByColumn || {}), [columnIndex]: file.path },
           focusedIndex: columnIndex,
+          loadingPath: null,
         });
         setCurrentBreadcrumbPath(paneId, file.path);
         setPreviewFile(null);
@@ -124,6 +132,14 @@ export function useColumnItemClick({
           selectedFiles: [file.path],
           previewFilePath: null,
           selectedByColumn: newSelByCol,
+        });
+      } else {
+        setColumnState(paneId, {
+          paths: keptPaths,
+          filesByPath: immediateFbp,
+          selectedByColumn: { ...(columnState.selectedByColumn || {}), [columnIndex]: file.path },
+          focusedIndex: columnIndex,
+          loadingPath: null,
         });
       }
     } else {
@@ -141,6 +157,7 @@ export function useColumnItemClick({
         filesByPath: newFbp,
         selectedByColumn: { ...(columnState.selectedByColumn || {}), [columnIndex]: file.path },
         focusedIndex: columnIndex,
+        loadingPath: null,
       });
       setCurrentBreadcrumbPath(paneId, parentPath);
       if (isPreviewable(file)) {

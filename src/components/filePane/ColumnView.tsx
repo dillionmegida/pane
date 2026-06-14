@@ -97,6 +97,7 @@ export default function ColumnView({
       {paths.map((colPath: string, idx: number) => {
         const colFiles = filterHidden(filesByPath[colPath] || []);
         const colIndex = idx + 1;
+        const isLoading = columnState?.loadingPath === colPath;
         return (
           <Column
             key={colPath}
@@ -107,6 +108,7 @@ export default function ColumnView({
             width={`${columnWidths[colIndex] ?? defaultColumnWidth}px`}
             onEmptyClick={() => onColumnEmptyClick(colIndex)}
             onResizerMouseDown={handleColumnResizerMouseDown(colIndex)}
+            isLoading={isLoading}
             {...sharedColumnProps}
           />
         );

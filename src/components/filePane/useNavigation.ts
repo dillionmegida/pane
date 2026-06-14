@@ -35,6 +35,7 @@ export function useNavigation({
         filesByPath: { [dirPath]: result.files },
         selectedByColumn: {},
         focusedIndex: 0,
+        loadingPath: null,
       });
       setCurrentBreadcrumbPath(paneId, dirPath);
     } else {
@@ -50,6 +51,7 @@ export function useNavigation({
         filesByPath: newFbp,
         selectedByColumn: { ...(columnState.selectedByColumn || {}) },
         focusedIndex: newPaths.length - 1,
+        loadingPath: null,
       });
       setCurrentBreadcrumbPath(paneId, dirPath);
     }

@@ -30,6 +30,7 @@ const DEFAULT_COLUMN_STATE: ColumnState = {
   filesByPath: {},
   selectedByColumn: {},
   focusedIndex: 0,
+  loadingPath: null,
 };
 
 const getTabLabel = (breadcrumb: string | undefined, previewFile: FileItem | null, basePath: string): string => {
@@ -355,6 +356,7 @@ export const useStore = create<StoreState>((set, get) => ({
           filesByPath: {},
           selectedByColumn: {},
           focusedIndex: 0,
+          loadingPath: null,
         },
       };
       const newTabs = currentPane.tabs.map((t, i) =>

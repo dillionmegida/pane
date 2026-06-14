@@ -158,6 +158,7 @@ export function useFileActions({
           filesByPath: trimmedFbp,
           selectedByColumn: {},
           focusedIndex: Math.max(0, firstDeletedIdx - 1),
+          loadingPath: null,
         });
         setCurrentBreadcrumbPath(paneId, newBreadcrumb);
       } else {
