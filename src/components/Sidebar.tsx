@@ -339,7 +339,8 @@ export default function Sidebar() {
   };
 
   const isExternalFileDrag = (e: React.DragEvent) =>
-    e.dataTransfer.types.includes('file-paths') && !e.dataTransfer.types.includes('bookmark-index');
+    (e.dataTransfer.types.includes('file-paths') || e.dataTransfer.types.includes('Files')) &&
+    !e.dataTransfer.types.includes('bookmark-index');
 
   const isBookmarkReorder = (e: React.DragEvent) =>
     e.dataTransfer.types.includes('bookmark-index');
@@ -387,9 +388,17 @@ export default function Sidebar() {
     e.preventDefault();
     const idx = insertLineIndex ?? bookmarks.length;
     setInsertLineIndex(null);
+    let paths: string[] = [];
     const rawPaths = e.dataTransfer.getData('file-paths');
-    if (!rawPaths) return;
-    const paths: string[] = JSON.parse(rawPaths);
+    if (rawPaths) {
+      try { paths = JSON.parse(rawPaths); } catch { paths = []; }
+    }
+    if (!paths.length && e.dataTransfer.files?.length) {
+      paths = Array.from(e.dataTransfer.files)
+        .map(f => (f as File & { path?: string }).path || '')
+        .filter(Boolean);
+    }
+    if (!paths.length) return;
     const newEntries = paths
       .filter(p => !bookmarks.some(bm => bm.path === p))
       .map(p => ({

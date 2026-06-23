@@ -37,15 +37,49 @@ export function startDrag(
     setSelection(paneId, [file.path]);
   }
 
-  e.dataTransfer.effectAllowed = 'copyMove';
-  e.dataTransfer.setData('file-paths', JSON.stringify(filesToDrag));
-
-  const img = createDragImage(file, selectedFiles.has(file.path) ? selectedFiles : new Set([file.path]));
-  e.dataTransfer.setDragImage(img, 0, 0);
-  setTimeout(() => document.body.removeChild(img), 0);
-
   setDraggedFiles(filesToDrag);
   setIsDragging(true);
+
+  // Cancel Chromium's HTML5 drag. On macOS the native OS drag (started below
+  // via the main process) only engages if the default drag is prevented;
+  // otherwise the two conflict and external drops silently fail.
+  e.preventDefault();
+
+  // Start a native OS drag session so files can be dropped onto external apps
+  // (Finder, Mail, etc.). Internal drops read the file paths back from
+  // `dataTransfer.files` via getDraggedPaths().
+  window.electronAPI?.startDrag?.(filesToDrag);
+
+  // Native drags don't emit an HTML5 'dragend', so reset drag state manually.
+  const cleanup = () => {
+    setIsDragging(false);
+    setDraggedFiles([]);
+    window.removeEventListener('mouseup', cleanup);
+    window.removeEventListener('dragend', cleanup);
+  };
+  window.addEventListener('mouseup', cleanup);
+  window.addEventListener('dragend', cleanup);
+}
+
+// Resolve the dragged file paths from a drop event. Internal drags carry the
+// custom 'file-paths' payload; native/external drags expose OS file paths on
+// `dataTransfer.files` instead.
+export function getDraggedPaths(e: React.DragEvent): string[] {
+  const raw = e.dataTransfer.getData('file-paths');
+  if (raw) {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      // fall through to native files
+    }
+  }
+  const files = e.dataTransfer.files;
+  if (files && files.length) {
+    return Array.from(files)
+      .map(f => (f as File & { path?: string }).path || '')
+      .filter(Boolean);
+  }
+  return [];
 }
 
 export function endDrag(

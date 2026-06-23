@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   openPath: (path) => ipcRenderer.invoke('shell:openPath', path),
   showInFinder: (path) => ipcRenderer.invoke('shell:showItemInFinder', path),
+  startDrag: (filePaths) => ipcRenderer.send('drag:start', filePaths),
   getAppsForFile: (filePath) => ipcRenderer.invoke('shell:getAppsForFile', filePath),
   openWith: (filePath, appPath) => ipcRenderer.invoke('shell:openWith', { filePath, appPath }),
   getDefaultApp: (ext) => ipcRenderer.invoke('shell:getDefaultApp', ext),

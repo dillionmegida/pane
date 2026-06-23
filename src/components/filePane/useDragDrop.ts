@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { FileItem } from '../../types';
+import { getDraggedPaths } from './dragUtils';
 
 interface UseDragDropParams {
   paneId: string;
@@ -20,13 +21,20 @@ export function useDragDrop({
   const handleDrop = useCallback(async (e: React.DragEvent, file: FileItem | null, path?: string) => {
     e.preventDefault();
     setDragOver(null);
-    const rawPaths = e.dataTransfer.getData('file-paths');
-    if (!rawPaths) return;
-    const srcPaths: string[] = JSON.parse(rawPaths);
+    const srcPaths = getDraggedPaths(e);
+    if (!srcPaths.length) return;
     const destDir = file?.isDirectory ? file.path : (path || pane.path);
 
+    // Ignore drops where the source is already in the destination directory
+    // (e.g. dropping a file back onto its own pane).
+    const filteredPaths = srcPaths.filter(src => {
+      const parent = src.substring(0, src.lastIndexOf('/'));
+      return parent !== destDir;
+    });
+    if (!filteredPaths.length) return;
+
     const isCopy = e.altKey;
-    const ops = srcPaths.map(src => {
+    const ops = filteredPaths.map(src => {
       const dest = `${destDir}/${src.split('/').pop()}`;
       return isCopy
         ? window.electronAPI.copy(src, dest)

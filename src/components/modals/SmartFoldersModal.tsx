@@ -187,16 +187,6 @@ export function SmartFoldersModal({ data, onClose }: SmartFoldersModalProps) {
     persistModalStateHelper(MODAL_TYPES.SMART_FOLDERS, state);
   }, [selectedFilterType, fileSizeInputMB, excludedDirectories, isRestoring]);
 
-  // Save state immediately when modal closes
-  useEffect(() => {
-    return () => {
-      if (!isRestoring) {
-        const state = createSmartFoldersModalState(selectedFilterType, fileSizeInputMB, excludedDirectories);
-        persistModalStateImmediate(MODAL_TYPES.SMART_FOLDERS, state);
-      }
-    };
-  }, [selectedFilterType, fileSizeInputMB, excludedDirectories, isRestoring]);
-
   useEffect(() => {
     const contentEl = contentAreaRef.current;
     if (!contentEl) return;

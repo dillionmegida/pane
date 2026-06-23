@@ -238,6 +238,7 @@ declare global {
       mkdir: (path: string) => Promise<GenericResult>;
       writeFile: (path: string, content: string) => Promise<GenericResult>;
       openPath: (path: string) => void;
+      startDrag: (filePaths: string[]) => void;
       zip: (args: { files: string[]; destPath: string }) => Promise<GenericResult>;
       unzip: (args: { filePath: string; destDir: string }) => Promise<GenericResult>;
       undo: () => Promise<GenericResult>;

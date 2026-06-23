@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, Menu, dialog, shell, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, Menu, dialog, shell, nativeTheme, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsExtra = require('fs-extra');
@@ -1067,6 +1067,44 @@ ipcMain.handle('bookmarks:save', async (event, bookmarks) => { if (store) store.
 ipcMain.handle('shell:openExternal', async (event, url) => shell.openExternal(url));
 ipcMain.handle('shell:openPath', async (event, p) => shell.openPath(p));
 ipcMain.handle('shell:showItemInFinder', async (event, p) => shell.showItemInFinder(p));
+
+// ─── IPC: Native Drag (drag files out to external apps) ────────────────────────
+// startDrag requires a non-empty icon on macOS, otherwise it throws.
+let dragIconCache = null;
+function getDragIcon() {
+  if (dragIconCache && !dragIconCache.isEmpty()) return dragIconCache;
+
+  // Prefer the bundled app icon; fall back to an embedded 16x16 PNG.
+  for (const rel of ['../../icon.png', '../../logo.png']) {
+    try {
+      const img = nativeImage.createFromPath(path.join(__dirname, rel));
+      if (img && !img.isEmpty()) {
+        dragIconCache = img.resize({ width: 32, height: 32 });
+        return dragIconCache;
+      }
+    } catch (_) {}
+  }
+
+  dragIconCache = nativeImage.createFromDataURL(
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAH0lEQVR42mNkYPhfz0BFwDiqgX40DGo9wxoGxlEN9AEAQwsHEUbZ7VgAAAAASUVORK5CYII='
+  );
+  return dragIconCache;
+}
+
+ipcMain.on('drag:start', (event, filePaths) => {
+  const paths = (Array.isArray(filePaths) ? filePaths : [filePaths]).filter(Boolean);
+  if (paths.length === 0) return;
+
+  try {
+    event.sender.startDrag({
+      file: paths[0],
+      files: paths,
+      icon: getDragIcon(),
+    });
+  } catch (err) {
+    console.error('drag:start error:', err.message);
+  }
+});
 
 // ─── IPC: Open With ───────────────────────────────────────────────────────────
 ipcMain.handle('shell:getAppsForFile', async (event, filePath) => {
