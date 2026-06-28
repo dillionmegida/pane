@@ -84,6 +84,13 @@ const TagDot = styled.span<{ color: string; offset: number }>`
   border: 1px solid white;
 `;
 
+const NameHighlight = styled.mark`
+  background: rgba(255, 200, 0, 0.35);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+`;
+
 const ColumnRenameInput = styled.input`
   flex: 1;
   background: transparent;
@@ -110,6 +117,7 @@ interface ColumnItemProps {
   onRenameValueChange?: (v: string) => void;
   onRenameCommit?: () => void;
   onRenameCancel?: () => void;
+  searchHighlight?: string;
   onItemClick: (e: React.MouseEvent, file: FileItem, columnIndex: number, clickType: string) => void;
   onItemDoubleClick: (file: FileItem) => void;
   onContextMenu: (e: React.MouseEvent, file: FileItem) => void;
@@ -138,6 +146,7 @@ export default function ColumnItem({
   onRenameValueChange,
   onRenameCommit,
   onRenameCancel,
+  searchHighlight,
   onItemClick,
   onItemDoubleClick,
   onContextMenu,
@@ -207,6 +216,20 @@ export default function ColumnItem({
 
   const tags = fileTags[file.path] || [];
 
+  const renderName = () => {
+    if (!searchHighlight) return file.name;
+    const q = searchHighlight.toLowerCase();
+    const idx = file.name.toLowerCase().indexOf(q);
+    if (idx === -1) return file.name;
+    return (
+      <>
+        {file.name.slice(0, idx)}
+        <NameHighlight>{file.name.slice(idx, idx + q.length)}</NameHighlight>
+        {file.name.slice(idx + q.length)}
+      </>
+    );
+  };
+
   return (
     <Item
       ref={itemRef}
@@ -250,7 +273,7 @@ export default function ColumnItem({
           onClick={e => e.stopPropagation()}
         />
       ) : (
-        <ItemName>{file.name}</ItemName>
+        <ItemName>{renderName()}</ItemName>
       )}
       {file.isSymlink && file.symlinkTarget && (
         <SymlinkIndicator

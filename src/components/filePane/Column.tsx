@@ -75,6 +75,7 @@ interface ColumnProps {
   toggleSelection: (paneId: string, filePath: string, multi?: boolean) => void;
   onResizerMouseDown: (e: React.MouseEvent) => void;
   isLoading?: boolean;
+  searchHighlight?: string;
 }
 
 export default function Column({
@@ -109,6 +110,7 @@ export default function Column({
   toggleSelection,
   onResizerMouseDown,
   isLoading,
+  searchHighlight,
 }: ColumnProps) {
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -153,6 +155,7 @@ export default function Column({
               onRenameValueChange={onRenameValueChange}
               onRenameCommit={onRenameCommit}
               onRenameCancel={onRenameCancel}
+              searchHighlight={searchHighlight}
               onItemClick={onItemClick}
               onItemDoubleClick={onItemDoubleClick}
               onContextMenu={onItemContextMenu}

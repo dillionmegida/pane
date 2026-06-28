@@ -44,6 +44,7 @@ interface ColumnViewProps {
   toggleSelection: (paneId: string, path: string, multi?: boolean, colIdx?: number) => void;
   onBaseEmptyClick: () => void;
   onColumnEmptyClick: (colIndex: number) => void;
+  searchHighlight?: string;
 }
 
 export default function ColumnView({
@@ -56,7 +57,7 @@ export default function ColumnView({
   handleDrop, handleColumnResizerMouseDown,
   setSelection, setDraggedFiles, setIsDragging, setDragOver,
   updateColumnState, toggleSelection,
-  onBaseEmptyClick, onColumnEmptyClick,
+  onBaseEmptyClick, onColumnEmptyClick, searchHighlight,
 }: ColumnViewProps) {
   const paths = columnState?.paths || [];
   const filesByPath = columnState?.filesByPath || {};
@@ -92,6 +93,7 @@ export default function ColumnView({
         width={`${columnWidths[0] ?? defaultColumnWidth}px`}
         onEmptyClick={onBaseEmptyClick}
         onResizerMouseDown={handleColumnResizerMouseDown(0)}
+        searchHighlight={searchHighlight}
         {...sharedColumnProps}
       />
       {paths.map((colPath: string, idx: number) => {
@@ -109,6 +111,7 @@ export default function ColumnView({
             onEmptyClick={() => onColumnEmptyClick(colIndex)}
             onResizerMouseDown={handleColumnResizerMouseDown(colIndex)}
             isLoading={isLoading}
+            searchHighlight={searchHighlight}
             {...sharedColumnProps}
           />
         );

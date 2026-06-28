@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
-import { useStore, formatSize, formatDate, getFileIcon } from '../../store';
+import { useStore, formatSize, formatDate, getFileIcon, isPreviewable } from '../../store';
 import PaneBreadcrumb from './PaneBreadcrumb';
 import PaneContextMenu from './PaneContextMenu';
 import InlineTagPicker from './InlineTagPicker';
@@ -128,6 +128,63 @@ const TabLabel = styled.span`
   text-overflow: ellipsis;
 `;
 
+const InlineSearchWrap = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  background: ${p => p.theme.bg.primary};
+  border: 1px solid ${p => p.theme.accent.blue};
+  border-radius: ${p => p.theme.radius.sm};
+  padding: 0 6px;
+  height: 22px;
+`;
+
+const InlineSearchInput = styled.input`
+  background: transparent;
+  border: none;
+  outline: none;
+  color: ${p => p.theme.text.primary};
+  font-size: 11px;
+  width: 160px;
+  &::placeholder { color: ${p => p.theme.text.tertiary}; }
+`;
+
+const InlineSearchNavBtn = styled.button<{ disabled?: boolean }>`
+  background: none;
+  border: none;
+  cursor: ${p => p.disabled ? 'not-allowed' : 'pointer'};
+  color: ${p => p.disabled ? p.theme.text.tertiary : p.theme.text.secondary};
+  opacity: ${p => p.disabled ? 0.35 : 1};
+  padding: 0 2px;
+  font-size: 10px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  &:hover:not(:disabled) { color: ${p => p.theme.text.primary}; }
+`;
+
+const InlineSearchCount = styled.span`
+  font-size: 10px;
+  color: ${p => p.theme.text.tertiary};
+  white-space: nowrap;
+  min-width: 28px;
+  text-align: center;
+`;
+
+const InlineSearchClose = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: ${p => p.theme.text.tertiary};
+  padding: 0;
+  font-size: 11px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  &:hover { color: ${p => p.theme.text.primary}; }
+`;
+
 // ─── Column widths state (per pane) ───────────────────────────────────────────
 const DEFAULT_COLUMN_WIDTH = 220;
 
@@ -140,6 +197,8 @@ interface FilePaneProps {
 export default function FilePane({ paneId }: FilePaneProps) {
   const store = useStore();
   const pane = store.panes.find(p => p.id === paneId);
+  const showInlineSearch = store.showInlineSearch;
+  const toggleInlineSearch = store.toggleInlineSearch;
 
   const {
     navigateTo,
@@ -179,6 +238,10 @@ export default function FilePane({ paneId }: FilePaneProps) {
   const [fileTags, setFileTags] = useState<Record<string, Tag[]>>({});
   const [tagPickerState, setTagPickerState] = useState<{ filePath: string; position: { x: number; y: number } } | null>(null);
   const [typingBuffer, setTypingBuffer] = useState('');
+  const [inlineSearchQuery, setInlineSearchQuery] = useState('');
+  const [inlineMatchIndex, setInlineMatchIndex] = useState(0);
+  const inlineSearchInputRef = useRef<HTMLInputElement>(null);
+  const inlineSearchLoadRef = useRef<string | null>(null);
 
   // Get preview state from active tab
   const activePaneState = panes.find(p => p.id === activePane);
@@ -248,6 +311,75 @@ export default function FilePane({ paneId }: FilePaneProps) {
       typingTimeoutRef.current = null;
     }
   }, [columnState?.paths?.join(','), showPreview, previewFile?.path]);
+
+  // ── Inline search: focus input when opened, clear query when closed ────────
+  useEffect(() => {
+    if (showInlineSearch && isActive) {
+      setInlineSearchQuery('');
+      setTimeout(() => inlineSearchInputRef.current?.focus(), 0);
+    }
+  }, [showInlineSearch, isActive]);
+
+  // ── Inline search: auto-select match, open folder column, trigger preview ───
+  useEffect(() => {
+    if (!showInlineSearch || !isActive) return;
+    const q = inlineSearchQuery.toLowerCase();
+    if (!q) return;
+    const focusedIdx = columnState?.focusedIndex ?? 0;
+    const base = pane?.basePath || pane?.path || '';
+    const columnPaths = getColumnPaths(paneId);
+    const focusedColPath = columnPaths[focusedIdx] ?? base;
+    const allFiles: FileItem[] = columnState?.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? files : []);
+    const searchFiles = (showHidden ? allFiles : allFiles.filter((f: FileItem) => !f.name.startsWith('.')));
+    const matches = searchFiles.filter((f: FileItem) => f.name.toLowerCase().includes(q));
+    if (matches.length === 0) return;
+    const safeIdx = Math.max(0, Math.min(inlineMatchIndex, matches.length - 1));
+    const match = matches[safeIdx];
+
+    setSelection(paneId, [match.path], focusedIdx);
+    updateColumnState(paneId, {
+      selectedByColumn: { ...(columnState?.selectedByColumn || {}), [focusedIdx]: match.path },
+      focusedIndex: focusedIdx,
+    });
+
+    if (match.isDirectory) {
+      setPreviewFile(null);
+      const keptPaths = (columnState?.paths || []).slice(0, focusedIdx);
+      const newPaths = [...keptPaths, match.path];
+      const keepSet = new Set([base, ...keptPaths]);
+      const immediateFbp: Record<string, FileItem[]> = {};
+      for (const [k, v] of Object.entries(columnState?.filesByPath || {})) {
+        if (keepSet.has(k)) immediateFbp[k] = v as FileItem[];
+      }
+      setColumnState(paneId, {
+        paths: newPaths,
+        filesByPath: immediateFbp,
+        selectedByColumn: { ...(columnState?.selectedByColumn || {}), [focusedIdx]: match.path },
+        focusedIndex: focusedIdx,
+        loadingPath: match.path,
+      });
+      const loadKey = match.path;
+      inlineSearchLoadRef.current = loadKey;
+      readDirSorted(match.path, paneId).then(result => {
+        if (inlineSearchLoadRef.current !== loadKey) return;
+        if (result.success) {
+          setColumnState(paneId, {
+            paths: newPaths,
+            filesByPath: { ...immediateFbp, [match.path]: result.files },
+            selectedByColumn: { ...(columnState?.selectedByColumn || {}), [focusedIdx]: match.path },
+            focusedIndex: focusedIdx,
+            loadingPath: null,
+          });
+        }
+      });
+    } else {
+      if (isPreviewable(match)) {
+        setPreviewFile(match);
+      } else {
+        setPreviewFile(null);
+      }
+    }
+  }, [inlineSearchQuery, inlineMatchIndex, showInlineSearch, isActive]);
 
   // ── Reveal target (from search/tag browser) ───────────────────────────────
   useEffect(() => {
@@ -525,6 +657,20 @@ export default function FilePane({ paneId }: FilePaneProps) {
   const canGoBack = navigationIndex > 0;
   const canGoForward = navigationIndex < (navigationHistory?.length ?? 0) - 1;
 
+  // Compute inline search matches for nav button state
+  const _inlineMatches: FileItem[] = (() => {
+    if (!showInlineSearch || !isActive || !inlineSearchQuery) return [];
+    const q = inlineSearchQuery.toLowerCase();
+    const focusedIdx = columnState?.focusedIndex ?? 0;
+    const base = pane?.basePath || pane?.path || '';
+    const columnPaths = getColumnPaths(paneId);
+    const focusedColPath = columnPaths[focusedIdx] ?? base;
+    const allFiles: FileItem[] = columnState?.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? files : []);
+    const searchFiles = showHidden ? allFiles : allFiles.filter(f => !f.name.startsWith('.'));
+    return searchFiles.filter(f => f.name.toLowerCase().includes(q));
+  })();
+  const _safeInlineIdx = Math.max(0, Math.min(inlineMatchIndex, _inlineMatches.length - 1));
+
   return (
     <PaneWrap ref={paneRef} onClick={handlePaneClick} onContextMenu={e => handleContextMenu(e, null)}>
       {/* Tab bar */}
@@ -562,6 +708,45 @@ export default function FilePane({ paneId }: FilePaneProps) {
           </svg>
         </NavBtn>
         <PaneBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />
+        {showInlineSearch && isActive && (
+          <InlineSearchWrap>
+            <InlineSearchInput
+              ref={inlineSearchInputRef}
+              value={inlineSearchQuery}
+              onChange={e => { setInlineSearchQuery(e.target.value); setInlineMatchIndex(0); }}
+              onKeyDown={e => {
+                if (e.key === 'Escape') { toggleInlineSearch(); setInlineSearchQuery(''); setInlineMatchIndex(0); }
+                if (e.key === 'ArrowUp') { e.preventDefault(); setInlineMatchIndex(i => Math.max(0, i - 1)); }
+                if (e.key === 'ArrowDown') { e.preventDefault(); setInlineMatchIndex(i => Math.min(_inlineMatches.length - 1, i + 1)); }
+                e.stopPropagation();
+              }}
+              placeholder="Search"
+            />
+            {_inlineMatches.length > 0 && (
+              <InlineSearchCount>{_safeInlineIdx + 1}/{_inlineMatches.length}</InlineSearchCount>
+            )}
+            <InlineSearchNavBtn
+              disabled={_safeInlineIdx <= 0}
+              onClick={() => setInlineMatchIndex(i => Math.max(0, i - 1))}
+              title="Previous match (↑)"
+            >
+              ∧
+            </InlineSearchNavBtn>
+            <InlineSearchNavBtn
+              disabled={_safeInlineIdx >= _inlineMatches.length - 1 || _inlineMatches.length === 0}
+              onClick={() => setInlineMatchIndex(i => Math.min(_inlineMatches.length - 1, i + 1))}
+              title="Next match (↓)"
+            >
+              ∨
+            </InlineSearchNavBtn>
+            <InlineSearchClose
+              onClick={() => { toggleInlineSearch(); setInlineSearchQuery(''); setInlineMatchIndex(0); }}
+              title="Close search"
+            >
+              ✕
+            </InlineSearchClose>
+          </InlineSearchWrap>
+        )}
       </Toolbar>
 
       {/* File area + Preview Pane (side by side) */}
@@ -584,6 +769,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
             updateColumnState={updateColumnState} toggleSelection={toggleSelection}
             onBaseEmptyClick={handleBaseColumnEmptyClick}
             onColumnEmptyClick={handleColumnEmptyClick}
+            searchHighlight={showInlineSearch && isActive ? inlineSearchQuery : undefined}
           />
         {showPreview && activePane === paneId && previewFile && (
           <PreviewPane />

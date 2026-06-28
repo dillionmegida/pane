@@ -137,6 +137,7 @@ export default function App() {
     init, initialized,
     activeModal, closeModal, modalData,
     showSearch,
+    showInlineSearch,
     showSidebar,
     zoom,
     restoreModalState,
@@ -174,10 +175,10 @@ export default function App() {
         e.preventDefault(); useStore.getState().toggleSidebar();
       }
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'f') {
-        e.preventDefault(); useStore.getState().toggleSearch();
+        e.preventDefault(); useStore.getState().toggleInlineSearch();
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
-        e.preventDefault(); useStore.getState().toggleSearch({ contentMode: true });
+        e.preventDefault(); useStore.getState().toggleSearch();
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 't') {
         e.preventDefault();
@@ -228,11 +229,12 @@ export default function App() {
       if (e.key === 'Escape') {
         if (activeModal) closeModal();
         else if (showSearch) useStore.getState().toggleSearch();
+        else if (showInlineSearch) useStore.getState().toggleInlineSearch();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [activeModal, showSearch]);
+  }, [activeModal, showSearch, showInlineSearch]);
 
   if (!initialized) {
     return (

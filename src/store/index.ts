@@ -251,6 +251,9 @@ interface StoreState {
   searchInitContentMode: boolean;
   toggleSearch: (opts?: { contentMode?: boolean }) => void;
 
+  showInlineSearch: boolean;
+  toggleInlineSearch: () => void;
+
   showHidden: boolean;
 
   searchFiles: (query: string, opts?: Record<string, unknown>) => Promise<void>;
@@ -1231,6 +1234,9 @@ export const useStore = create<StoreState>((set, get) => ({
       searchInitContentMode: !s.showSearch ? (opts?.contentMode ?? false) : false,
     }));
   },
+
+  showInlineSearch: false,
+  toggleInlineSearch: () => set(s => ({ showInlineSearch: !s.showInlineSearch })),
 
   showHidden: false,
 
