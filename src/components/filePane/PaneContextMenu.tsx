@@ -177,6 +177,7 @@ interface PaneContextMenuProps {
   onDelete: (files?: string[]) => void;
   onRefresh: () => void;
   onBatchRename: () => void;
+  onGroupInFolder: (files: string[]) => void;
   onTagsChanged?: (filePath: string, tags: Tag[]) => void;
 }
 
@@ -194,6 +195,7 @@ export default function PaneContextMenu({
   onDelete,
   onRefresh,
   onBatchRename,
+  onGroupInFolder,
   onTagsChanged,
 }: PaneContextMenuProps) {
   const {
@@ -438,6 +440,12 @@ export default function PaneContextMenu({
             <MenuItem onClick={() => { onBatchRename(); onClose(); }}>
               <MenuIcon>✏️</MenuIcon>
               <MenuLabel>Batch Rename…</MenuLabel>
+            </MenuItem>
+          )}
+          {multiSelected && (
+            <MenuItem onClick={() => { onGroupInFolder([...selectedFiles]); onClose(); }}>
+              <MenuIcon>📁</MenuIcon>
+              <MenuLabel>Group in Folder</MenuLabel>
             </MenuItem>
           )}
           <Divider />

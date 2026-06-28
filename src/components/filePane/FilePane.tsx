@@ -31,29 +31,30 @@ const TabBar = styled.div`
   display: flex;
   align-items: center;
   background: ${p => p.theme.bg.secondary};
-  border-bottom: 1px solid ${p => p.theme.border.subtle};
   height: 26px;
   overflow: hidden;
   flex-shrink: 0;
-  gap: 2px;
-`;
+  /* gap: 2px; */
+  `;
 
 const Tab = styled.div<{ $active: boolean }>`
+  border-bottom: ${p => p.$active ? 'none' : `1px solid ${p.theme.border.subtle}`};
+  border-right: 1px solid ${p => p.theme.border.subtle};
   display: flex;
   align-items: center;
   gap: 5px;
   padding: 0 10px;
-  height: 26px;
+  height: 100%;
   cursor: pointer;
   font-size: 11px;
-  background: ${p => p.$active ? p.theme.bg.primary : 'transparent'};
+  background: ${p => p.$active ? p.theme.bg.secondary : p.theme.bg.tertiary};
   color: ${p => p.$active ? p.theme.text.primary : p.theme.text.tertiary};
   transition: all 0.1s;
   white-space: nowrap;
   overflow: hidden;
   flex: 1 1 0;
   min-width: 60px;
-  &:hover { background: ${p => p.theme.bg.hover}; color: ${p => p.theme.text.primary}; }
+  &:not($active):hover { background: ${p => p.theme.bg.hover}; color: ${p => p.theme.text.primary}; }
 `;
 
 const TabClose = styled.span`
@@ -502,11 +503,12 @@ export default function FilePane({ paneId }: FilePaneProps) {
     renaming, setRenaming, renameValue, setRenameValue,
     newItemMode, setNewItemMode, newItemName, setNewItemName,
     newItemInputRef, startRename, commitRename, createFolder,
-    commitNewItem, handleDelete, createNewFile,
+    commitNewItem, handleDelete, createNewFile, groupInFolder,
   } = useFileActions({
     paneId, pane, files, columnState, selectedFiles,
     readDirSorted, updateColumnState, setColumnState,
-    setCurrentBreadcrumbPath, setSelection, refreshPane, openModal,
+    setCurrentBreadcrumbPath, setSelection, setPreviewFile,
+    refreshPane, openModal,
   });
 
   // ── Keyboard navigation ────────────────────────────────────────────────────
@@ -803,6 +805,7 @@ export default function FilePane({ paneId }: FilePaneProps) {
           onDelete={handleDelete}
           onRefresh={() => refreshPane(paneId)}
           onBatchRename={() => openModal('batchRename', { files: [...selectedFiles] })}
+          onGroupInFolder={groupInFolder}
           onTagsChanged={(filePath, tags) => setFileTags(prev => ({ ...prev, [filePath]: tags }))}
         />
       )}

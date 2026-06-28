@@ -1018,3 +1018,125 @@ describe('Column Keyboard Nav - Integration Tests (Real Event Flow)', () => {
     expect(columnPathsAfter.length).toBeLessThanOrEqual(3);
   });
 });
+
+describe('Column Keyboard Nav - Cmd+A (Select All)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useStore.setState(buildInitialState({
+      currentBreadcrumbPath: basePath,
+      columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+    }));
+  });
+
+  test('Cmd+A selects all files in the base column', () => {
+    act(() => {
+      const s = useStore.getState();
+      const pane = s.panes.find((p: any) => p.id === 'left');
+      const focusedIdx = pane.columnState.focusedIndex ?? 0;
+      const base = pane.basePath || pane.path;
+      const columnPaths = s.getColumnPaths('left');
+      const focusedColPath = columnPaths[focusedIdx] ?? base;
+      const displayFiles = pane.columnState.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? pane.files : []);
+      const allPaths = displayFiles.map((f: any) => f.path);
+      s.setSelection('left', allPaths, focusedIdx);
+    });
+
+    expect(getPane().selectedFiles.size).toBe(rootFiles.length);
+    rootFiles.forEach((f: any) => {
+      expect(getPane().selectedFiles.has(f.path)).toBe(true);
+    });
+  });
+
+  test('Cmd+A selects all files in a nested column', () => {
+    useStore.setState(buildInitialState({
+      selectedFiles: new Set([documentsFiles[0].path]),
+      currentBreadcrumbPath: `${basePath}/Documents`,
+      columnState: {
+        paths: [rootFiles[0].path],
+        filesByPath: { [rootFiles[0].path]: documentsFiles },
+        selectedByColumn: { 0: rootFiles[0].path },
+        focusedIndex: 1,
+      },
+    }));
+
+    act(() => {
+      const s = useStore.getState();
+      const pane = s.panes.find((p: any) => p.id === 'left');
+      const focusedIdx = pane.columnState.focusedIndex ?? 0;
+      const base = pane.basePath || pane.path;
+      const columnPaths = s.getColumnPaths('left');
+      const focusedColPath = columnPaths[focusedIdx] ?? base;
+      const displayFiles = pane.columnState.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? pane.files : []);
+      const allPaths = displayFiles.map((f: any) => f.path);
+      s.setSelection('left', allPaths, focusedIdx);
+    });
+
+    expect(getPane().selectedFiles.size).toBe(documentsFiles.length);
+    documentsFiles.forEach((f: any) => {
+      expect(getPane().selectedFiles.has(f.path)).toBe(true);
+    });
+  });
+
+  test('Cmd+A with no files in column results in empty selection', () => {
+    useStore.setState(buildInitialState({
+      selectedFiles: new Set(),
+      currentBreadcrumbPath: `${basePath}/Pictures`,
+      columnState: {
+        paths: [rootFiles[2].path],
+        filesByPath: { [rootFiles[2].path]: [] },
+        selectedByColumn: {},
+        focusedIndex: 1,
+      },
+    }));
+
+    act(() => {
+      const s = useStore.getState();
+      const pane = s.panes.find((p: any) => p.id === 'left');
+      const focusedIdx = pane.columnState.focusedIndex ?? 0;
+      const base = pane.basePath || pane.path;
+      const columnPaths = s.getColumnPaths('left');
+      const focusedColPath = columnPaths[focusedIdx] ?? base;
+      const displayFiles = pane.columnState.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? pane.files : []);
+      const allPaths = displayFiles.map((f: any) => f.path);
+      s.setSelection('left', allPaths, focusedIdx);
+    });
+
+    expect(getPane().selectedFiles.size).toBe(0);
+  });
+
+  test('Cmd+A respects hidden files setting', () => {
+    const filesWithHidden = [
+      ...rootFiles,
+      mkFile('.hidden', basePath, 'txt'),
+      mkDir('.config', basePath),
+    ];
+
+    useStore.setState(buildInitialState({
+      files: filesWithHidden,
+      showHidden: false,
+      currentBreadcrumbPath: basePath,
+      columnState: { paths: [], filesByPath: {}, selectedByColumn: {}, focusedIndex: 0 },
+    }));
+
+    act(() => {
+      const s = useStore.getState();
+      const pane = s.panes.find((p: any) => p.id === 'left');
+      const focusedIdx = pane.columnState.focusedIndex ?? 0;
+      const base = pane.basePath || pane.path;
+      const columnPaths = s.getColumnPaths('left');
+      const focusedColPath = columnPaths[focusedIdx] ?? base;
+      const allFiles = pane.columnState.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? pane.files : []);
+      const displayFiles = s.showHidden ? allFiles : allFiles.filter((f: any) => !f.name.startsWith('.'));
+      const allPaths = displayFiles.map((f: any) => f.path);
+      s.setSelection('left', allPaths, focusedIdx);
+    });
+
+    // Should only select non-hidden files
+    expect(getPane().selectedFiles.size).toBe(rootFiles.length);
+    rootFiles.forEach((f: any) => {
+      expect(getPane().selectedFiles.has(f.path)).toBe(true);
+    });
+    expect(getPane().selectedFiles.has(`${basePath}/.hidden`)).toBe(false);
+    expect(getPane().selectedFiles.has(`${basePath}/.config`)).toBe(false);
+  });
+});

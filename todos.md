@@ -150,3 +150,5 @@ i expect that if i have this columns a/b/c/d/e/f, if i delete e, then f should b
 * smart folders...if i previously clicked to preview, then i search and that search doesn't contain the same file, remove from preview\
 
 * multi selecting files between different columns should work 
+
+* after editing a folder name, the right key doesn't work to navigate

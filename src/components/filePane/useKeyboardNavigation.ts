@@ -65,6 +65,20 @@ export function useKeyboardNavigation({
         return;
       }
 
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+        e.preventDefault();
+        // Select all files in the focused column
+        const focusedIdx = columnState.focusedIndex ?? 0;
+        const base = pane.basePath || pane.path;
+        const columnPaths = getColumnPaths(paneId);
+        const focusedColPath = columnPaths[focusedIdx] ?? base;
+        const filterHidden = (arr: FileItem[]) => showHidden ? arr : arr.filter((f: FileItem) => !f.name.startsWith('.'));
+        const displayFiles = filterHidden(columnState.filesByPath?.[focusedColPath] || (focusedIdx === 0 ? files : []));
+        const allPaths = displayFiles.map((f: FileItem) => f.path);
+        setSelection(paneId, allPaths, focusedIdx);
+        return;
+      }
+
       if ((e.metaKey || e.ctrlKey) && e.key === '.') {
         e.preventDefault();
         toggleHiddenFiles();

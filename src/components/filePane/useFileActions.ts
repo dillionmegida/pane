@@ -14,6 +14,7 @@ interface UseFileActionsParams {
   setColumnState: (paneId: string, state: any) => void;
   setCurrentBreadcrumbPath: (paneId: string, path: string) => void;
   setSelection: (paneId: string, files: string[], columnIndex?: number | null) => void;
+  setPreviewFile: (file: FileItem | null) => void;
   refreshPane: (paneId: string) => void;
   openModal: (id: string, props: any) => void;
 }
@@ -29,6 +30,7 @@ export function useFileActions({
   setColumnState,
   setCurrentBreadcrumbPath,
   setSelection,
+  setPreviewFile,
   refreshPane,
   openModal,
 }: UseFileActionsParams) {
@@ -67,9 +69,35 @@ export function useFileActions({
     setSelection(paneId, [newPath]);
     const result = await readDirSorted(dir, paneId);
     if (result.success) {
-      updateColumnState(paneId, {
-        filesByPath: { ...(columnState?.filesByPath || {}), [dir]: result.files },
-      });
+      const currentPaths: string[] = columnState?.paths || [];
+      const openedIdx = currentPaths.indexOf(file.path);
+      if (openedIdx !== -1) {
+        // The renamed item is a currently-open column folder — update paths and filesByPath key
+        const newPaths = currentPaths.map((p: string) => p === file.path ? newPath : p);
+        const oldFbp = columnState?.filesByPath || {};
+        const newFbp: Record<string, FileItem[]> = {};
+        for (const [k, v] of Object.entries(oldFbp)) {
+          newFbp[k === file.path ? newPath : k] = v as FileItem[];
+        }
+        newFbp[dir] = result.files;
+        const oldSelByCol = columnState?.selectedByColumn || {};
+        const newSelByCol: Record<string, string> = {};
+        for (const [k, v] of Object.entries(oldSelByCol)) {
+          newSelByCol[k] = v === file.path ? newPath : v as string;
+        }
+        setColumnState(paneId, {
+          paths: newPaths,
+          filesByPath: newFbp,
+          selectedByColumn: newSelByCol,
+          focusedIndex: columnState?.focusedIndex ?? 0,
+          loadingPath: null,
+        });
+        setCurrentBreadcrumbPath(paneId, newPath);
+      } else {
+        updateColumnState(paneId, {
+          filesByPath: { ...(columnState?.filesByPath || {}), [dir]: result.files },
+        });
+      }
     }
   };
 
@@ -173,6 +201,59 @@ export function useFileActions({
     });
   };
 
+  const groupInFolder = async (filePaths: string[]) => {
+    if (filePaths.length === 0) return;
+
+    const parentDir = filePaths[0].substring(0, filePaths[0].lastIndexOf('/'));
+    let newFolderPath = `${parentDir}/New Folder`;
+    let counter = 1;
+    while (true) {
+      const statResult = await window.electronAPI.stat(newFolderPath);
+      if (!statResult.success) break;
+      newFolderPath = `${parentDir}/New Folder ${counter++}`;
+    }
+
+    await window.electronAPI.mkdir(newFolderPath);
+
+    for (const fp of filePaths) {
+      const name = fp.substring(fp.lastIndexOf('/') + 1);
+      await window.electronAPI.move(fp, `${newFolderPath}/${name}`);
+    }
+
+    const [parentResult, folderResult] = await Promise.all([
+      readDirSorted(parentDir, paneId),
+      readDirSorted(newFolderPath, paneId),
+    ]);
+
+    const base = pane.basePath || pane.path;
+    const currentPaths: string[] = columnState.paths || [];
+    const parentColIndex = currentPaths.indexOf(parentDir) + 1;
+    const keptPaths = currentPaths.slice(0, parentColIndex);
+    const newPaths = [...keptPaths, newFolderPath];
+    const keepSet = new Set([base, ...keptPaths]);
+    const newFbp: Record<string, FileItem[]> = {};
+    for (const [k, v] of Object.entries(columnState.filesByPath || {})) {
+      if (keepSet.has(k)) newFbp[k] = v as FileItem[];
+    }
+    if (parentResult.success) newFbp[parentDir] = parentResult.files;
+    if (folderResult.success) newFbp[newFolderPath] = folderResult.files;
+
+    setPreviewFile(null);
+    setColumnState(paneId, {
+      paths: newPaths,
+      filesByPath: newFbp,
+      selectedByColumn: { ...(columnState.selectedByColumn || {}), [parentColIndex]: newFolderPath },
+      focusedIndex: parentColIndex,
+      loadingPath: null,
+    });
+    setCurrentBreadcrumbPath(paneId, newFolderPath);
+    setSelection(paneId, [newFolderPath], parentColIndex);
+    refreshPane(paneId);
+
+    const newFolder: FileItem = { path: newFolderPath, name: newFolderPath.split('/').pop()!, extension: '', size: 0, modified: Date.now().toString(), isDirectory: true };
+    startRename(newFolder);
+  };
+
   const createNewFile = async () => {
     const dir = pane.currentBreadcrumbPath || pane.path;
     let untitledPath = `${dir}/untitled`;
@@ -208,5 +289,6 @@ export function useFileActions({
     commitNewItem,
     handleDelete,
     createNewFile,
+    groupInFolder,
   };
 }
